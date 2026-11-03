@@ -368,3 +368,69 @@ export async function fetchKiteQuotes(
 
   return quotesMap;
 }
+
+export interface KiteHistoricalCandle {
+  timestamp: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+/**
+ * Fetch 5-minute, 15-minute, 60-minute, or minute historical candles from Zerodha Kite Connect
+ */
+export async function fetchKiteHistoricalCandles(
+  instrumentToken: number,
+  interval: 'minute' | '3minute' | '5minute' | '10minute' | '15minute' | '30minute' | '60minute' | 'day',
+  fromStr: string,
+  toStr: string,
+  sessionOverride?: KiteSession | null
+): Promise<KiteHistoricalCandle[]> {
+  const session = sessionOverride || getKiteSessionFromRequest();
+  if (!session || !session.accessToken) {
+    throw new Error('Kite session is not active. Please authenticate Kite Connect.');
+  }
+
+  const { apiKey, accessToken } = session;
+  const url = `https://api.kite.trade/instruments/historical/${instrumentToken}/${interval}?from=${encodeURIComponent(fromStr)}&to=${encodeURIComponent(toStr)}`;
+
+  const res = await fetch(url, {
+    headers: {
+      'X-Kite-Version': '3',
+      Authorization: `token ${apiKey}:${accessToken}`,
+      Accept: 'application/json'
+    },
+    signal: AbortSignal.timeout(20000)
+  });
+
+  if (!res.ok) {
+    let errMsg = `HTTP ${res.status} ${res.statusText}`;
+    try {
+      const errJson = await res.json();
+      if (errJson?.message) {
+        errMsg = errJson.message;
+      }
+    } catch {
+      // ignore
+    }
+    throw new Error(`Kite Historical API error: ${errMsg}`);
+  }
+
+  const json = await res.json();
+  const rawCandles = json?.data?.candles;
+  if (!Array.isArray(rawCandles)) {
+    return [];
+  }
+
+  return rawCandles.map((c: [string, number, number, number, number, number]) => ({
+    timestamp: Math.floor(new Date(c[0]).getTime() / 1000),
+    open: Number(c[1]),
+    high: Number(c[2]),
+    low: Number(c[3]),
+    close: Number(c[4]),
+    volume: Number(c[5]) || 0
+  }));
+}
+

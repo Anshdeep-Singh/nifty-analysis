@@ -113,6 +113,116 @@ export interface PredictionLevels {
   keyNegativeDraggers: { symbol: string; weight: number; changePct: number; points: number }[];
   confirmationSignals: ConfirmationSignal[];
   summary: string;
+  // Institutional Smart Money Roadmap & Tactical Levels
+  smartRoadmap?: SmartMoneyRoadmapState;
+  gapAnalysis?: GapRegimeAnalysis;
+  tacticalStopLoss?: number;
+  tacticalSupport?: number;
+  tacticalResistance?: number;
+}
+
+export type SmartLevelType =
+  | 'EXPANSION_CEILING'
+  | 'PULLBACK_RESISTANCE'
+  | 'DECISION_PIVOT'
+  | 'DIP_BUYING_SHELF'
+  | 'EXPANSION_FLOOR'
+  | 'GAP_ZONE'
+  | 'ORB_HIGH'
+  | 'ORB_LOW';
+
+export interface SmartKeyLevel {
+  id: string;
+  price: number;
+  priceHigh?: number;
+  priceLow?: number;
+  type: SmartLevelType;
+  label: string;
+  actionTag: string;
+  description: string;
+  touches: number;
+  strength: number;
+  confluence: string[];
+  distancePts?: number;
+}
+
+export interface TacticalActionSignal {
+  status: 'SAFE_TO_BUY' | 'AWAIT_CONFIRMATION' | 'DO_NOT_BUY' | 'FAKEOUT_REJECTED' | 'CASH_BUNKER' | 'NEUTRAL';
+  headline: string;
+  detail: string;
+  badge: string;
+  variant: 'emerald' | 'amber' | 'rose' | 'cyan' | 'slate';
+  invalidationPrice?: number;
+  triggerCondition?: string;
+  rejectionDetected?: boolean;
+}
+
+export interface GapRegimeAnalysis {
+  hasGap: boolean;
+  gapType: 'GAP_UP' | 'GAP_DOWN' | 'FLAT_OPEN';
+  gapPts: number;
+  gapPct: number;
+  gapZone: { top: number; bottom: number };
+  gapSupportPrice: number;
+  gapFillTargetPrice: number;
+  regime: 'GAP_RUNAWAY' | 'GAP_FADE' | 'CORRIDOR_CONTAINMENT';
+  verdict: string;
+}
+
+export interface SmartMoneyRoadmapState {
+  symbol: 'NIFTY';
+  spotPrice: number;
+  anchorPrice: number;
+  regime: string;
+  regimeTag: string;
+  regimeDescription: string;
+  gapAnalysis: GapRegimeAnalysis;
+  tacticalLevels: SmartKeyLevel[];
+  actionSignal: TacticalActionSignal;
+  macro1SigmaUpper: number;
+  macro1SigmaLower: number;
+  macro2SigmaUpper: number;
+  macro2SigmaLower: number;
+  dailyExpectedMovePts: number;
+}
+
+export interface CandleBar {
+  timestamp: number;
+  time: string;
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  vwap?: number;
+  ema20?: number;
+  ema50?: number;
+}
+
+export interface MultiTfChartData {
+  timeframe: '5min' | '15min' | '1hr';
+  candles: CandleBar[];
+  vwap?: number;
+  dayOpen: number;
+  dayHigh: number;
+  dayLow: number;
+  prevClose: number;
+}
+
+export interface MultiTfPayload {
+  symbol: 'NIFTY';
+  spotPrice: number;
+  prevClose: number;
+  dayOpen: number;
+  vix: number;
+  smartRoadmap: SmartMoneyRoadmapState;
+  charts: {
+    fiveMin: MultiTfChartData;
+    fifteenMin: MultiTfChartData;
+    oneHour: MultiTfChartData;
+  };
+  timestamp: string;
 }
 
 export interface AnomalyAlert {

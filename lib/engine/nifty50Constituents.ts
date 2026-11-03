@@ -1,11 +1,12 @@
 import {
   Nifty50Stock,
-  SectorAnalysis,
   AdvancesDeclinesSummary,
+  SectorAnalysis,
   PredictionLevels,
   ConfirmationSignal,
   TrendIntensity
 } from '../types';
+import { buildSmartMoneyRoadmap } from './smartMoneyRoadmap';
 
 export interface RawStockDefinition {
   symbol: string;
@@ -630,6 +631,20 @@ export function buildNifty50Analysis(
     (Math.abs(breadthScore) * 0.4 + Math.abs(top5Score) * 0.4 + (confirmationSignals.filter(s => s.status === 'CONFIRMED').length / confirmationSignals.length) * 20)
   )));
 
+  // Generate Institutional Smart Money Roadmap & Gap Structure
+  const smartRoadmap = buildSmartMoneyRoadmap({
+    spotPrice,
+    prevClose: pivot,
+    dayOpen: spotOpen,
+    dayHigh: spotHigh,
+    dayLow: spotLow,
+    vix: effectiveVix
+  });
+
+  const tacticalSupport = smartRoadmap.tacticalLevels.find(l => l.type === 'DIP_BUYING_SHELF')?.price;
+  const tacticalResistance = smartRoadmap.tacticalLevels.find(l => l.type === 'PULLBACK_RESISTANCE')?.price;
+  const tacticalStopLoss = smartRoadmap.actionSignal.invalidationPrice;
+
   const prediction: PredictionLevels = {
     direction,
     trendScore,
@@ -649,7 +664,12 @@ export function buildNifty50Analysis(
     keyPositiveDrivers,
     keyNegativeDraggers,
     confirmationSignals,
-    summary: `${direction.replace('_', ' ')} (Score: ${trendScore > 0 ? '+' : ''}${trendScore}) | Net ${netPointImpact > 0 ? '+' : ''}${netPointImpact.toFixed(1)} pts | 1σ daily band [${s1_sigma} - ${r1_sigma}].`
+    summary: `${direction.replace('_', ' ')} (Score: ${trendScore > 0 ? '+' : ''}${trendScore}) | Net ${netPointImpact > 0 ? '+' : ''}${netPointImpact.toFixed(1)} pts | 1σ daily band [${s1_sigma} - ${r1_sigma}].`,
+    smartRoadmap,
+    gapAnalysis: smartRoadmap.gapAnalysis,
+    tacticalStopLoss,
+    tacticalSupport,
+    tacticalResistance
   };
 
   return {

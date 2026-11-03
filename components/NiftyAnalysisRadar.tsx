@@ -15,7 +15,8 @@ import {
   Clock,
   Sparkles,
   Key,
-  Laptop
+  Laptop,
+  BarChart3
 } from 'lucide-react';
 import { NiftyAnalysisState } from '@/lib/types';
 import { PredictionLevelsCard } from './PredictionLevelsCard';
@@ -24,12 +25,13 @@ import { AnomalyAlertFeed } from './AnomalyAlertFeed';
 import { ConstituentsHeatmap } from './ConstituentsHeatmap';
 import { ConstituentsTable } from './ConstituentsTable';
 import { KiteAuthModal } from './KiteAuthModal';
+import { MultiTfParallelCharts } from './MultiTfParallelCharts';
 
 export function NiftyAnalysisRadar() {
   const [data, setData] = useState<NiftyAnalysisState | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
-  const [viewMode, setViewMode] = useState<'overview' | 'heatmap' | 'sectors' | 'anomalies' | 'table'>('overview');
+  const [viewMode, setViewMode] = useState<'overview' | 'charts' | 'heatmap' | 'sectors' | 'anomalies' | 'table'>('overview');
   const [refreshIntervalSec, setRefreshIntervalSec] = useState<number>(3);
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
 
@@ -261,6 +263,7 @@ export function NiftyAnalysisRadar() {
         <div className="flex items-center gap-1.5 mt-4 pt-3 border-t border-slate-800/80 overflow-x-auto">
           {[
             { id: 'overview', label: 'Composite Overview', icon: Activity },
+            { id: 'charts', label: 'Multi-TF Charts (5m/15m/1h)', icon: BarChart3 },
             { id: 'heatmap', label: '50 Heatmap', icon: Grid },
             { id: 'sectors', label: 'Sectors & Co-Dependency', icon: Compass },
             { id: 'anomalies', label: `Anomalies (${data.anomalies.length})`, icon: BellRing },
@@ -294,6 +297,10 @@ export function NiftyAnalysisRadar() {
           {data.anomalies.length > 0 && <AnomalyAlertFeed anomalies={data.anomalies} />}
           <ConstituentsHeatmap stocks={data.stocks} />
         </div>
+      )}
+
+      {viewMode === 'charts' && (
+        <MultiTfParallelCharts />
       )}
 
       {viewMode === 'heatmap' && (
