@@ -13,7 +13,9 @@ import {
   TrendingUp,
   TrendingDown,
   Clock,
-  Sparkles
+  Sparkles,
+  Key,
+  Laptop
 } from 'lucide-react';
 import { NiftyAnalysisState } from '@/lib/types';
 import { PredictionLevelsCard } from './PredictionLevelsCard';
@@ -21,6 +23,7 @@ import { SectorCoDependencyMatrix } from './SectorCoDependencyMatrix';
 import { AnomalyAlertFeed } from './AnomalyAlertFeed';
 import { ConstituentsHeatmap } from './ConstituentsHeatmap';
 import { ConstituentsTable } from './ConstituentsTable';
+import { KiteAuthModal } from './KiteAuthModal';
 
 export function NiftyAnalysisRadar() {
   const [data, setData] = useState<NiftyAnalysisState | null>(null);
@@ -29,6 +32,35 @@ export function NiftyAnalysisRadar() {
   const [viewMode, setViewMode] = useState<'overview' | 'heatmap' | 'sectors' | 'anomalies' | 'table'>('overview');
   const [refreshIntervalSec, setRefreshIntervalSec] = useState<number>(3);
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
+
+  // Kite Auth State
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [kiteAuth, setKiteAuth] = useState<{
+    isAuthenticated: boolean;
+    userId?: string;
+    userName?: string;
+    apiKeyConfigured: boolean;
+  }>({
+    isAuthenticated: false,
+    apiKeyConfigured: false
+  });
+
+  const checkKiteStatus = useCallback(async () => {
+    try {
+      const res = await fetch('/api/kite/auth');
+      if (res.ok) {
+        const json = await res.json();
+        setKiteAuth({
+          isAuthenticated: !!json.isAuthenticated,
+          userId: json.userId,
+          userName: json.userName,
+          apiKeyConfigured: !!json.apiKeyConfigured
+        });
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   const fetchAnalysis = useCallback(async (isManual = false) => {
     if (isManual) setRefreshing(true);
@@ -56,7 +88,8 @@ export function NiftyAnalysisRadar() {
   // Initial load
   useEffect(() => {
     fetchAnalysis(false);
-  }, [fetchAnalysis]);
+    checkKiteStatus();
+  }, [fetchAnalysis, checkKiteStatus]);
 
   // Periodic polling
   useEffect(() => {
@@ -94,12 +127,12 @@ export function NiftyAnalysisRadar() {
               </span>
               <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${
                 data.dataSource === 'KITE_LIVE'
-                  ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+                  ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
                   : data.dataSource === 'EXCHANGE_LIVE'
                   ? 'bg-blue-500/10 text-blue-300 border-blue-500/20'
                   : 'bg-slate-800 text-slate-300 border-slate-700'
               }`}>
-                {data.dataSource === 'KITE_LIVE' ? 'Kite Live' : data.dataSource === 'EXCHANGE_LIVE' ? 'Exchange Live' : 'Market Snapshot'}
+                {data.dataSource === 'KITE_LIVE' ? '● Kite Live' : data.dataSource === 'EXCHANGE_LIVE' ? 'Exchange Live' : 'Market Snapshot'}
               </span>
             </div>
 
@@ -154,8 +187,22 @@ export function NiftyAnalysisRadar() {
             </div>
           </div>
 
-          {/* Refresh & Auto-Sync Controls */}
+          {/* Controls: Kite Auth + Refresh */}
           <div className="flex items-center gap-2 self-end lg:self-center">
+            {/* Kite Connect Pill */}
+            <button
+              onClick={() => setAuthModalOpen(true)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                kiteAuth.isAuthenticated
+                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 shadow-sm shadow-emerald-950/40'
+                  : 'border-orange-500/40 bg-orange-500/10 text-orange-300 hover:bg-orange-500/20'
+              }`}
+              title={kiteAuth.isAuthenticated ? 'Kite Connect Live Session Active' : 'Connect Zerodha Kite Connect for Sub-Second Live Ticks'}
+            >
+              <Key className="w-3.5 h-3.5" />
+              <span>{kiteAuth.isAuthenticated ? (kiteAuth.userId || 'Kite Connected') : 'Connect Kite'}</span>
+            </button>
+
             <select
               value={refreshIntervalSec}
               onChange={(e) => setRefreshIntervalSec(Number(e.target.value))}
@@ -234,9 +281,23 @@ export function NiftyAnalysisRadar() {
         <ConstituentsTable stocks={data.stocks} sectors={data.sectors} />
       )}
 
+      {/* Kite Auth Modal */}
+      <KiteAuthModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        isAuthenticated={kiteAuth.isAuthenticated}
+        userId={kiteAuth.userId}
+        userName={kiteAuth.userName}
+        apiKeyConfigured={kiteAuth.apiKeyConfigured}
+        onRefreshStatus={() => {
+          checkKiteStatus();
+          fetchAnalysis(true);
+        }}
+      />
+
       {/* Footer Info */}
       <footer className="text-center text-xs text-slate-500 py-4 font-mono">
-        NIFTY 50 Microstructure Radar • Last Refreshed: {data.timestamp} • All prices in INR
+        NIFTY 50 Microstructure Radar • Source: {data.dataSource} • Last Refreshed: {data.timestamp} • All prices in INR
       </footer>
     </div>
   );

@@ -77,8 +77,10 @@ const HISTORICAL_ELASTICITIES: Record<string, { beta: number; spillovers: CrossE
  */
 export function buildSectorCoDependencyAnalysis(
   sectors: SectorAnalysis[],
-  spotPrice = 24500
+  spotPrice = 24500,
+  baseSpotParam?: number
 ): CoDependencySummary {
+  const baseSpot = (baseSpotParam && baseSpotParam > 0) ? baseSpotParam : spotPrice;
   const returns = sectors.map(s => s.weightedReturn);
   const meanReturn = returns.length > 0 ? returns.reduce((a, b) => a + b, 0) / returns.length : 0;
   
@@ -92,7 +94,7 @@ export function buildSectorCoDependencyAnalysis(
   // Determine market regime
   const positiveSectors = sectors.filter(s => s.weightedReturn > 0.1);
   const negativeSectors = sectors.filter(s => s.weightedReturn < -0.1);
-  const totalSectors = sectors.length;
+  const totalSectors = Math.max(1, sectors.length);
 
   let marketRegime: CoDependencySummary['marketRegime'] = 'FRAGMENTED_CHOP';
   let rotationIntensity: CoDependencySummary['rotationIntensity'] = 'LOW';
@@ -122,8 +124,8 @@ export function buildSectorCoDependencyAnalysis(
       const targetSec = sectors.find(s => s.name === sp.targetSector);
       const targetWeight = targetSec ? targetSec.weight : 5.0;
       const expectedImpactPct = Number((sec.weightedReturn * sp.elasticity).toFixed(2));
-      // Projected point impact on Nifty = Spot * (TargetWeight / 100) * (ExpectedImpactPct / 100)
-      const expectedPoints = Number((spotPrice * (targetWeight / 100) * (expectedImpactPct / 100)).toFixed(2));
+      // Projected point impact on Nifty = BaseSpot * (TargetWeight / 100) * (ExpectedImpactPct / 100)
+      const expectedPoints = Number((baseSpot * (targetWeight / 100) * (expectedImpactPct / 100)).toFixed(2));
 
       return {
         targetSector: sp.targetSector,

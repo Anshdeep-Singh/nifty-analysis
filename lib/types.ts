@@ -12,7 +12,7 @@ export interface Nifty50Stock {
   high?: number;
   low?: number;
   volume?: number;
-  pointImpact: number; // Point impact on NIFTY index = Spot * (Weight / 100) * (ChangePct / 100)
+  pointImpact: number; // Point impact on NIFTY index = BaseSpot * (Weight / 100) * (ChangePct / 100)
   trend: TrendIntensity;
   volumeZScore?: number;
   isAnomaly?: boolean;
@@ -142,4 +142,20 @@ export interface NiftyAnalysisState {
   coDependency: CoDependencySummary;
   anomalies: AnomalyAlert[];
   stocks: Nifty50Stock[];
+}
+
+export interface KiteSession {
+  apiKey: string;
+  apiSecret?: string;
+  accessToken: string;
+  publicToken?: string;
+  userId?: string;
+  userName?: string;
+  loginTimeMs: number;
+  expiresAtMs: number;
+}
+
+export interface KiteConfig {
+  apiKey: string;
+  apiSecret?: string;
 }
