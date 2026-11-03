@@ -93,6 +93,33 @@ export function scanMicrostructureAnomalies(
         actionLinks
       });
     }
+
+    // Case 4: Institutional Volume Surge (RVOL >= 1.8x and noticeable price action)
+    const rvol = stock.relativeVolume ?? (stock.avgVolume && stock.volume ? stock.volume / stock.avgVolume : undefined);
+    if (rvol && rvol >= 1.8 && Math.abs(stock.changePct) >= 0.5) {
+      const isBullSurge = stock.changePct > 0;
+      const isCritical = rvol >= 2.8 || Math.abs(stock.pointImpact) >= 15;
+      alerts.push({
+        id: `VOLSURGE_${stock.symbol}_${Date.now()}`,
+        symbol: stock.symbol,
+        companyName: stock.name,
+        sector: stock.sector,
+        severity: isCritical ? 'CRITICAL' : 'WARNING',
+        type: 'VOLUME_SURGE',
+        headline: `${stock.symbol} Institutional Volume Surge (${rvol.toFixed(1)}x RVOL, ${isBullSurge ? '+' : ''}${stock.changePct.toFixed(2)}%)`,
+        description: `Trading at ${rvol.toFixed(1)}x normal volume pace (${stock.volume ? (stock.volume / 100000).toFixed(1) : '0'}L shares, ₹${(stock.turnoverCr ?? 0).toFixed(0)} Cr turnover). Strong institutional ${isBullSurge ? 'accumulation / buying pressure' : 'liquidation / selling pressure'} detected.`,
+        changePct: stock.changePct,
+        pointImpact: stock.pointImpact,
+        volumeMultiplier: Number(rvol.toFixed(2)),
+        timestamp: new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' }),
+        actionLinks
+      });
+      if (!stock.isAnomaly) {
+        stock.isAnomaly = true;
+        stock.anomalyType = isBullSurge ? 'VOLUME_ACCUMULATION' : 'VOLUME_DISTRIBUTION';
+        stock.anomalyDesc = `${rvol.toFixed(1)}x volume surge with ${isBullSurge ? '+' : ''}${stock.changePct.toFixed(1)}% move.`;
+      }
+    }
   }
 
   // Sort alerts: CRITICAL first, then WARNING, then NOTICE

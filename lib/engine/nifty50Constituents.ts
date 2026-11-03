@@ -18,7 +18,121 @@ export interface RawStockDefinition {
   high?: number;
   low?: number;
   volume?: number;
+  avgVolume?: number;
 }
+
+/**
+ * 20-Day Baseline Average Daily Volume (shares) for all 50 Nifty constituents on NSE.
+ * Used for dynamic time-adjusted RVOL (Relative Volume) run-rate calculation.
+ */
+export const NIFTY_50_ADV_20D: Record<string, number> = {
+  HDFCBANK: 22000000,
+  ICICIBANK: 16000000,
+  SBIN: 26000000,
+  AXISBANK: 8500000,
+  KOTAKBANK: 7000000,
+  BAJFINANCE: 1200000,
+  BAJAJFINSV: 1500000,
+  BSE: 1800000,
+  SHRIRAMFIN: 1400000,
+  JIOFIN: 28000000,
+  SBILIFE: 1100000,
+  HDFCLIFE: 3500000,
+  RELIANCE: 8000000,
+  ONGC: 18000000,
+  COALINDIA: 12000000,
+  INFY: 8000000,
+  TCS: 3000000,
+  HCLTECH: 3500000,
+  TECHM: 2500000,
+  'M&M': 3000000,
+  MARUTI: 450000,
+  'BAJAJ-AUTO': 350000,
+  EICHERMOT: 400000,
+  TMPV: 15000000,
+  BHARTIARTL: 7500000,
+  ITC: 18000000,
+  HINDUNILVR: 1800000,
+  NESTLEIND: 850000,
+  TATACONSUM: 2200000,
+  SUNPHARMA: 2800000,
+  CIPLA: 2000000,
+  DRREDDY: 1200000,
+  APOLLOHOSP: 550000,
+  MAXHEALTH: 2500000,
+  TATASTEEL: 42000000,
+  JSWSTEEL: 2800000,
+  HINDALCO: 8500000,
+  ADANIENT: 2000000,
+  LT: 2200000,
+  TRENT: 1500000,
+  ETERNAL: 45000000,
+  TITAN: 1200000,
+  ASIANPAINT: 1400000,
+  NTPC: 16000000,
+  POWERGRID: 14000000,
+  INDIGO: 1200000,
+  ADANIPORTS: 3800000,
+  ULTRACEMCO: 400000,
+  GRASIM: 900000,
+  BEL: 16000000
+};
+
+/**
+ * Baseline snapshot session volumes for authentic offline rendering.
+ */
+export const NIFTY_50_SNAPSHOT_VOLUME: Record<string, number> = {
+  HDFCBANK: 24500000,
+  ICICIBANK: 15200000,
+  SBIN: 32000000,
+  AXISBANK: 7900000,
+  KOTAKBANK: 7400000,
+  BAJFINANCE: 1350000,
+  BAJAJFINSV: 1600000,
+  BSE: 1750000,
+  SHRIRAMFIN: 1800000,
+  JIOFIN: 42000000,
+  SBILIFE: 1200000,
+  HDFCLIFE: 3600000,
+  RELIANCE: 14800000,
+  ONGC: 22000000,
+  COALINDIA: 18500000,
+  INFY: 7200000,
+  TCS: 4100000,
+  HCLTECH: 4200000,
+  TECHM: 2200000,
+  'M&M': 3800000,
+  MARUTI: 720000,
+  'BAJAJ-AUTO': 320000,
+  EICHERMOT: 360000,
+  TMPV: 24000000,
+  BHARTIARTL: 8600000,
+  ITC: 21000000,
+  HINDUNILVR: 2400000,
+  NESTLEIND: 980000,
+  TATACONSUM: 2500000,
+  SUNPHARMA: 2400000,
+  CIPLA: 2100000,
+  DRREDDY: 1350000,
+  APOLLOHOSP: 490000,
+  MAXHEALTH: 4800000,
+  TATASTEEL: 68000000,
+  JSWSTEEL: 3400000,
+  HINDALCO: 11000000,
+  ADANIENT: 2200000,
+  LT: 2800000,
+  TRENT: 1350000,
+  ETERNAL: 55000000,
+  TITAN: 1100000,
+  ASIANPAINT: 1900000,
+  NTPC: 24000000,
+  POWERGRID: 16500000,
+  INDIGO: 1550000,
+  ADANIPORTS: 3200000,
+  ULTRACEMCO: 520000,
+  GRASIM: 1100000,
+  BEL: 21000000
+};
 
 /**
  * Authoritative 50 stocks with official NSE weights and authentic session snapshot prices
@@ -114,6 +228,60 @@ export function resolveTrend(changePct: number): TrendIntensity {
   return 'NEUTRAL';
 }
 
+/**
+ * Calculates time-adjusted expected volume completion fraction according to the
+ * institutional NSE U-curve between 09:15 and 15:30 IST (375 trading minutes).
+ */
+export function getIntradayExpectedVolumeRatio(now = new Date(), isLive = false): number {
+  const istFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Kolkata',
+    weekday: 'short',
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: false
+  });
+  const parts = istFormatter.formatToParts(now);
+  const weekday = parts.find(p => p.type === 'weekday')?.value || 'Mon';
+  const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '12', 10);
+  const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+  const currentMinutes = hour * 60 + minute;
+
+  // On weekends (Saturday, Sunday), market is closed. Quotes represent completed Friday session.
+  if (weekday === 'Sat' || weekday === 'Sun') {
+    return 1.00;
+  }
+
+  const marketOpen = 9 * 60 + 15;  // 09:15 IST (555 mins)
+  const marketClose = 15 * 60 + 30; // 15:30 IST (930 mins)
+
+  // Outside regular market hours:
+  // After 15:30 IST: Session is complete.
+  if (currentMinutes >= marketClose) return 1.00;
+
+  // Before 09:15 IST:
+  // When market has not opened yet, quotes reflect previous day's complete session.
+  if (currentMinutes < marketOpen) {
+    return 1.00;
+  }
+
+  const elapsed = currentMinutes - marketOpen; // 0 to 375 minutes
+
+  // IST U-Curve:
+  // 0 - 45m (09:15-10:00): Opening burst ~25% of day's volume
+  // 45 - 105m (10:00-11:00): Morning continuation ~15% (total 40%)
+  // 105 - 270m (11:00-13:45): Midday lull ~30% (total 70%)
+  // 270 - 375m (13:45-15:30): Afternoon sprint ~30% (total 100%)
+  if (elapsed <= 45) {
+    return 0.08 + (elapsed / 45) * 0.17;
+  } else if (elapsed <= 105) {
+    return 0.25 + ((elapsed - 45) / 60) * 0.15;
+  } else if (elapsed <= 270) {
+    return 0.40 + ((elapsed - 105) / 165) * 0.30;
+  } else {
+    return 0.70 + ((elapsed - 270) / 105) * 0.30;
+  }
+}
+
 export function buildNifty50Analysis(
   rawUpdates: Partial<RawStockDefinition>[] = [],
   spotPrice = 24500,
@@ -133,6 +301,7 @@ export function buildNifty50Analysis(
   // Strict Point Impact Invariant: Anchor to BaseSpot = spotPrevClose > 0 ? spotPrevClose : spotPrice
   // Prevents point drift divergence where sum(pointImpact) != spotNetChange
   const baseSpot = (spotPrevClose && spotPrevClose > 0) ? spotPrevClose : spotPrice;
+  const expectedVolumeRatio = getIntradayExpectedVolumeRatio(new Date(), isLive);
 
   // 1. Process all 50 constituent stocks
   const analyzedStocks: Nifty50Stock[] = NIFTY_50_STOCKS_DATA.map(base => {
@@ -158,6 +327,24 @@ export function buildNifty50Analysis(
     const pointImpact = Number((baseSpot * (base.weight / 100) * (changePct / 100)).toFixed(2));
     const trend = resolveTrend(changePct);
 
+    // Volume & Dynamic Relative Volume (RVOL)
+    const avgVolume = NIFTY_50_ADV_20D[base.symbol] || base.avgVolume || 2000000;
+    let volume: number | undefined;
+
+    if (hasLiveQuote) {
+      volume = typeof live?.volume === 'number' && live.volume > 0 ? live.volume : 0;
+    } else if (!isLive) {
+      volume = base.volume || NIFTY_50_SNAPSHOT_VOLUME[base.symbol] || Math.round(avgVolume * 1.05);
+    } else {
+      // In live mode with no quote, strictly 0 volume (zero contamination)
+      volume = 0;
+    }
+
+    const expectedVol = Math.max(1000, avgVolume * expectedVolumeRatio);
+    const relativeVolume = volume && volume > 0 ? Number((volume / expectedVol).toFixed(2)) : (isLive ? 0 : 1.0);
+    const turnoverCr = volume && volume > 0 ? Number(((price * volume) / 1e7).toFixed(2)) : 0;
+    const volumeZScore = relativeVolume > 0 ? Number((Math.log(Math.max(0.05, relativeVolume)) / 0.45).toFixed(2)) : 0;
+
     return {
       symbol: base.symbol,
       name: base.name,
@@ -168,13 +355,17 @@ export function buildNifty50Analysis(
       prevClose,
       high: live?.high || base.high,
       low: live?.low || base.low,
-      volume: live?.volume || base.volume,
+      volume,
+      avgVolume,
+      turnoverCr,
+      relativeVolume,
       pointImpact,
-      trend
+      trend,
+      volumeZScore
     };
   });
 
-  // 2. Aggregate Advances / Declines and Free-Float Breadth Weight
+  // 2. Aggregate Advances / Declines and Free-Float Breadth Weight + Turnover Flow
   let advances = 0;
   let declines = 0;
   let unchanged = 0;
@@ -183,16 +374,23 @@ export function buildNifty50Analysis(
   let unchangedWeight = 0;
   let totalPositivePoints = 0;
   let totalNegativePoints = 0;
+  let totalTurnoverCr = 0;
+  let advancingTurnoverCr = 0;
+  let decliningTurnoverCr = 0;
 
   for (const s of analyzedStocks) {
+    const t = s.turnoverCr || 0;
+    totalTurnoverCr += t;
     if (s.changePct > 0.001) {
       advances++;
       advancingWeight += s.weight;
       totalPositivePoints += s.pointImpact;
+      advancingTurnoverCr += t;
     } else if (s.changePct < -0.001) {
       declines++;
       decliningWeight += s.weight;
       totalNegativePoints += s.pointImpact;
+      decliningTurnoverCr += t;
     } else {
       unchanged++;
       unchangedWeight += s.weight;
@@ -204,6 +402,27 @@ export function buildNifty50Analysis(
   unchangedWeight = Number(unchangedWeight.toFixed(2));
   totalPositivePoints = Number(totalPositivePoints.toFixed(2));
   totalNegativePoints = Number(totalNegativePoints.toFixed(2));
+  totalTurnoverCr = Number(totalTurnoverCr.toFixed(2));
+  advancingTurnoverCr = Number(advancingTurnoverCr.toFixed(2));
+  decliningTurnoverCr = Number(decliningTurnoverCr.toFixed(2));
+
+  const validTurnover = advancingTurnoverCr + decliningTurnoverCr;
+  const advancingVolumePct = validTurnover > 0
+    ? Number(((advancingTurnoverCr / validTurnover) * 100).toFixed(1))
+    : 50.0;
+  const decliningVolumePct = validTurnover > 0
+    ? Number(((decliningTurnoverCr / validTurnover) * 100).toFixed(1))
+    : 50.0;
+
+  const volumeBreadthRatio = decliningTurnoverCr > 0
+    ? Number((advancingTurnoverCr / decliningTurnoverCr).toFixed(2))
+    : Number((advancingTurnoverCr || 1).toFixed(2));
+
+  let volumeConviction: AdvancesDeclinesSummary['volumeConviction'] = 'NEUTRAL_FLOW';
+  if (advancingVolumePct >= 70 && volumeBreadthRatio >= 2.0) volumeConviction = 'STRONG_ACCUMULATION';
+  else if (advancingVolumePct >= 58) volumeConviction = 'MODERATE_INFLOW';
+  else if (decliningVolumePct >= 70 && volumeBreadthRatio <= 0.5) volumeConviction = 'HEAVY_DISTRIBUTION';
+  else if (decliningVolumePct >= 58) volumeConviction = 'MODERATE_OUTFLOW';
 
   const adRatio = declines > 0 ? Number((advances / declines).toFixed(2)) : advances;
 
@@ -221,7 +440,14 @@ export function buildNifty50Analysis(
     decliningWeight,
     unchangedWeight,
     adRatio,
-    breadthVelocity
+    breadthVelocity,
+    totalTurnoverCr,
+    advancingTurnoverCr,
+    decliningTurnoverCr,
+    advancingVolumePct,
+    decliningVolumePct,
+    volumeBreadthRatio,
+    volumeConviction
   };
 
   // 3. Aggregate Sector Analysis across all official sectors
@@ -322,6 +548,31 @@ export function buildNifty50Analysis(
   const volStretchRatio = netPointImpact / expected1DayMove;
   const volStretchScore = Math.max(-100, Math.min(100, volStretchRatio * 100));
 
+  // Signal 5: Traded Turnover Flow & Institutional RVOL Conviction
+  const volumeFlowDelta = advancingVolumePct - decliningVolumePct; // -100 to +100
+  const top5AvgRvol = top5Stocks.length > 0
+    ? Number((top5Stocks.reduce((sum, s) => sum + (s.relativeVolume || 1.0), 0) / top5Stocks.length).toFixed(2))
+    : 1.0;
+
+  let volumeStatus: ConfirmationSignal['status'] = 'NEUTRAL';
+  const volumeScore = Math.max(-100, Math.min(100, volumeFlowDelta));
+
+  if (netPointImpact > 10) {
+    if (volumeFlowDelta >= 15) {
+      volumeStatus = 'CONFIRMED';
+    } else if (volumeFlowDelta <= -15) {
+      volumeStatus = 'DIVERGENT';
+    }
+  } else if (netPointImpact < -10) {
+    if (volumeFlowDelta <= -15) {
+      volumeStatus = 'CONFIRMED';
+    } else if (volumeFlowDelta >= 15) {
+      volumeStatus = 'DIVERGENT';
+    }
+  } else {
+    volumeStatus = Math.abs(volumeFlowDelta) >= 30 ? 'CONFIRMED' : 'NEUTRAL';
+  }
+
   const confirmationSignals: ConfirmationSignal[] = [
     {
       id: 'HEAVYWEIGHT_ALIGNMENT',
@@ -329,7 +580,7 @@ export function buildNifty50Analysis(
       status: top5Status,
       score: Number(top5Score.toFixed(1)),
       details: `Top 5 constituents contribute ${top5NetPoints > 0 ? '+' : ''}${top5NetPoints.toFixed(1)} pts (${top5Stocks.filter(s => s.changePct > 0).length}/5 positive).`,
-      weight: 0.35
+      weight: 0.30
     },
     {
       id: 'FREE_FLOAT_BREADTH',
@@ -337,7 +588,15 @@ export function buildNifty50Analysis(
       status: breadthStatus,
       score: Number(breadthScore.toFixed(1)),
       details: `${advancingWeight.toFixed(1)}% Advancing vs ${decliningWeight.toFixed(1)}% Declining weight (${advances} Adv / ${declines} Dec).`,
-      weight: 0.30
+      weight: 0.25
+    },
+    {
+      id: 'VOLUME_TURNOVER_CONFIRMATION',
+      name: 'Turnover Flow & Institutional RVOL',
+      status: volumeStatus,
+      score: Number(volumeScore.toFixed(1)),
+      details: `${advancingVolumePct}% Inflow vs ${decliningVolumePct}% Outflow (₹${totalTurnoverCr.toFixed(0)} Cr turnover, Top-5 RVOL: ${top5AvgRvol.toFixed(1)}x).`,
+      weight: 0.20
     },
     {
       id: 'CORE_SECTOR_SYNCHRONY',
@@ -345,7 +604,7 @@ export function buildNifty50Analysis(
       status: sectorStatus,
       score: sectorScore,
       details: `Fin: ${financialSector?.weightedReturn ?? 0}% | IT: ${itSector?.weightedReturn ?? 0}% | Energy: ${energySector?.weightedReturn ?? 0}%.`,
-      weight: 0.20
+      weight: 0.15
     },
     {
       id: 'VOLATILITY_ABSORPTION',
@@ -353,7 +612,7 @@ export function buildNifty50Analysis(
       status: Math.abs(volStretchScore) >= 35 ? 'CONFIRMED' : 'NEUTRAL',
       score: Number(volStretchScore.toFixed(1)),
       details: `Net move ${netPointImpact > 0 ? '+' : ''}${netPointImpact.toFixed(1)} pts is ${(Math.abs(volStretchRatio) * 100).toFixed(0)}% of 1σ move (±${expected1DayMove} pts).`,
-      weight: 0.15
+      weight: 0.10
     }
   ];
 

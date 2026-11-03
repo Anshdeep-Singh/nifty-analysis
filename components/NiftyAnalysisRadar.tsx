@@ -158,19 +158,20 @@ export function NiftyAnalysisRadar() {
             </div>
           </div>
 
-          {/* Advances / Declines Breadth Bar */}
-          <div className="bg-slate-950/70 border border-slate-800 rounded-lg p-3 w-full lg:w-auto min-w-[320px]">
-            <div className="flex items-center justify-between text-xs mb-1.5 font-mono">
+          {/* Advances / Declines & Turnover Flow Breadth Bar */}
+          <div className="bg-slate-950/70 border border-slate-800 rounded-lg p-3 w-full lg:w-auto min-w-[340px]">
+            {/* Price Weight Breadth */}
+            <div className="flex items-center justify-between text-xs mb-1 font-mono">
               <span className="text-emerald-400 font-bold flex items-center gap-1">
-                {data.advancesDeclines.advances} Advances ({data.advancesDeclines.advancingWeight.toFixed(1)}% wt)
+                {data.advancesDeclines.advances} Adv ({data.advancesDeclines.advancingWeight.toFixed(1)}% wt)
               </span>
               <span className="text-rose-400 font-bold flex items-center gap-1">
-                {data.advancesDeclines.declines} Declines ({data.advancesDeclines.decliningWeight.toFixed(1)}% wt)
+                {data.advancesDeclines.declines} Dec ({data.advancesDeclines.decliningWeight.toFixed(1)}% wt)
               </span>
             </div>
 
-            {/* Split Progress Bar */}
-            <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden flex">
+            {/* Split Progress Bar (Weight) */}
+            <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden flex mb-2">
               <div
                 className="bg-emerald-500 h-full transition-all duration-500"
                 style={{ width: `${Math.max(5, data.advancesDeclines.advancingWeight)}%` }}
@@ -181,9 +182,39 @@ export function NiftyAnalysisRadar() {
               />
             </div>
 
-            <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono mt-1.5">
-              <span>A/D Ratio: <strong className="text-white">{data.advancesDeclines.adRatio}</strong></span>
-              <span className="text-cyan-300 uppercase font-semibold">{data.advancesDeclines.breadthVelocity.replace('_', ' ')}</span>
+            {/* Rupee Turnover Flow */}
+            <div className="flex items-center justify-between text-[11px] mb-1 font-mono">
+              <span className="text-emerald-300 font-semibold">
+                Inflow: {data.advancesDeclines.advancingVolumePct.toFixed(0)}% (₹{data.advancesDeclines.advancingTurnoverCr.toFixed(0)} Cr)
+              </span>
+              <span className="text-rose-300 font-semibold">
+                Outflow: {data.advancesDeclines.decliningVolumePct.toFixed(0)}% (₹{data.advancesDeclines.decliningTurnoverCr.toFixed(0)} Cr)
+              </span>
+            </div>
+
+            {/* Split Progress Bar (Turnover) */}
+            <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden flex">
+              <div
+                className="bg-emerald-400 h-full transition-all duration-500"
+                style={{ width: `${Math.max(5, data.advancesDeclines.advancingVolumePct)}%` }}
+              />
+              <div
+                className="bg-rose-400 h-full transition-all duration-500"
+                style={{ width: `${Math.max(5, data.advancesDeclines.decliningVolumePct)}%` }}
+              />
+            </div>
+
+            <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono mt-1.5">
+              <span>A/D: <strong className="text-white">{data.advancesDeclines.adRatio}</strong> | Vol: <strong className="text-cyan-300">{data.advancesDeclines.volumeBreadthRatio}x</strong></span>
+              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-tight ${
+                data.advancesDeclines.volumeConviction.includes('ACCUMULATION') || data.advancesDeclines.volumeConviction.includes('INFLOW')
+                  ? 'bg-emerald-500/20 text-emerald-300'
+                  : data.advancesDeclines.volumeConviction.includes('DISTRIBUTION') || data.advancesDeclines.volumeConviction.includes('OUTFLOW')
+                  ? 'bg-rose-500/20 text-rose-300'
+                  : 'bg-slate-800 text-slate-300'
+              }`}>
+                {data.advancesDeclines.volumeConviction.replace('_', ' ')}
+              </span>
             </div>
           </div>
 

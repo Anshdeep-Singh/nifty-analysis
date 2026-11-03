@@ -71,9 +71,16 @@ export function ConstituentsHeatmap({ stocks }: ConstituentsHeatmapProps) {
                   </div>
                   <div className="text-[9px] text-slate-400 truncate max-w-[95px]">{stock.name}</div>
                 </div>
-                <span className="text-[10px] font-mono text-slate-400 bg-slate-950/40 px-1 rounded">
-                  {stock.weight.toFixed(1)}%
-                </span>
+                <div className="flex items-center gap-1">
+                  {(stock.relativeVolume ?? 1) >= 1.8 && (
+                    <span className="text-[8px] font-mono text-cyan-300 bg-cyan-950/80 px-1 rounded border border-cyan-500/30 font-bold" title={`${stock.relativeVolume?.toFixed(1)}x RVOL`}>
+                      {stock.relativeVolume?.toFixed(1)}x
+                    </span>
+                  )}
+                  <span className="text-[10px] font-mono text-slate-400 bg-slate-950/40 px-1 rounded">
+                    {stock.weight.toFixed(1)}%
+                  </span>
+                </div>
               </div>
 
               <div className="mt-2 pt-1 border-t border-slate-800/40 flex items-end justify-between font-mono">
@@ -120,7 +127,7 @@ export function ConstituentsHeatmap({ stocks }: ConstituentsHeatmapProps) {
             <div className="text-xs text-cyan-400 font-medium mt-1">Sector: {selectedStock.sector}</div>
 
             {/* Microstructure Metrics */}
-            <div className="grid grid-cols-3 gap-2.5 my-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 my-4">
               <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
                 <div className="text-[10px] text-slate-500 uppercase font-mono">Current Price</div>
                 <div className="text-sm font-bold font-mono text-white mt-0.5">₹{selectedStock.price.toFixed(2)}</div>
@@ -143,6 +150,15 @@ export function ConstituentsHeatmap({ stocks }: ConstituentsHeatmapProps) {
                   {selectedStock.pointImpact >= 0 ? '+' : ''}{selectedStock.pointImpact.toFixed(1)} pts
                 </div>
                 <div className="text-[10px] text-slate-400 font-mono">Microstructure formula</div>
+              </div>
+              <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+                <div className="text-[10px] text-slate-500 uppercase font-mono">Turnover & RVOL</div>
+                <div className="text-sm font-bold font-mono text-cyan-300 mt-0.5">
+                  {(selectedStock.relativeVolume ?? 1.0).toFixed(2)}x RVOL
+                </div>
+                <div className="text-[10px] text-slate-400 font-mono">
+                  ₹{(selectedStock.turnoverCr ?? 0).toFixed(0)} Cr turnover
+                </div>
               </div>
             </div>
 

@@ -274,6 +274,114 @@ runTest('getKiteLoginUrl strictly uses redirect_url parameter (not redirect_uri)
   assert.ok(urlProd.includes(encodeURIComponent('https://nifty.anshdeepsingh.com/api/kite/callback')));
 });
 
+// -------------------------------------------------------------
+// TEST 11: Turnover Flow & Volume Breadth Synthesis
+// -------------------------------------------------------------
+runTest('Turnover Flow & Volume Breadth computes institutional rupee flow and 5th confirmation signal', () => {
+  const analysis = buildNifty50Analysis();
+  const ad = analysis.advancesDeclines;
+
+  assert.ok(typeof ad.totalTurnoverCr === 'number' && ad.totalTurnoverCr > 0, 'Total turnover must be positive');
+  assert.ok(typeof ad.advancingTurnoverCr === 'number' && ad.advancingTurnoverCr >= 0);
+  assert.ok(typeof ad.decliningTurnoverCr === 'number' && ad.decliningTurnoverCr >= 0);
+  assert.ok(
+    Math.abs(ad.advancingVolumePct + ad.decliningVolumePct - 100.0) < 0.2,
+    `Advancing (${ad.advancingVolumePct}%) and Declining (${ad.decliningVolumePct}%) turnover must sum to 100%`
+  );
+  assert.ok(['STRONG_ACCUMULATION', 'MODERATE_INFLOW', 'NEUTRAL_FLOW', 'MODERATE_OUTFLOW', 'HEAVY_DISTRIBUTION'].includes(ad.volumeConviction));
+
+  // Verify 5th confirmation signal
+  const volSignal = analysis.prediction.confirmationSignals.find(s => s.id === 'VOLUME_TURNOVER_CONFIRMATION');
+  assert.ok(volSignal, 'VOLUME_TURNOVER_CONFIRMATION signal must exist in prediction levels');
+  assert.strictEqual(volSignal.weight, 0.20, 'Volume signal must have 0.20 institutional weight');
+  assert.ok(['CONFIRMED', 'DIVERGENT', 'NEUTRAL'].includes(volSignal.status));
+
+  // Verify weights across all 5 confirmation signals sum strictly to 1.00
+  const totalSignalWeight = analysis.prediction.confirmationSignals.reduce((sum, s) => sum + s.weight, 0);
+  assert.ok(Math.abs(totalSignalWeight - 1.00) < 0.001, `Signal weights must sum strictly to 1.00, got ${totalSignalWeight}`);
+});
+
+// -------------------------------------------------------------
+// TEST 12: Microstructure Volume Surge Anomaly Detection
+// -------------------------------------------------------------
+runTest('Anomaly scanner flags institutional VOLUME_SURGE when RVOL >= 1.8x with price change', () => {
+  const sampleStocks = [
+    {
+      symbol: 'TATASTEEL',
+      name: 'Tata Steel Ltd.',
+      sector: 'Metals & Mining',
+      weight: 1.37,
+      price: 180,
+      changePct: 1.8,
+      prevClose: 176.8,
+      pointImpact: 6.2,
+      relativeVolume: 2.5, // 2.5x RVOL institutional surge
+      volume: 105000000,
+      avgVolume: 42000000,
+      turnoverCr: 1890,
+      trend: 'MODERATE_BULL' as const
+    }
+  ];
+
+  const sampleSectors = [
+    {
+      name: 'Metals & Mining',
+      weight: 4.45,
+      stockCount: 1,
+      advances: 1,
+      declines: 0,
+      unchanged: 0,
+      weightedReturn: 1.8,
+      pointImpact: 6.2,
+      trend: 'BULLISH' as const,
+      dominantStock: 'TATASTEEL',
+      stocks: []
+    }
+  ];
+
+  const alerts = scanMicrostructureAnomalies(sampleStocks, sampleSectors);
+  const surgeAlert = alerts.find(a => a.type === 'VOLUME_SURGE');
+  assert.ok(surgeAlert, 'Must flag VOLUME_SURGE alert');
+  assert.strictEqual(surgeAlert.symbol, 'TATASTEEL');
+  assert.strictEqual(surgeAlert.volumeMultiplier, 2.5);
+  assert.ok(surgeAlert.headline.includes('Volume Surge'));
+});
+
+// -------------------------------------------------------------
+// TEST 13: Time-Adjusted Volume Ratio & Institutional U-Curve
+// -------------------------------------------------------------
+runTest('getIntradayExpectedVolumeRatio strictly handles session boundaries, weekends, and U-curve', () => {
+  const { getIntradayExpectedVolumeRatio } = require('../lib/engine/nifty50Constituents');
+
+  // Weekend (Sunday 11:30 AM IST) -> Must be 1.00 (completed session)
+  const sunday = new Date('2026-11-01T06:00:00.000Z');
+  assert.strictEqual(getIntradayExpectedVolumeRatio(sunday), 1.00, 'Weekend must return 1.00');
+
+  // Pre-market (Tuesday 08:30 AM IST) -> Must be 1.00 (prior day session complete)
+  const preMarket = new Date('2026-11-03T03:00:00.000Z');
+  assert.strictEqual(getIntradayExpectedVolumeRatio(preMarket), 1.00, 'Pre-market must return 1.00');
+
+  // Post-market (Tuesday 16:00 PM IST) -> Must be 1.00 (session complete)
+  const postMarket = new Date('2026-11-03T10:30:00.000Z');
+  assert.strictEqual(getIntradayExpectedVolumeRatio(postMarket), 1.00, 'Post-market must return 1.00');
+
+  // Opening burst (Tuesday 09:15 AM IST) -> 0.08 minimum
+  const marketOpen = new Date('2026-11-03T03:45:00.000Z');
+  assert.strictEqual(getIntradayExpectedVolumeRatio(marketOpen), 0.08, 'Market open 09:15 must return 0.08');
+
+  // Morning continuation (Tuesday 10:00 AM IST, elapsed 45m) -> 0.25 (25%)
+  const morning10 = new Date('2026-11-03T04:30:00.000Z');
+  assert.strictEqual(Number(getIntradayExpectedVolumeRatio(morning10).toFixed(2)), 0.25, '10:00 AM IST must return 0.25');
+
+  // Midday lull (Tuesday 11:00 AM IST, elapsed 105m) -> 0.40 (40%)
+  const midday11 = new Date('2026-11-03T05:30:00.000Z');
+  assert.strictEqual(Number(getIntradayExpectedVolumeRatio(midday11).toFixed(2)), 0.40, '11:00 AM IST must return 0.40');
+
+  // Afternoon sprint start (Tuesday 13:45 PM IST, elapsed 270m) -> 0.70 (70%)
+  const afternoon1345 = new Date('2026-11-03T08:15:00.000Z');
+  assert.strictEqual(Number(getIntradayExpectedVolumeRatio(afternoon1345).toFixed(2)), 0.70, '13:45 PM IST must return 0.70');
+});
+
 console.log('\n===============================================================');
 console.log(`🎉 ALL ${testsPassed}/${testsPassed} VERIFICATION TESTS PASSED SUCCESSFULLY!`);
 console.log('===============================================================\n');

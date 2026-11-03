@@ -12,6 +12,9 @@ export interface Nifty50Stock {
   high?: number;
   low?: number;
   volume?: number;
+  avgVolume?: number; // 20-day Average Daily Volume (shares)
+  turnoverCr?: number; // Traded rupee turnover in ₹ Crores (price * volume / 1e7)
+  relativeVolume?: number; // RVOL = actual / time-expected volume
   pointImpact: number; // Point impact on NIFTY index = BaseSpot * (Weight / 100) * (ChangePct / 100)
   trend: TrendIntensity;
   volumeZScore?: number;
@@ -72,6 +75,13 @@ export interface AdvancesDeclinesSummary {
   unchangedWeight: number;
   adRatio: number; // Advances / Declines
   breadthVelocity: 'EXPANDING_BULLISH' | 'MODERATE_BULLISH' | 'BALANCED' | 'MODERATE_BEARISH' | 'EXPANDING_BEARISH';
+  totalTurnoverCr: number; // Total constituent turnover in ₹ Crores
+  advancingTurnoverCr: number; // Turnover of advancing stocks in ₹ Crores
+  decliningTurnoverCr: number; // Turnover of declining stocks in ₹ Crores
+  advancingVolumePct: number; // % of constituent turnover in advancing stocks
+  decliningVolumePct: number; // % of constituent turnover in declining stocks
+  volumeBreadthRatio: number; // advancingTurnoverCr / max(1, decliningTurnoverCr)
+  volumeConviction: 'STRONG_ACCUMULATION' | 'MODERATE_INFLOW' | 'NEUTRAL_FLOW' | 'MODERATE_OUTFLOW' | 'HEAVY_DISTRIBUTION';
 }
 
 export interface ConfirmationSignal {

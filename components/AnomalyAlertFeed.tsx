@@ -10,7 +10,8 @@ import {
   Split,
   Search,
   BellRing,
-  CheckCircle2
+  CheckCircle2,
+  Zap
 } from 'lucide-react';
 import { AnomalyAlert } from '@/lib/types';
 
@@ -33,6 +34,8 @@ export function AnomalyAlertFeed({ anomalies }: AnomalyAlertFeedProps) {
 
   const getTypeIcon = (type: AnomalyAlert['type']) => {
     switch (type) {
+      case 'VOLUME_SURGE':
+        return <Zap className="w-4 h-4 text-cyan-400" />;
       case 'EXTREME_DRIFT':
         return <Flame className="w-4 h-4 text-rose-400" />;
       case 'SECTOR_DIVERGENCE':

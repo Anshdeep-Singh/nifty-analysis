@@ -12,7 +12,7 @@ interface ConstituentsTableProps {
 export function ConstituentsTable({ stocks, sectors }: ConstituentsTableProps) {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedSector, setSelectedSector] = useState<string>('ALL');
-  const [sortField, setSortField] = useState<'weight' | 'changePct' | 'pointImpact' | 'symbol' | 'price'>('weight');
+  const [sortField, setSortField] = useState<'weight' | 'changePct' | 'pointImpact' | 'symbol' | 'price' | 'relativeVolume' | 'turnoverCr'>('weight');
   const [sortAsc, setSortAsc] = useState<boolean>(false);
 
   const handleSort = (field: typeof sortField) => {
@@ -117,6 +117,16 @@ export function ConstituentsTable({ stocks, sectors }: ConstituentsTableProps) {
                   Nifty Impact <ArrowUpDown className="w-3 h-3" />
                 </div>
               </th>
+              <th className="py-2.5 px-3 text-right cursor-pointer hover:text-white" onClick={() => handleSort('relativeVolume')}>
+                <div className="flex items-center justify-end gap-1">
+                  RVOL <ArrowUpDown className="w-3 h-3" />
+                </div>
+              </th>
+              <th className="py-2.5 px-3 text-right cursor-pointer hover:text-white" onClick={() => handleSort('turnoverCr')}>
+                <div className="flex items-center justify-end gap-1">
+                  Turnover <ArrowUpDown className="w-3 h-3" />
+                </div>
+              </th>
               <th className="py-2.5 px-3 text-center">Trend</th>
               <th className="py-2.5 px-3 text-center">Action</th>
             </tr>
@@ -124,7 +134,7 @@ export function ConstituentsTable({ stocks, sectors }: ConstituentsTableProps) {
           <tbody className="divide-y divide-slate-800/60 font-mono">
             {filteredStocks.length === 0 ? (
               <tr>
-                <td colSpan={8} className="py-6 text-center text-slate-500 italic">
+                <td colSpan={10} className="py-6 text-center text-slate-500 italic">
                   No constituent stocks matching search criteria.
                 </td>
               </tr>
@@ -132,6 +142,8 @@ export function ConstituentsTable({ stocks, sectors }: ConstituentsTableProps) {
               filteredStocks.map((stock) => {
                 const isPositive = stock.changePct > 0;
                 const isNegative = stock.changePct < 0;
+                const rvol = stock.relativeVolume ?? 1.0;
+                const isSurge = rvol >= 1.8;
 
                 return (
                   <tr key={stock.symbol} className="hover:bg-slate-800/40 transition-colors">
@@ -139,7 +151,7 @@ export function ConstituentsTable({ stocks, sectors }: ConstituentsTableProps) {
                       <div className="flex items-center gap-1.5">
                         <span>{stock.symbol}</span>
                         {stock.isAnomaly && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400" title="Microstructure Anomaly" />
+                          <span className={`w-1.5 h-1.5 rounded-full ${stock.anomalyType?.includes('VOLUME') ? 'bg-cyan-400' : 'bg-amber-400'}`} title={stock.anomalyDesc || 'Microstructure Anomaly'} />
                         )}
                       </div>
                       <div className="text-[10px] text-slate-400 font-sans font-normal truncate max-w-[130px]">
@@ -160,6 +172,25 @@ export function ConstituentsTable({ stocks, sectors }: ConstituentsTableProps) {
                       stock.pointImpact >= 0 ? 'text-emerald-300' : 'text-rose-300'
                     }`}>
                       {stock.pointImpact >= 0 ? '+' : ''}{stock.pointImpact.toFixed(1)} pts
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-bold">
+                      <span className={`px-1.5 py-0.5 rounded text-[11px] ${
+                        isSurge
+                          ? 'bg-cyan-500/20 text-cyan-300 font-extrabold border border-cyan-500/30'
+                          : rvol >= 1.2
+                          ? 'text-cyan-400'
+                          : 'text-slate-400 font-normal'
+                      }`}>
+                        {rvol.toFixed(2)}x
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-right">
+                      <div className="text-white font-semibold text-[11px]">
+                        ₹{(stock.turnoverCr ?? 0).toFixed(0)} Cr
+                      </div>
+                      <div className="text-[9px] text-slate-500">
+                        {stock.volume ? `${(stock.volume / 100000).toFixed(1)}L shs` : '-'}
+                      </div>
                     </td>
                     <td className="py-2.5 px-3 text-center">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
