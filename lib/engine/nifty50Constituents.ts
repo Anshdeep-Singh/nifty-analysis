@@ -522,32 +522,61 @@ export function buildNifty50Analysis(
     .map(s => ({ symbol: s.symbol, weight: s.weight, changePct: s.changePct, points: s.pointImpact }));
 
   // Confirmation Signals Matrix
+  // Directional threshold derived from continuous volatility scaling (5% of 1-sigma expected move, min 8 pts)
+  const directionalThreshold = Math.max(8, Number((expected1DayMove * 0.05).toFixed(1)));
+  const isMarketBullish = netPointImpact >= directionalThreshold;
+  const isMarketBearish = netPointImpact <= -directionalThreshold;
+
+  function evaluateSignalAlignment(score: number, threshold = 20): 'CONFIRMED' | 'DIVERGENT' | 'NEUTRAL' {
+    if (isMarketBullish) {
+      if (score >= threshold) return 'CONFIRMED';
+      if (score <= -threshold) return 'DIVERGENT';
+      return 'NEUTRAL';
+    }
+    if (isMarketBearish) {
+      if (score <= -threshold) return 'CONFIRMED';
+      if (score >= threshold) return 'DIVERGENT';
+      return 'NEUTRAL';
+    }
+    // In flat / neutral market (|netPointImpact| < directionalThreshold):
+    // No directional trend exists to confirm; strong internal imbalances are DIVERGENT from the flat tape
+    if (Math.abs(score) >= threshold * 1.5) return 'DIVERGENT';
+    return 'NEUTRAL';
+  }
+
   // Signal 1: Heavyweight Hegemony (Top 5: HDFCBANK, RELIANCE, ICICIBANK, INFY, TCS ~33.5% weight)
   const top5Symbols = ['HDFCBANK', 'RELIANCE', 'ICICIBANK', 'INFY', 'TCS'];
   const top5Stocks = analyzedStocks.filter(s => top5Symbols.includes(s.symbol));
   const top5NetPoints = top5Stocks.reduce((sum, s) => sum + s.pointImpact, 0);
   const top5Score = Math.max(-100, Math.min(100, (top5NetPoints / (expected1DayMove * 0.40)) * 100));
-  const top5Status = top5Score > 20 ? 'CONFIRMED' : top5Score < -20 ? 'CONFIRMED' : 'DIVERGENT';
+  const top5Status = evaluateSignalAlignment(top5Score, 20);
 
   // Signal 2: Weighted Breadth (Advancing Weight - Declining Weight)
   const breadthScore = advancingWeight - decliningWeight;
-  const breadthStatus = Math.abs(breadthScore) >= 20 ? 'CONFIRMED' : 'DIVERGENT';
+  const breadthStatus = evaluateSignalAlignment(breadthScore, 20);
 
-  // Signal 3: Sector Synchrony (Leading sectors alignment)
+  // Signal 3: Core Sector Synchrony (Leading sectors alignment)
+  // Continuous weighting instead of discrete binary count to eliminate flickering
   const financialSector = sectors.find(s => s.name === 'Financial Services');
   const itSector = sectors.find(s => s.name === 'Information Technology');
   const energySector = sectors.find(s => s.name.includes('Oil Gas'));
-  const sectorCountBullish = [financialSector, itSector, energySector].filter(s => s && s.weightedReturn > 0.1).length;
-  const sectorCountBearish = [financialSector, itSector, energySector].filter(s => s && s.weightedReturn < -0.1).length;
+  const autoSector = sectors.find(s => s.name.includes('Automobile'));
   
-  let sectorScore = 0;
-  if (sectorCountBullish >= 2) sectorScore = 65;
-  else if (sectorCountBearish >= 2) sectorScore = -65;
-  const sectorStatus = Math.abs(sectorScore) >= 50 ? 'CONFIRMED' : 'NEUTRAL';
+  const coreSectors = [financialSector, itSector, energySector, autoSector].filter((s): s is SectorAnalysis => Boolean(s));
+  const coreWeight = coreSectors.reduce((sum, s) => sum + s.weight, 0) || 1;
+  const coreWeightedReturn = coreSectors.reduce((sum, s) => sum + s.weightedReturn * s.weight, 0) / coreWeight;
+  const coreAdvWeight = coreSectors.filter(s => s.weightedReturn > 0.05).reduce((sum, s) => sum + s.weight, 0);
+  const coreDecWeight = coreSectors.filter(s => s.weightedReturn < -0.05).reduce((sum, s) => sum + s.weight, 0);
+  const coreWeightDelta = coreAdvWeight - coreDecWeight;
+  
+  const sectorScore = Number(Math.max(-100, Math.min(100, (coreWeightedReturn * 80) + (coreWeightDelta * 0.4))).toFixed(1));
+  const sectorStatus = evaluateSignalAlignment(sectorScore, 20);
+  const hasSectorSplit = Boolean(financialSector && itSector && (financialSector.weightedReturn * itSector.weightedReturn < -0.05));
 
   // Signal 4: Microstructure Volatility Stretch
   const volStretchRatio = netPointImpact / expected1DayMove;
   const volStretchScore = Math.max(-100, Math.min(100, volStretchRatio * 100));
+  const volStretchStatus = evaluateSignalAlignment(volStretchScore, 25);
 
   // Signal 5: Traded Turnover Flow & Institutional RVOL Conviction
   const volumeFlowDelta = advancingVolumePct - decliningVolumePct; // -100 to +100
@@ -555,24 +584,8 @@ export function buildNifty50Analysis(
     ? Number((top5Stocks.reduce((sum, s) => sum + (s.relativeVolume || 1.0), 0) / top5Stocks.length).toFixed(2))
     : 1.0;
 
-  let volumeStatus: ConfirmationSignal['status'] = 'NEUTRAL';
   const volumeScore = Math.max(-100, Math.min(100, volumeFlowDelta));
-
-  if (netPointImpact > 10) {
-    if (volumeFlowDelta >= 15) {
-      volumeStatus = 'CONFIRMED';
-    } else if (volumeFlowDelta <= -15) {
-      volumeStatus = 'DIVERGENT';
-    }
-  } else if (netPointImpact < -10) {
-    if (volumeFlowDelta <= -15) {
-      volumeStatus = 'CONFIRMED';
-    } else if (volumeFlowDelta >= 15) {
-      volumeStatus = 'DIVERGENT';
-    }
-  } else {
-    volumeStatus = Math.abs(volumeFlowDelta) >= 30 ? 'CONFIRMED' : 'NEUTRAL';
-  }
+  const volumeStatus = evaluateSignalAlignment(volumeScore, 20);
 
   const confirmationSignals: ConfirmationSignal[] = [
     {
@@ -604,13 +617,13 @@ export function buildNifty50Analysis(
       name: 'Core Sector Synchrony (Bank/IT/Energy)',
       status: sectorStatus,
       score: sectorScore,
-      details: `Fin: ${financialSector?.weightedReturn ?? 0}% | IT: ${itSector?.weightedReturn ?? 0}% | Energy: ${energySector?.weightedReturn ?? 0}%.`,
+      details: `Fin: ${financialSector?.weightedReturn ?? 0}% | IT: ${itSector?.weightedReturn ?? 0}% | Energy: ${energySector?.weightedReturn ?? 0}%${hasSectorSplit ? ' (Split)' : ''}.`,
       weight: 0.15
     },
     {
       id: 'VOLATILITY_ABSORPTION',
       name: '1-Sigma Volatility Stretch',
-      status: Math.abs(volStretchScore) >= 35 ? 'CONFIRMED' : 'NEUTRAL',
+      status: volStretchStatus,
       score: Number(volStretchScore.toFixed(1)),
       details: `Net move ${netPointImpact > 0 ? '+' : ''}${netPointImpact.toFixed(1)} pts is ${(Math.abs(volStretchRatio) * 100).toFixed(0)}% of 1σ move (±${expected1DayMove} pts).`,
       weight: 0.10

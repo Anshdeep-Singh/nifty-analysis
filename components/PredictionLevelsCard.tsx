@@ -211,21 +211,28 @@ export function PredictionLevelsCard({ prediction }: PredictionLevelsCardProps) 
           </div>
 
           {/* Actionable Stop Loss */}
-          <div className="bg-rose-950/20 border border-rose-900/40 rounded-xl p-3">
-            <div className="flex items-center justify-between text-[11px] font-semibold text-rose-400 mb-1">
-              <span>Trade Invalidation SL</span>
-              <span className="text-[10px] font-mono text-rose-400 font-bold">Strict SL</span>
-            </div>
-            <div className="text-lg font-mono font-extrabold text-rose-300">
-              ₹{prediction.tacticalStopLoss ? prediction.tacticalStopLoss.toFixed(1) : (prediction.spotPrice - 35).toFixed(1)}
-            </div>
-            <div className="text-[11px] text-rose-400/80 font-mono mt-1">
-              Risk: {prediction.tacticalStopLoss ? (prediction.spotPrice - prediction.tacticalStopLoss).toFixed(1) : '35.0'} pts
-            </div>
-            <div className="text-[10px] text-slate-400 mt-0.5">
-              Exit long if 5m closes below this level
-            </div>
-          </div>
+          {(() => {
+            const rawSl = prediction.tacticalStopLoss || (isBull ? prediction.spotPrice - 35 : prediction.spotPrice + 35);
+            const isShortTrade = rawSl > prediction.spotPrice;
+            const riskPts = Math.abs(prediction.spotPrice - rawSl);
+            return (
+              <div className="bg-rose-950/20 border border-rose-900/40 rounded-xl p-3">
+                <div className="flex items-center justify-between text-[11px] font-semibold text-rose-400 mb-1">
+                  <span>Trade Invalidation SL</span>
+                  <span className="text-[10px] font-mono text-rose-400 font-bold">Strict SL</span>
+                </div>
+                <div className="text-lg font-mono font-extrabold text-rose-300">
+                  ₹{rawSl.toFixed(1)}
+                </div>
+                <div className="text-[11px] text-rose-400/80 font-mono mt-1">
+                  Risk: {riskPts.toFixed(1)} pts
+                </div>
+                <div className="text-[10px] text-slate-400 mt-0.5">
+                  {isShortTrade ? 'Exit short if 5m closes above this level' : 'Exit long if 5m closes below this level'}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -321,7 +328,9 @@ export function PredictionLevelsCard({ prediction }: PredictionLevelsCardProps) 
               key={signal.id}
               className={`p-3 rounded-lg border text-xs transition-colors ${
                 signal.status === 'CONFIRMED'
-                  ? 'bg-slate-950/60 border-emerald-900/40 text-slate-200'
+                  ? signal.score >= 0
+                    ? 'bg-slate-950/60 border-emerald-900/40 text-slate-200'
+                    : 'bg-slate-950/60 border-rose-900/40 text-slate-200'
                   : signal.status === 'DIVERGENT'
                   ? 'bg-slate-950/60 border-amber-900/40 text-slate-200'
                   : 'bg-slate-950/40 border-slate-800 text-slate-300'
@@ -332,13 +341,19 @@ export function PredictionLevelsCard({ prediction }: PredictionLevelsCardProps) 
                 <span
                   className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold ${
                     signal.status === 'CONFIRMED'
-                      ? 'bg-emerald-500/20 text-emerald-300'
+                      ? signal.score >= 0
+                        ? 'bg-emerald-500/20 text-emerald-300'
+                        : 'bg-rose-500/20 text-rose-300'
                       : signal.status === 'DIVERGENT'
                       ? 'bg-amber-500/20 text-amber-300'
                       : 'bg-slate-800 text-slate-400'
                   }`}
                 >
-                  {signal.status}
+                  {signal.status === 'CONFIRMED'
+                    ? signal.score >= 0
+                      ? 'BULL CONFIRMED'
+                      : 'BEAR CONFIRMED'
+                    : signal.status}
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 leading-snug">{signal.details}</p>

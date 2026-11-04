@@ -182,9 +182,12 @@ export function analyzeGapRegime(
     if (spotPrice <= dayOpen) {
       regime = 'GAP_RUNAWAY';
       verdict = `Gap-down (${gapPts} pts, ${gapPct}%) expanding below Day Open (${dayOpen.toFixed(1)}). Aggressive liquidation active.`;
+    } else if (spotPrice <= prevClose) {
+      regime = 'GAP_FADE';
+      verdict = `Gap-down (${gapPts} pts) experiencing short covering bounce towards gap zone (${dayOpen.toFixed(1)} - ${prevClose.toFixed(1)}).`;
     } else {
       regime = 'GAP_FADE';
-      verdict = `Gap-down (${gapPts} pts) experiencing short covering bounce towards gap zone.`;
+      verdict = `Gap-down (${gapPts} pts) fully reversed and filled! Spot reclaimed Prev Close (${prevClose.toFixed(1)}) and expanding higher (+${(spotPrice - prevClose).toFixed(1)} pts). Bullish gap reversal active.`;
     }
   }
 
@@ -376,7 +379,7 @@ export function buildSmartMoneyRoadmap(input: SmartMoneyRoadmapInput): SmartMone
         invalidationPrice: stopLossPrice,
         triggerCondition: `Pullback near ${immediateSupportPrice.toFixed(1)} with bullish 5m candle confirmation.`
       };
-    } else {
+    } else if (spotPrice >= prevClose) {
       actionSignal = {
         status: 'AWAIT_CONFIRMATION',
         headline: 'GAP RETEST IN PROGRESS • DO NOT CHASE',
@@ -385,6 +388,17 @@ export function buildSmartMoneyRoadmap(input: SmartMoneyRoadmapInput): SmartMone
         variant: 'amber',
         invalidationPrice: Number((prevClose - 15).toFixed(1)),
         triggerCondition: `Reclaim of ${dayOpen.toFixed(1)} on 5m close.`
+      };
+    } else {
+      // Spot broke BELOW Prev Close: Gap is 100% FILLED and bears took over!
+      actionSignal = {
+        status: 'DO_NOT_BUY',
+        headline: 'GAP REVERSED & SURRENDERED • BEARISH MOMENTUM',
+        detail: `Gap-up fully surrendered. Spot broke below Prev Close (${prevClose.toFixed(1)}) and trending lower (-${(prevClose - spotPrice).toFixed(1)} pts). Rejection ceiling at ${immediateResistance.toFixed(1)}.`,
+        badge: 'GAP REVERSAL BEAR',
+        variant: 'rose',
+        invalidationPrice: Number((prevClose + 10).toFixed(1)),
+        triggerCondition: `Bounce failing near ${immediateResistance.toFixed(1)} on 5m close.`
       };
     }
   } else if (gapAnalysis.gapType === 'GAP_DOWN') {
@@ -397,7 +411,7 @@ export function buildSmartMoneyRoadmap(input: SmartMoneyRoadmapInput): SmartMone
         variant: 'rose',
         invalidationPrice: Number((dayOpen + 15).toFixed(1))
       };
-    } else {
+    } else if (spotPrice <= prevClose) {
       actionSignal = {
         status: 'AWAIT_CONFIRMATION',
         headline: 'SHORT-COVERING RETEST IN GAP',
@@ -405,6 +419,17 @@ export function buildSmartMoneyRoadmap(input: SmartMoneyRoadmapInput): SmartMone
         badge: 'PULLBACK SHORT',
         variant: 'amber',
         invalidationPrice: Number((dayHigh + 10).toFixed(1))
+      };
+    } else {
+      // Spot broke ABOVE Prev Close: Gap is 100% FILLED and bulls are expanding upward!
+      actionSignal = {
+        status: 'SAFE_TO_BUY',
+        headline: 'GAP REVERSED & EXPANDING • BULLISH MOMENTUM',
+        detail: `Gap-down fully filled. Spot reclaimed Prev Close (${prevClose.toFixed(1)}) and trending higher (+${(spotPrice - prevClose).toFixed(1)} pts). Dip buying shelf at ${immediateSupportPrice.toFixed(1)}.`,
+        badge: 'GAP REVERSAL BULL',
+        variant: 'emerald',
+        invalidationPrice: stopLossPrice,
+        triggerCondition: `Pullback holding near ${immediateSupportPrice.toFixed(1)} on 5m close.`
       };
     }
   } else {

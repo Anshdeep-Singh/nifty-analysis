@@ -26,6 +26,7 @@ import {
   ColorType,
   CrosshairMode,
   LineStyle,
+  TickMarkType,
   type IChartApi,
   type ISeriesApi,
   type CandlestickData,
@@ -117,7 +118,54 @@ function SingleTfChart({
       timeScale: {
         borderColor: '#1e293b',
         timeVisible: true,
-        secondsVisible: false
+        secondsVisible: false,
+        barSpacing: 8,
+        minBarSpacing: 2,
+        maxBarSpacing: 14,
+        rightOffset: 6,
+        tickMarkFormatter: (timeVal: Time, tickMarkType: TickMarkType) => {
+          let epochMs = 0;
+          if (typeof timeVal === 'number') {
+            epochMs = timeVal < 10000000000 ? timeVal * 1000 : timeVal;
+          } else if (typeof timeVal === 'string') {
+            epochMs = new Date(timeVal).getTime();
+          }
+          if (!epochMs) return null;
+          const d = new Date(epochMs);
+          if (tickMarkType < TickMarkType.Time) {
+            return d.toLocaleDateString('en-IN', {
+              timeZone: 'Asia/Kolkata',
+              day: '2-digit',
+              month: 'short'
+            });
+          }
+          return d.toLocaleTimeString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+          });
+        }
+      },
+      localization: {
+        priceFormatter: (p: number) =>
+          p.toLocaleString('en-IN', { minimumFractionDigits: 1, maximumFractionDigits: 2 }),
+        timeFormatter: (timeVal: Time) => {
+          let epochMs = 0;
+          if (typeof timeVal === 'number') {
+            epochMs = timeVal < 10000000000 ? timeVal * 1000 : timeVal;
+          } else if (typeof timeVal === 'string') {
+            epochMs = new Date(timeVal).getTime();
+          }
+          if (!epochMs) return '';
+          const d = new Date(epochMs);
+          return d.toLocaleTimeString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+          });
+        }
       }
     });
 
