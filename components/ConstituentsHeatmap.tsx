@@ -6,9 +6,15 @@ import { ExternalLink, X, ArrowUpRight, ArrowDownRight, Activity } from 'lucide-
 
 interface ConstituentsHeatmapProps {
   stocks: Nifty50Stock[];
+  title?: string;
+  subtitle?: string;
 }
 
-export function ConstituentsHeatmap({ stocks }: ConstituentsHeatmapProps) {
+export function ConstituentsHeatmap({
+  stocks,
+  title = 'Constituents Visual Heatmap',
+  subtitle = 'Arranged by free-float weightage order. Click any tile to inspect microstructure metrics and corporate news.'
+}: ConstituentsHeatmapProps) {
   const [selectedStock, setSelectedStock] = useState<Nifty50Stock | null>(null);
 
   // Sort by weight descending so institutional heavyweights appear first
@@ -28,10 +34,8 @@ export function ConstituentsHeatmap({ stocks }: ConstituentsHeatmapProps) {
     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-5 shadow-xl backdrop-blur-md">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-slate-800/80">
         <div>
-          <h2 className="text-lg font-bold text-white tracking-tight">50 Constituents Visual Heatmap</h2>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Arranged by free-float weightage order. Click any tile to inspect microstructure metrics and corporate news.
-          </p>
+          <h2 className="text-lg font-bold text-white tracking-tight">{title}</h2>
+          <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>
         </div>
         <div className="flex items-center gap-2 text-xs font-mono text-slate-400">
           <span className="flex items-center gap-1">

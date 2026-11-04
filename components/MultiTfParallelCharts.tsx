@@ -370,7 +370,11 @@ function SingleTfChart({
   );
 }
 
-export function MultiTfParallelCharts() {
+interface MultiTfParallelChartsProps {
+  symbol?: 'NIFTY' | 'BANKNIFTY';
+}
+
+export function MultiTfParallelCharts({ symbol = 'NIFTY' }: MultiTfParallelChartsProps) {
   const [data, setData] = useState<MultiTfPayload | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -380,7 +384,7 @@ export function MultiTfParallelCharts() {
   const fetchChartData = useCallback(async (isManual = false) => {
     if (isManual) setRefreshing(true);
     try {
-      const res = await fetch(`/api/market-chart?_t=${Date.now()}`);
+      const res = await fetch(`/api/market-chart?symbol=${symbol}&_t=${Date.now()}`);
       if (res.ok) {
         const json = await res.json();
         if (json.success && json.data) {
@@ -393,7 +397,7 @@ export function MultiTfParallelCharts() {
     }
     setLoading(false);
     setRefreshing(false);
-  }, []);
+  }, [symbol]);
 
   useEffect(() => {
     fetchChartData(false);

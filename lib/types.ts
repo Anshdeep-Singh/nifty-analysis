@@ -170,7 +170,7 @@ export interface GapRegimeAnalysis {
 }
 
 export interface SmartMoneyRoadmapState {
-  symbol: 'NIFTY';
+  symbol: 'NIFTY' | 'BANKNIFTY';
   spotPrice: number;
   anchorPrice: number;
   regime: string;
@@ -211,7 +211,7 @@ export interface MultiTfChartData {
 }
 
 export interface MultiTfPayload {
-  symbol: 'NIFTY';
+  symbol: 'NIFTY' | 'BANKNIFTY';
   spotPrice: number;
   prevClose: number;
   dayOpen: number;
@@ -223,6 +223,12 @@ export interface MultiTfPayload {
     oneHour: MultiTfChartData;
   };
   timestamp: string;
+}
+
+export type BankNiftyStock = Nifty50Stock;
+
+export interface BankNiftyAnalysisState extends NiftyAnalysisState {
+  symbol: 'BANKNIFTY';
 }
 
 export interface AnomalyAlert {

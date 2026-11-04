@@ -14,6 +14,12 @@ export async function GET(request: Request) {
   const baseUrl = url.origin || '';
   const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
 
+  // Extract origin/target path to return to the correct dashboard (e.g. /bank-nifty or /)
+  const cookieHeader = request.headers.get('cookie') || '';
+  const originCookieMatch = cookieHeader.match(/kite_origin_path=([^;]+)/);
+  const rawTarget = url.searchParams.get('target_path') || url.searchParams.get('from') || (originCookieMatch ? decodeURIComponent(originCookieMatch[1]) : '/');
+  const targetPath = rawTarget.startsWith('/bank-nifty') ? '/bank-nifty' : '/';
+
   // 1. Direct Access Token Import (e.g. from developer console or bridge redirect from nifty.anshdeepsingh.com)
   const directToken = url.searchParams.get('access_token') || url.searchParams.get('token');
   if (directToken) {
@@ -24,7 +30,7 @@ export async function GET(request: Request) {
 
     const session = setManualKiteToken(apiKey, directToken, userId, userName);
     const redirectRes = NextResponse.redirect(
-      `${baseUrl}/?kite_success=true&user=${encodeURIComponent(userName)}`
+      `${baseUrl}${targetPath}?kite_success=true&user=${encodeURIComponent(userName)}`
     );
 
     const sealedSession = sealData(session);
@@ -42,7 +48,7 @@ export async function GET(request: Request) {
 
   if (status !== 'success' || !requestToken) {
     const errorMsg = url.searchParams.get('message') || 'Login cancelled or failed at Zerodha';
-    return NextResponse.redirect(`${baseUrl}/?kite_error=${encodeURIComponent(errorMsg)}`);
+    return NextResponse.redirect(`${baseUrl}${targetPath}?kite_error=${encodeURIComponent(errorMsg)}`);
   }
 
   try {
@@ -57,7 +63,7 @@ export async function GET(request: Request) {
 
     if (isProductionDomain) {
       // Build bridge URL to sync access_token with http://localhost:3000
-      const localSyncUrl = `http://localhost:3000/api/kite/callback?access_token=${encodeURIComponent(session.accessToken)}&api_key=${encodeURIComponent(session.apiKey)}&user_id=${encodeURIComponent(session.userId || 'Trader')}&user_name=${encodeURIComponent(session.userName || 'Trader')}`;
+      const localSyncUrl = `http://localhost:3000/api/kite/callback?access_token=${encodeURIComponent(session.accessToken)}&api_key=${encodeURIComponent(session.apiKey)}&user_id=${encodeURIComponent(session.userId || 'Trader')}&user_name=${encodeURIComponent(session.userName || 'Trader')}&target_path=${encodeURIComponent(targetPath)}`;
 
       // If explicit local target was requested, redirect to local immediately
       if (isLocalRequested) {
@@ -170,9 +176,14 @@ export async function GET(request: Request) {
     <h1>Welcome, ${session.userName || session.userId || 'Trader'}</h1>
     <p>Your Zerodha Kite session is established securely on <strong>nifty.anshdeepsingh.com</strong>.</p>
     
-    <a href="/?kite_success=true&user=${encodeURIComponent(session.userName || session.userId || '')}" class="btn btn-prod">
-      ⚡ Continue on nifty.anshdeepsingh.com
-    </a>
+    <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+      <a href="/?kite_success=true&user=${encodeURIComponent(session.userName || session.userId || '')}" class="btn btn-prod" style="flex: 1; margin-bottom: 0;">
+        📈 NIFTY 50 Radar
+      </a>
+      <a href="/bank-nifty?kite_success=true&user=${encodeURIComponent(session.userName || session.userId || '')}" class="btn btn-prod" style="flex: 1; margin-bottom: 0; background: #0284c7;">
+        🏦 BANK NIFTY
+      </a>
+    </div>
 
     <a href="${localSyncUrl}" class="btn btn-local">
       💻 Sync Session to Localhost (http://localhost:3000)
@@ -207,7 +218,7 @@ export async function GET(request: Request) {
 
     // Standard localhost flow
     const redirectRes = NextResponse.redirect(
-      `${baseUrl}/?kite_success=true&user=${encodeURIComponent(session.userName || session.userId || '')}`
+      `${baseUrl}${targetPath}?kite_success=true&user=${encodeURIComponent(session.userName || session.userId || '')}`
     );
 
     redirectRes.cookies.set(

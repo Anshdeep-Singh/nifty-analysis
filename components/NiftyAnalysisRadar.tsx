@@ -26,6 +26,7 @@ import { ConstituentsHeatmap } from './ConstituentsHeatmap';
 import { ConstituentsTable } from './ConstituentsTable';
 import { KiteAuthModal } from './KiteAuthModal';
 import { MultiTfParallelCharts } from './MultiTfParallelCharts';
+import { DashboardNav } from './DashboardNav';
 
 export function NiftyAnalysisRadar() {
   const [data, setData] = useState<NiftyAnalysisState | null>(null);
@@ -104,12 +105,20 @@ export function NiftyAnalysisRadar() {
 
   if (loading || !data) {
     return (
-      <div className="min-h-[70vh] flex flex-col items-center justify-center p-6 text-center">
-        <RefreshCw className="w-8 h-8 text-cyan-400 animate-spin mb-3" />
-        <h2 className="text-lg font-bold text-white tracking-tight">Initializing NIFTY 50 Microstructure Radar...</h2>
-        <p className="text-xs text-slate-400 mt-1">
-          Aggregating 50 constituents, sector co-dependencies, and live market breadth.
-        </p>
+      <div className="space-y-4">
+        <DashboardNav
+          activeSymbol="NIFTY"
+          kiteConnected={kiteAuth.isAuthenticated}
+          kiteUser={kiteAuth.userName || kiteAuth.userId}
+          onOpenKiteModal={() => setAuthModalOpen(true)}
+        />
+        <div className="min-h-[65vh] flex flex-col items-center justify-center p-6 text-center bg-slate-900/60 border border-slate-800 rounded-xl">
+          <RefreshCw className="w-8 h-8 text-cyan-400 animate-spin mb-3" />
+          <h2 className="text-lg font-bold text-white tracking-tight">Initializing NIFTY 50 Microstructure Radar...</h2>
+          <p className="text-xs text-slate-400 mt-1">
+            Aggregating 50 constituents, sector co-dependencies, and live market breadth.
+          </p>
+        </div>
       </div>
     );
   }
@@ -117,7 +126,17 @@ export function NiftyAnalysisRadar() {
   const isNetPositive = data.spotNetChange >= 0;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
+      {/* Top Cross-Index Navigation */}
+      <DashboardNav
+        activeSymbol="NIFTY"
+        spotPrice={data.spotPrice}
+        spotNetChange={data.spotNetChange}
+        kiteConnected={kiteAuth.isAuthenticated}
+        kiteUser={kiteAuth.userName || kiteAuth.userId}
+        onOpenKiteModal={() => setAuthModalOpen(true)}
+      />
+
       {/* Top Cockpit Header Bar */}
       <header className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 sm:p-5 shadow-2xl backdrop-blur-md">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">

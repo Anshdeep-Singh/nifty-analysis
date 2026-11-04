@@ -7,9 +7,16 @@ import { Search, Filter, ArrowUpDown, ExternalLink, ArrowUpRight, ArrowDownRight
 interface ConstituentsTableProps {
   stocks: Nifty50Stock[];
   sectors: SectorAnalysis[];
+  title?: string;
+  subtitle?: string;
 }
 
-export function ConstituentsTable({ stocks, sectors }: ConstituentsTableProps) {
+export function ConstituentsTable({
+  stocks,
+  sectors,
+  title = 'Constituents Breakdown',
+  subtitle = 'Microstructure point impact and price trends for all index constituents.'
+}: ConstituentsTableProps) {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedSector, setSelectedSector] = useState<string>('ALL');
   const [sortField, setSortField] = useState<'weight' | 'changePct' | 'pointImpact' | 'symbol' | 'price' | 'relativeVolume' | 'turnoverCr'>('weight');
@@ -51,10 +58,8 @@ export function ConstituentsTable({ stocks, sectors }: ConstituentsTableProps) {
       {/* Controls Bar */}
       <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 pb-4 border-b border-slate-800/80">
         <div>
-          <h2 className="text-lg font-bold text-white tracking-tight">50 Constituents Breakdown</h2>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Microstructure point impact and price trends for all 50 index constituents.
-          </p>
+          <h2 className="text-lg font-bold text-white tracking-tight">{title}</h2>
+          <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

@@ -150,13 +150,17 @@ export function analyzeGapRegime(
   dayOpen: number,
   prevClose: number,
   dayHigh?: number,
-  dayLow?: number
+  dayLow?: number,
+  symbol: 'NIFTY' | 'BANKNIFTY' = 'NIFTY'
 ): GapRegimeAnalysis {
   const gapPts = Number((dayOpen - prevClose).toFixed(1));
   const gapPct = prevClose > 0 ? Number(((gapPts / prevClose) * 100).toFixed(2)) : 0;
-  const isGapUp = gapPts >= 35; // Minimum 35 pts to qualify as noticeable gap on NIFTY
-  const isGapDown = gapPts <= -35;
-  const hasGap = Math.abs(gapPts) >= 35;
+  const minGapThreshold = symbol === 'BANKNIFTY'
+    ? Math.max(80, Math.round(spotPrice * 0.0018)) // ~100 pts for Bank Nifty
+    : Math.max(30, Math.round(spotPrice * 0.0014)); // ~35 pts for Nifty 50
+  const isGapUp = gapPts >= minGapThreshold;
+  const isGapDown = gapPts <= -minGapThreshold;
+  const hasGap = Math.abs(gapPts) >= minGapThreshold;
 
   const gapType = isGapUp ? 'GAP_UP' : isGapDown ? 'GAP_DOWN' : 'FLAT_OPEN';
   const gapZone = {
@@ -216,6 +220,7 @@ export interface SmartMoneyRoadmapInput {
   dayLow?: number;
   vix?: number;
   candles?: CandleLike[];
+  symbol?: 'NIFTY' | 'BANKNIFTY';
 }
 
 /**
@@ -223,6 +228,8 @@ export interface SmartMoneyRoadmapInput {
  */
 export function buildSmartMoneyRoadmap(input: SmartMoneyRoadmapInput): SmartMoneyRoadmapState {
   const { spotPrice, prevClose } = input;
+  const symbol = input.symbol || 'NIFTY';
+  const isBankNifty = symbol === 'BANKNIFTY';
   const dayOpen = input.dayOpen && input.dayOpen > 0 ? input.dayOpen : spotPrice;
   const dayHigh = input.dayHigh && input.dayHigh > 0 ? input.dayHigh : Math.max(spotPrice, dayOpen);
   const dayLow = input.dayLow && input.dayLow > 0 ? input.dayLow : Math.min(spotPrice, dayOpen);
@@ -246,15 +253,15 @@ export function buildSmartMoneyRoadmap(input: SmartMoneyRoadmapInput): SmartMone
   const macro2SigmaLower = Number((anchorPrice - 2 * dailyExpectedMovePts).toFixed(1));
 
   // Gap Analysis
-  const gapAnalysis = analyzeGapRegime(spotPrice, dayOpen, prevClose, dayHigh, dayLow);
+  const gapAnalysis = analyzeGapRegime(spotPrice, dayOpen, prevClose, dayHigh, dayLow, symbol);
 
   // Extract candle clusters & order blocks
-  const radius = Math.max(10, Number((anchorPrice * 0.0006).toFixed(1))); // ~15 pts for Nifty
-  const minDisplacement = Math.max(25, dailyExpectedMovePts * 0.2); // ~30-40 pts
+  const radius = Math.max(isBankNifty ? 25 : 10, Number((anchorPrice * 0.0006).toFixed(1)));
+  const minDisplacement = Math.max(isBankNifty ? 60 : 25, dailyExpectedMovePts * 0.2);
   const clusters = extractBodyClusters(candles, anchorPrice - dailyExpectedMovePts * 1.2, anchorPrice + dailyExpectedMovePts * 1.2, radius);
   const { supply, demand } = detectOrderBlocks(candles, minDisplacement);
 
-  // Generate Key Tactical Structural Levels (NOT 236 pts away, but 15-40 pts apart!)
+  // Generate Key Tactical Structural Levels
   const tacticalLevels: SmartKeyLevel[] = [];
 
   // LEVEL 1: MACRO EXPANSION CEILING (+1σ Daily Band)
@@ -272,10 +279,11 @@ export function buildSmartMoneyRoadmap(input: SmartMoneyRoadmapInput): SmartMone
   });
 
   // LEVEL 2: INTRADAY PULLBACK RESISTANCE / RECENT HIGH
-  // If price is near day high, pullback resistance is Day High + small buffer
+  const maxResDist = isBankNifty ? 120 : 35;
+  const minResDist = isBankNifty ? 45 : 15;
   const immediateResistance = Math.max(
     dayHigh,
-    spotPrice + Math.min(35, Math.max(15, dailyExpectedMovePts * 0.12))
+    spotPrice + Math.min(maxResDist, Math.max(minResDist, dailyExpectedMovePts * 0.12))
   );
   tacticalLevels.push({
     id: 'TACTICAL_RESISTANCE_1',
@@ -306,8 +314,9 @@ export function buildSmartMoneyRoadmap(input: SmartMoneyRoadmapInput): SmartMone
   });
 
   // LEVEL 4: IMMEDIATE TACTICAL SUPPORT / DIP BUYING SHELF (TIGHT STOP-LOSS)
-  // This is the REAL actionable support (15 to 35 pts away), NOT 236 pts away!
-  let immediateSupportPrice = Number((spotPrice - Math.min(30, Math.max(18, dailyExpectedMovePts * 0.12))).toFixed(1));
+  const maxSupDist = isBankNifty ? 100 : 30;
+  const minSupDist = isBankNifty ? 45 : 18;
+  let immediateSupportPrice = Number((spotPrice - Math.min(maxSupDist, Math.max(minSupDist, dailyExpectedMovePts * 0.12))).toFixed(1));
   if (gapAnalysis.hasGap && gapAnalysis.gapType === 'GAP_UP') {
     // On gap up, if spot is above Day Open, the immediate support is Day Open or Day Low!
     if (spotPrice > dayOpen) {
@@ -366,7 +375,8 @@ export function buildSmartMoneyRoadmap(input: SmartMoneyRoadmapInput): SmartMone
   // Generate Tactical Action Signal & Invalidation Price
   let actionSignal: TacticalActionSignal;
   const isHoldingAboveOpen = spotPrice >= dayOpen;
-  const stopLossPrice = Number((immediateSupportPrice - 10).toFixed(1)); // 10 pt safety cushion below shelf
+  const stopLossCushion = isBankNifty ? 25 : 10;
+  const stopLossPrice = Number((immediateSupportPrice - stopLossCushion).toFixed(1));
 
   if (gapAnalysis.gapType === 'GAP_UP') {
     if (isHoldingAboveOpen) {
@@ -386,7 +396,7 @@ export function buildSmartMoneyRoadmap(input: SmartMoneyRoadmapInput): SmartMone
         detail: `Spot broke below Day Open (${dayOpen.toFixed(1)}). Watching Gap Zone (${prevClose.toFixed(1)} - ${dayOpen.toFixed(1)}) for demand stabilization.`,
         badge: 'GAP RETEST',
         variant: 'amber',
-        invalidationPrice: Number((prevClose - 15).toFixed(1)),
+        invalidationPrice: Number((prevClose - (isBankNifty ? 35 : 15)).toFixed(1)),
         triggerCondition: `Reclaim of ${dayOpen.toFixed(1)} on 5m close.`
       };
     } else {
@@ -397,7 +407,7 @@ export function buildSmartMoneyRoadmap(input: SmartMoneyRoadmapInput): SmartMone
         detail: `Gap-up fully surrendered. Spot broke below Prev Close (${prevClose.toFixed(1)}) and trending lower (-${(prevClose - spotPrice).toFixed(1)} pts). Rejection ceiling at ${immediateResistance.toFixed(1)}.`,
         badge: 'GAP REVERSAL BEAR',
         variant: 'rose',
-        invalidationPrice: Number((prevClose + 10).toFixed(1)),
+        invalidationPrice: Number((prevClose + (isBankNifty ? 25 : 10)).toFixed(1)),
         triggerCondition: `Bounce failing near ${immediateResistance.toFixed(1)} on 5m close.`
       };
     }
@@ -409,7 +419,7 @@ export function buildSmartMoneyRoadmap(input: SmartMoneyRoadmapInput): SmartMone
         detail: `Index expanding downward under Day Open (${dayOpen.toFixed(1)}). Do not fight the trend. Target: ${macro1SigmaLower.toFixed(1)}.`,
         badge: 'BEAR RUNAWAY',
         variant: 'rose',
-        invalidationPrice: Number((dayOpen + 15).toFixed(1))
+        invalidationPrice: Number((dayOpen + (isBankNifty ? 35 : 15)).toFixed(1))
       };
     } else if (spotPrice <= prevClose) {
       actionSignal = {
@@ -418,7 +428,7 @@ export function buildSmartMoneyRoadmap(input: SmartMoneyRoadmapInput): SmartMone
         detail: `Spot bounced above Day Open into gap zone. Look for rejection at ${prevClose.toFixed(1)}.`,
         badge: 'PULLBACK SHORT',
         variant: 'amber',
-        invalidationPrice: Number((dayHigh + 10).toFixed(1))
+        invalidationPrice: Number((dayHigh + (isBankNifty ? 25 : 10)).toFixed(1))
       };
     } else {
       // Spot broke ABOVE Prev Close: Gap is 100% FILLED and bulls are expanding upward!
@@ -476,7 +486,7 @@ export function buildSmartMoneyRoadmap(input: SmartMoneyRoadmapInput): SmartMone
   }
 
   return {
-    symbol: 'NIFTY',
+    symbol,
     spotPrice,
     anchorPrice,
     regime,

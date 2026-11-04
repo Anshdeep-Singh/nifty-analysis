@@ -17,10 +17,16 @@ import { CoDependencySummary, SectorCoDependency } from '@/lib/types';
 
 interface SectorCoDependencyMatrixProps {
   coDependency: CoDependencySummary;
+  title?: string;
+  subtitle?: string;
 }
 
-export function SectorCoDependencyMatrix({ coDependency }: SectorCoDependencyMatrixProps) {
-  const [expandedSector, setExpandedSector] = useState<string | null>('Financial Services');
+export function SectorCoDependencyMatrix({
+  coDependency,
+  title = 'Sector Co-Dependency & Spillover Radar',
+  subtitle = 'Quantifies cross-sector elasticity, lead-lag transmission, and capital rotation across index constituent segments.'
+}: SectorCoDependencyMatrixProps) {
+  const [expandedSector, setExpandedSector] = useState<string | null>(coDependency.sectors[0]?.name || null);
 
   const getRegimeBadge = (regime: CoDependencySummary['marketRegime']) => {
     switch (regime) {
@@ -45,11 +51,9 @@ export function SectorCoDependencyMatrix({ coDependency }: SectorCoDependencyMat
         <div>
           <div className="flex items-center gap-2">
             <Compass className="w-4 h-4 text-cyan-400" />
-            <h2 className="text-lg font-bold text-white tracking-tight">Sector Co-Dependency & Spillover Radar</h2>
+            <h2 className="text-lg font-bold text-white tracking-tight">{title}</h2>
           </div>
-          <p className="text-xs text-slate-400 mt-1">
-            Quantifies cross-sector elasticity, lead-lag transmission, and capital rotation across the 15 Nifty sectors.
-          </p>
+          <p className="text-xs text-slate-400 mt-1">{subtitle}</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">

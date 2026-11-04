@@ -9,6 +9,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 const NIFTY_TOKEN = 256265;
+const BANKNIFTY_TOKEN = 260105;
 const INDIAVIX_TOKEN = 264969;
 
 // Authentic historical directory from kite-options-pilot
@@ -86,7 +87,7 @@ function aggregateCandles(baseCandles: CandleBar[], groupCount: number, tf: '15m
 }
 
 /**
- * Loads authentic 1-minute historical candles from disk cache as fallback
+ * Loads authentic 1-minute historical candles from disk cache as fallback (Nifty)
  */
 function loadFallbackAuthenticCandles(): { fiveMin: CandleBar[]; prevClose: number; spot: number } | null {
   if (!fs.existsSync(HISTORICAL_DATA_DIR)) return null;
@@ -163,15 +164,91 @@ function loadFallbackAuthenticCandles(): { fiveMin: CandleBar[]; prevClose: numb
   }
 }
 
+/**
+ * Loads authentic 5-minute intraday candles from live public exchange API
+ */
+async function fetchYahooIntradayCandles(yahooSymbol: string): Promise<{ candles: CandleBar[]; prevClose: number; spot: number; dayOpen: number } | null> {
+  try {
+    const cleanSym = yahooSymbol.startsWith('%5E') ? decodeURIComponent(yahooSymbol) : yahooSymbol;
+    const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(cleanSym)}?interval=5m&range=1d`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      },
+      signal: AbortSignal.timeout(4000)
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const result = json?.chart?.result?.[0];
+    if (!result) return null;
+    const meta = result.meta;
+    const timestamps: number[] = result.timestamp || [];
+    const quotes = result.indicators?.quote?.[0];
+    if (!timestamps.length || !quotes) return null;
+
+    const candles: CandleBar[] = [];
+    for (let i = 0; i < timestamps.length; i++) {
+      const ts = timestamps[i];
+      const o = quotes.open?.[i];
+      const h = quotes.high?.[i];
+      const l = quotes.low?.[i];
+      const c = quotes.close?.[i];
+      const v = quotes.volume?.[i] || 1000;
+      if (typeof o !== 'number' || typeof c !== 'number' || isNaN(o) || isNaN(c)) continue;
+
+      const { hours, minutes, timeStr, dateStr } = getISTDateParts(ts);
+      const totalMins = hours * 60 + minutes;
+      if (totalMins < 555 || totalMins > 930) continue; // 09:15 to 15:30 IST
+
+      candles.push({
+        timestamp: ts,
+        time: timeStr,
+        date: dateStr,
+        open: Number(o.toFixed(2)),
+        high: Number((h || Math.max(o, c)).toFixed(2)),
+        low: Number((l || Math.min(o, c)).toFixed(2)),
+        close: Number(c.toFixed(2)),
+        volume: v
+      });
+    }
+
+    if (!candles.length) return null;
+
+    const spot = candles[candles.length - 1].close;
+    let prevClose = meta.chartPreviousClose || meta.previousClose;
+    if (typeof meta.fulldayChange === 'number' && Math.abs(meta.fulldayChange) > 0) {
+      prevClose = Number((spot - meta.fulldayChange).toFixed(2));
+    }
+    const dayOpen = candles[0].open;
+
+    return {
+      candles: attachIndicators(candles),
+      prevClose: prevClose || dayOpen,
+      spot,
+      dayOpen
+    };
+  } catch (err) {
+    console.warn('[MarketChart API] Yahoo intraday fetch error:', err);
+    return null;
+  }
+}
+
 export async function GET(request: Request) {
   try {
     const session = getKiteSessionFromRequest(request);
     const isKiteConnected = Boolean(session && session.accessToken && Date.now() < session.expiresAtMs);
 
+    const url = new URL(request.url);
+    const symbolParam = (url.searchParams.get('symbol') || url.searchParams.get('index') || 'NIFTY').toUpperCase();
+    const isBankNifty = symbolParam.includes('BANK');
+    const targetSymbol: 'NIFTY' | 'BANKNIFTY' = isBankNifty ? 'BANKNIFTY' : 'NIFTY';
+    const indexToken = isBankNifty ? BANKNIFTY_TOKEN : NIFTY_TOKEN;
+    const kiteIndexKey = isBankNifty ? 'NSE:NIFTY BANK' : 'NSE:NIFTY 50';
+    const yahooSymbol = isBankNifty ? '%5ENSEBANK' : '%5ENSEI';
+
     let fiveMinCandles: CandleBar[] = [];
-    let spotPrice = 24500;
-    let prevClose = 24350;
-    let dayOpen = 24400;
+    let spotPrice = isBankNifty ? 55900 : 24500;
+    let prevClose = isBankNifty ? 55500 : 24350;
+    let dayOpen = isBankNifty ? 55600 : 24400;
     let vix = 14.5;
 
     // TIER 1: LIVE AUTHENTIC KITE CONNECT HISTORICAL DATA
@@ -189,8 +266,8 @@ export async function GET(request: Request) {
         const toStr = `${todayStr} 15:30:00`;
 
         const [kCandles5m, quotes] = await Promise.all([
-          fetchKiteHistoricalCandles(NIFTY_TOKEN, '5minute', fromStr, toStr, session),
-          fetchKiteQuotes(['NSE:NIFTY 50', 'NSE:INDIA VIX'], session).catch((): Record<string, KiteQuoteItem> => ({}))
+          fetchKiteHistoricalCandles(indexToken, '5minute', fromStr, toStr, session),
+          fetchKiteQuotes([kiteIndexKey, 'NSE:INDIA VIX'], session).catch((): Record<string, KiteQuoteItem> => ({}))
         ]);
 
         const vixQuote = quotes['NSE:INDIA VIX'];
@@ -198,7 +275,7 @@ export async function GET(request: Request) {
           vix = vixQuote.last_price;
         }
 
-        const qIndex = quotes['NSE:NIFTY 50'];
+        const qIndex = quotes[kiteIndexKey];
         if (qIndex?.last_price) {
           spotPrice = qIndex.last_price;
           if (qIndex.ohlc?.close) prevClose = qIndex.ohlc.close;
@@ -227,8 +304,19 @@ export async function GET(request: Request) {
       }
     }
 
-    // TIER 2: AUTHENTIC DISK CACHE FALLBACK (If Kite offline or pre-market)
+    // TIER 2: PUBLIC LIVE EXCHANGE CANDLES (Yahoo Finance authentic 5m bars)
     if (fiveMinCandles.length === 0) {
+      const publicCandles = await fetchYahooIntradayCandles(yahooSymbol);
+      if (publicCandles && publicCandles.candles.length > 0) {
+        fiveMinCandles = publicCandles.candles;
+        prevClose = publicCandles.prevClose;
+        spotPrice = publicCandles.spot;
+        dayOpen = publicCandles.dayOpen;
+      }
+    }
+
+    // TIER 3: AUTHENTIC DISK CACHE FALLBACK (for Nifty)
+    if (fiveMinCandles.length === 0 && !isBankNifty) {
       const diskData = loadFallbackAuthenticCandles();
       if (diskData && diskData.fiveMin.length > 0) {
         fiveMinCandles = diskData.fiveMin;
@@ -238,17 +326,18 @@ export async function GET(request: Request) {
       }
     }
 
-    // Guard: If still empty (e.g. pristine environment), synthesize clean base session from spot
+    // Guard: Clean base session fallback if still empty
     if (fiveMinCandles.length === 0) {
       const baseTime = Math.floor(Date.now() / 1000) - 3600;
+      const buffer = isBankNifty ? 35 : 10;
       fiveMinCandles = [
         {
           timestamp: baseTime,
           time: '09:15',
           date: new Date().toISOString().split('T')[0],
           open: prevClose,
-          high: spotPrice + 10,
-          low: prevClose - 5,
+          high: Math.max(spotPrice, prevClose) + buffer,
+          low: Math.min(spotPrice, prevClose) - buffer,
           close: spotPrice,
           volume: 50000
         }
@@ -272,11 +361,12 @@ export async function GET(request: Request) {
       dayHigh,
       dayLow,
       vix,
-      candles: fiveMinCandles
+      candles: fiveMinCandles,
+      symbol: targetSymbol
     });
 
     const payload: MultiTfPayload = {
-      symbol: 'NIFTY',
+      symbol: targetSymbol,
       spotPrice: latestClose,
       prevClose,
       dayOpen,

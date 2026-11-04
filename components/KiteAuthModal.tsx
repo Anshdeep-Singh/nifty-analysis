@@ -59,6 +59,8 @@ export function KiteAuthModal({
     setMessage(null);
     try {
       const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      // Record origin pathname in cookie so callback returns to the current dashboard (e.g. /bank-nifty or /)
+      document.cookie = `kite_origin_path=${encodeURIComponent(window.location.pathname)}; path=/; max-age=600; SameSite=Lax`;
       // Pass origin redirect_url (User profile invariant: port 3000 on localhost, nifty.anshdeepsingh.com in prod)
       const redirectUri = `${window.location.origin}/api/kite/callback`;
       const res = await fetch('/api/kite/auth', {
