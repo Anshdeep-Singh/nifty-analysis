@@ -3,9 +3,13 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Swords,
+  TrendingUp,
+  TrendingDown,
   ArrowLeft,
   Flame,
   Zap,
+  Layers,
+  Sparkles,
   ChevronUp,
   ChevronDown,
   Scale,
@@ -52,16 +56,22 @@ export function TugOfWarRadar({
 
     let totalBullPoints = 0;
     let totalBearPoints = 0;
+    let totalBullWeight = 0;
+    let totalBearWeight = 0;
+    let totalNeutralWeight = 0;
 
     for (const sec of sectors) {
       if (sec.pointImpact > 0.05) {
         bulls.push(sec);
         totalBullPoints += sec.pointImpact;
+        totalBullWeight += sec.weight;
       } else if (sec.pointImpact < -0.05) {
         bears.push(sec);
         totalBearPoints += Math.abs(sec.pointImpact);
+        totalBearWeight += sec.weight;
       } else {
         neutral.push(sec);
+        totalNeutralWeight += sec.weight;
       }
     }
 
@@ -72,6 +82,7 @@ export function TugOfWarRadar({
     const totalForce = totalBullPoints + totalBearPoints;
     const bullForcePct = totalForce > 0 ? (totalBullPoints / totalForce) * 100 : 50;
     const bearForcePct = totalForce > 0 ? (totalBearPoints / totalForce) * 100 : 50;
+    const netWeightBias = Number((totalBullWeight - totalBearWeight).toFixed(2));
 
     const maxAbsPoints = Math.max(
       ...sectors.map((s) => Math.abs(s.pointImpact)),
@@ -84,9 +95,13 @@ export function TugOfWarRadar({
       neutral,
       totalBullPoints: Number(totalBullPoints.toFixed(2)),
       totalBearPoints: Number(totalBearPoints.toFixed(2)),
+      totalBullWeight: Number(totalBullWeight.toFixed(2)),
+      totalBearWeight: Number(totalBearWeight.toFixed(2)),
+      totalNeutralWeight: Number(totalNeutralWeight.toFixed(2)),
       netPoints,
       bullForcePct: Number(bullForcePct.toFixed(1)),
       bearForcePct: Number(bearForcePct.toFixed(1)),
+      netWeightBias,
       maxAbsPoints
     };
   }, [sectors]);
@@ -101,16 +116,22 @@ export function TugOfWarRadar({
 
     let totalBullPoints = 0;
     let totalBearPoints = 0;
+    let totalBullWeight = 0;
+    let totalBearWeight = 0;
+    let totalNeutralWeight = 0;
 
     for (const stock of selectedSector.stocks) {
       if (stock.pointImpact > 0.02) {
         bulls.push(stock);
         totalBullPoints += stock.pointImpact;
+        totalBullWeight += stock.weight;
       } else if (stock.pointImpact < -0.02) {
         bears.push(stock);
         totalBearPoints += Math.abs(stock.pointImpact);
+        totalBearWeight += stock.weight;
       } else {
         neutral.push(stock);
+        totalNeutralWeight += stock.weight;
       }
     }
 
@@ -121,6 +142,7 @@ export function TugOfWarRadar({
     const totalForce = totalBullPoints + totalBearPoints;
     const bullForcePct = totalForce > 0 ? (totalBullPoints / totalForce) * 100 : 50;
     const bearForcePct = totalForce > 0 ? (totalBearPoints / totalForce) * 100 : 50;
+    const netWeightBias = Number((totalBullWeight - totalBearWeight).toFixed(2));
 
     const maxAbsPoints = Math.max(
       ...selectedSector.stocks.map((s) => Math.abs(s.pointImpact)),
@@ -133,9 +155,13 @@ export function TugOfWarRadar({
       neutral,
       totalBullPoints: Number(totalBullPoints.toFixed(2)),
       totalBearPoints: Number(totalBearPoints.toFixed(2)),
+      totalBullWeight: Number(totalBullWeight.toFixed(2)),
+      totalBearWeight: Number(totalBearWeight.toFixed(2)),
+      totalNeutralWeight: Number(totalNeutralWeight.toFixed(2)),
       netPoints,
       bullForcePct: Number(bullForcePct.toFixed(1)),
       bearForcePct: Number(bearForcePct.toFixed(1)),
+      netWeightBias,
       maxAbsPoints
     };
   }, [selectedSector]);
@@ -143,10 +169,10 @@ export function TugOfWarRadar({
   const activeData = selectedSector ? drilldownArena! : macroArena;
   const isDrilldown = !!selectedSector;
 
-  // Visual card size tier based on relative point impact within the arena (continuous & scale-invariant)
+  // Visual card size tier based on point impact relative to maximum
   const getCardSizeTier = (absImpact: number, maxImpact: number) => {
     const ratio = absImpact / (maxImpact || 1);
-    if (ratio >= 0.60) {
+    if (ratio >= 0.65 || absImpact >= 18) {
       return {
         wrapper: 'p-3.5 sm:p-4 min-w-[210px] sm:min-w-[240px] flex-1 max-w-[340px]',
         title: 'text-sm sm:text-base font-extrabold',
@@ -155,7 +181,7 @@ export function TugOfWarRadar({
         isTitan: true
       };
     }
-    if (ratio >= 0.35) {
+    if (ratio >= 0.35 || absImpact >= 7) {
       return {
         wrapper: 'p-3 min-w-[170px] sm:min-w-[200px] flex-1 max-w-[280px]',
         title: 'text-xs sm:text-sm font-bold',
@@ -164,7 +190,7 @@ export function TugOfWarRadar({
         isTitan: false
       };
     }
-    if (ratio >= 0.15) {
+    if (ratio >= 0.15 || absImpact >= 2.5) {
       return {
         wrapper: 'p-2.5 min-w-[140px] sm:min-w-[170px] flex-1 max-w-[230px]',
         title: 'text-xs font-semibold',
@@ -220,7 +246,7 @@ export function TugOfWarRadar({
               </span>
             ) : (
               <span>
-                Real-time directional battle across {indexName} sectors. Advancing sectors pull <strong className="text-emerald-400">UP</strong>, declining pull <strong className="text-rose-400">DOWN</strong>. Bubble size = point impact. Click any sector to inspect its constituent stocks.
+                Real-time directional battle across NIFTY sectors. Advancing sectors pull <strong className="text-emerald-400">UP</strong>, declining pull <strong className="text-rose-400">DOWN</strong>. Bubble size = point impact. Click any sector to inspect its stocks.
               </span>
             )}
           </p>
@@ -244,30 +270,26 @@ export function TugOfWarRadar({
 
           {/* Quick Metrics Badge */}
           <div className="flex items-center gap-2 text-xs font-mono">
-            {typeof spotNetChange === 'number' && !isDrilldown && (
-              <>
-                <span
-                  className={`px-2 py-1 rounded-lg border font-bold hidden sm:inline-flex items-center gap-1 ${
-                    spotNetChange >= 0
-                      ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                      : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
-                  }`}
-                  title={`Official ${indexName} Cash Net Change`}
-                >
-                  <span className="text-[10px] text-slate-400 font-normal">Index:</span>
-                  <span>{spotNetChange >= 0 ? '+' : ''}{spotNetChange.toFixed(1)}</span>
-                </span>
-                <span className="text-slate-600 font-bold hidden sm:inline">•</span>
-              </>
-            )}
-            <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold flex items-center gap-1">
+            <span
+              className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold flex items-center gap-1.5"
+              title="Total Bull Lift: Point Impact & Total Weightage"
+            >
               <ChevronUp className="w-3.5 h-3.5" />
               <span>+{activeData.totalBullPoints} pts</span>
+              <span className="text-[10px] px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-normal">
+                {activeData.totalBullWeight.toFixed(1)}% wt
+              </span>
             </span>
             <span className="text-slate-600 font-bold">•</span>
-            <span className="px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 font-bold flex items-center gap-1">
+            <span
+              className="px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 font-bold flex items-center gap-1.5"
+              title="Total Bear Drag: Point Impact & Total Weightage"
+            >
               <ChevronDown className="w-3.5 h-3.5" />
               <span>-{activeData.totalBearPoints} pts</span>
+              <span className="text-[10px] px-1 py-0.2 rounded bg-rose-500/20 text-rose-300 font-normal">
+                {activeData.totalBearWeight.toFixed(1)}% wt
+              </span>
             </span>
           </div>
         </div>
@@ -281,7 +303,7 @@ export function TugOfWarRadar({
         {/* ============================================================== */}
         <div className="bg-emerald-950/20 border border-emerald-500/20 rounded-xl p-3.5 sm:p-5 relative transition-all duration-300 shadow-inner">
           {/* Header indicator */}
-          <div className="flex items-center justify-between mb-3 text-xs font-mono font-bold text-emerald-400">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3 text-xs font-mono font-bold text-emerald-400">
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-0.5 text-emerald-400 animate-pulse">
                 <ChevronUp className="w-4 h-4" />
@@ -294,6 +316,10 @@ export function TugOfWarRadar({
             <div className="flex items-center gap-2">
               <span className="text-[11px] text-emerald-300/80 font-normal hidden sm:inline">
                 Combined Lift Force:
+              </span>
+              <span className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 font-bold text-xs flex items-center gap-1">
+                <span className="text-[10px] text-slate-400 font-normal uppercase">Total Wt:</span>
+                <span>{activeData.totalBullWeight.toFixed(1)}%</span>
               </span>
               <span className="px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-extrabold text-sm">
                 +{activeData.totalBullPoints} pts
@@ -409,7 +435,68 @@ export function TugOfWarRadar({
         {/* ============================================================== */}
         {/* ZONE 2: CENTER ROPE & LIVE TENSION KNOT                        */}
         {/* ============================================================== */}
-        <div className="relative py-3 sm:py-4 select-none">
+        <div className="relative py-2 sm:py-3 select-none">
+          {/* Weightage Allocation Strip */}
+          <div className="mb-2.5 bg-slate-950/70 border border-slate-800 rounded-lg px-3 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                Weightage Pull:
+              </span>
+              <span className="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-bold flex items-center gap-1 text-[11px]">
+                <span>▲ Up Pull:</span>
+                <span>{activeData.totalBullWeight.toFixed(1)}%</span>
+              </span>
+              <span className="px-2 py-0.5 rounded bg-rose-500/15 border border-rose-500/30 text-rose-400 font-bold flex items-center gap-1 text-[11px]">
+                <span>▼ Down Pull:</span>
+                <span>{activeData.totalBearWeight.toFixed(1)}%</span>
+              </span>
+              {activeData.totalNeutralWeight > 0.05 && (
+                <span className="px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700 text-slate-400 text-[10px] hidden sm:inline-flex items-center gap-1">
+                  <span>Flat:</span>
+                  <span>{activeData.totalNeutralWeight.toFixed(1)}%</span>
+                </span>
+              )}
+            </div>
+
+            {/* Visual Weight Bias Mini-Bar */}
+            <div className="flex items-center gap-2 sm:min-w-[200px]">
+              <span className="text-[10px] text-slate-400 font-normal">Weight Bias:</span>
+              <div className="h-2 flex-1 bg-slate-800 rounded-full overflow-hidden flex min-w-[70px]">
+                <div
+                  className="bg-emerald-500 h-full transition-all duration-500"
+                  style={{
+                    width: `${
+                      activeData.totalBullWeight + activeData.totalBearWeight > 0
+                        ? (activeData.totalBullWeight / (activeData.totalBullWeight + activeData.totalBearWeight)) * 100
+                        : 50
+                    }%`
+                  }}
+                  title={`Up Pull Weight: ${activeData.totalBullWeight.toFixed(1)}%`}
+                />
+                <div
+                  className="bg-rose-500 h-full transition-all duration-500"
+                  style={{
+                    width: `${
+                      activeData.totalBullWeight + activeData.totalBearWeight > 0
+                        ? (activeData.totalBearWeight / (activeData.totalBullWeight + activeData.totalBearWeight)) * 100
+                        : 50
+                    }%`
+                  }}
+                  title={`Down Pull Weight: ${activeData.totalBearWeight.toFixed(1)}%`}
+                />
+              </div>
+              <span
+                className={`text-[10px] font-bold ${
+                  activeData.netWeightBias >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                }`}
+              >
+                {activeData.netWeightBias >= 0
+                  ? `+${activeData.netWeightBias.toFixed(1)}%`
+                  : `${activeData.netWeightBias.toFixed(1)}%`}
+              </span>
+            </div>
+          </div>
+
           {/* Tension Rope Track */}
           <div className="relative h-6 sm:h-7 rounded-xl bg-slate-950 border border-slate-800 overflow-hidden flex items-center p-1 shadow-inner">
             {/* Visual Rope with Green vs Red force fill */}
@@ -455,29 +542,29 @@ export function TugOfWarRadar({
             <div className="flex items-center gap-1.5 text-emerald-400 font-bold">
               <span>▲ BULL FORCE: {activeData.bullForcePct}%</span>
               <span className="text-[10px] text-slate-400 font-normal hidden sm:inline">
-                ({activeData.totalBullPoints} pts lift)
+                (+{activeData.totalBullPoints} pts • {activeData.totalBullWeight.toFixed(1)}% wt)
               </span>
             </div>
 
             <div className="text-center text-[10px] text-slate-400 font-mono hidden md:block">
               {activeData.bullForcePct >= 55 ? (
                 <span className="text-emerald-300 font-semibold">
-                  ⚡ Bulls controlling session momentum with +{activeData.netPoints} pts net lift ({activeData.bullForcePct}% force)
+                  ⚡ Bulls controlling session momentum with +{activeData.netPoints} pts net lift ({activeData.totalBullWeight.toFixed(1)}% vs {activeData.totalBearWeight.toFixed(1)}% wt)
                 </span>
               ) : activeData.bearForcePct >= 55 ? (
                 <span className="text-rose-300 font-semibold">
-                  ⚠️ Heavy distribution dragging session by {activeData.netPoints} pts ({activeData.bearForcePct}% force)
+                  ⚠️ Heavy distribution dragging session by {activeData.netPoints} pts ({activeData.totalBearWeight.toFixed(1)}% vs {activeData.totalBullWeight.toFixed(1)}% wt)
                 </span>
               ) : (
                 <span className="text-amber-300 font-semibold">
-                  ⚖️ Near Equilibrium: Forces evenly matched (Bulls {activeData.bullForcePct}% vs Bears {activeData.bearForcePct}%)
+                  ⚖️ Near Equilibrium: Forces evenly matched (Bulls {activeData.totalBullWeight.toFixed(1)}% wt vs Bears {activeData.totalBearWeight.toFixed(1)}% wt)
                 </span>
               )}
             </div>
 
             <div className="flex items-center gap-1.5 text-rose-400 font-bold">
               <span className="text-[10px] text-slate-400 font-normal hidden sm:inline">
-                (-{activeData.totalBearPoints} pts drag)
+                ({activeData.totalBearWeight.toFixed(1)}% wt • -{activeData.totalBearPoints} pts)
               </span>
               <span>BEAR FORCE: {activeData.bearForcePct}% ▼</span>
             </div>
@@ -487,7 +574,7 @@ export function TugOfWarRadar({
           {activeData.neutral.length > 0 && (
             <div className="mt-2.5 pt-2 border-t border-slate-800/60 flex flex-wrap items-center gap-2 text-xs font-mono">
               <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
-                Equilibrium / Flat:
+                Equilibrium / Flat ({activeData.totalNeutralWeight.toFixed(1)}% wt):
               </span>
               {activeData.neutral.map((item) => {
                 const name = !isDrilldown ? (item as SectorAnalysis).name : (item as Nifty50Stock).symbol;
@@ -498,9 +585,9 @@ export function TugOfWarRadar({
                       if (!isDrilldown) setSelectedSectorName(name);
                     }}
                     className="px-2 py-0.5 rounded text-[10px] bg-slate-800/80 text-slate-400 border border-slate-700 hover:text-white hover:border-slate-600 transition-colors cursor-pointer"
-                    title={`Points: ${item.pointImpact.toFixed(2)} pts`}
+                    title={`Points: ${item.pointImpact.toFixed(2)} pts | Weight: ${item.weight.toFixed(1)}%`}
                   >
-                    {name} ({item.pointImpact >= 0 ? '+' : ''}{item.pointImpact.toFixed(2)} pts)
+                    {name} ({item.weight.toFixed(1)}% wt)
                   </span>
                 );
               })}
@@ -513,7 +600,7 @@ export function TugOfWarRadar({
         {/* ============================================================== */}
         <div className="bg-rose-950/20 border border-rose-500/20 rounded-xl p-3.5 sm:p-5 relative transition-all duration-300 shadow-inner">
           {/* Header indicator */}
-          <div className="flex items-center justify-between mb-3 text-xs font-mono font-bold text-rose-400">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3 text-xs font-mono font-bold text-rose-400">
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-0.5 text-rose-400 animate-pulse">
                 <ChevronDown className="w-4 h-4" />
@@ -526,6 +613,10 @@ export function TugOfWarRadar({
             <div className="flex items-center gap-2">
               <span className="text-[11px] text-rose-300/80 font-normal hidden sm:inline">
                 Combined Drag Force:
+              </span>
+              <span className="px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/20 text-rose-300 font-bold text-xs flex items-center gap-1">
+                <span className="text-[10px] text-slate-400 font-normal uppercase">Total Wt:</span>
+                <span>{activeData.totalBearWeight.toFixed(1)}%</span>
               </span>
               <span className="px-2 py-0.5 rounded bg-rose-500/20 border border-rose-500/30 text-rose-300 font-extrabold text-sm">
                 -{activeData.totalBearPoints} pts
