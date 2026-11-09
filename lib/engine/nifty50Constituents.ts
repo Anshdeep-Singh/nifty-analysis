@@ -4,9 +4,11 @@ import {
   SectorAnalysis,
   PredictionLevels,
   ConfirmationSignal,
-  TrendIntensity
+  TrendIntensity,
+  ImpulseAttribution
 } from '../types';
 import { buildSmartMoneyRoadmap } from './smartMoneyRoadmap';
+import { calculateImpulseAttribution } from './impulseAttribution';
 
 export interface RawStockDefinition {
   symbol: string;
@@ -658,6 +660,18 @@ export function buildNifty50Analysis(
   const tacticalResistance = smartRoadmap.tacticalLevels.find(l => l.type === 'PULLBACK_RESISTANCE')?.price;
   const tacticalStopLoss = smartRoadmap.actionSignal.invalidationPrice;
 
+  const impulseAttribution = calculateImpulseAttribution({
+    indexSymbol: 'NIFTY',
+    spotPrice,
+    spotNetChange: netPointImpact,
+    spotPrevClose: pivot,
+    vix: effectiveVix,
+    expected1DayMove,
+    stocks: analyzedStocks,
+    sectors,
+    advancesDeclines
+  });
+
   const prediction: PredictionLevels = {
     direction,
     trendScore,
@@ -697,6 +711,7 @@ export function buildNifty50Analysis(
     spotHigh,
     spotLow,
     vix,
-    expected1DayMove
+    expected1DayMove,
+    impulseAttribution
   };
 }

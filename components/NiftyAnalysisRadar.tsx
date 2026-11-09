@@ -16,7 +16,8 @@ import {
   Sparkles,
   Key,
   BarChart3,
-  Swords
+  Swords,
+  Flame
 } from 'lucide-react';
 import { NiftyAnalysisState } from '@/lib/types';
 import { PredictionLevelsCard } from './PredictionLevelsCard';
@@ -28,12 +29,13 @@ import { KiteAuthModal } from './KiteAuthModal';
 import { MultiTfParallelCharts } from './MultiTfParallelCharts';
 import { DashboardNav } from './DashboardNav';
 import { TugOfWarRadar } from './TugOfWarRadar';
+import { ImpulseAttributionCard } from './ImpulseAttributionCard';
 
 export function NiftyAnalysisRadar() {
   const [data, setData] = useState<NiftyAnalysisState | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
-  const [viewMode, setViewMode] = useState<'overview' | 'tugofwar' | 'charts' | 'heatmap' | 'sectors' | 'anomalies' | 'table'>('overview');
+  const [viewMode, setViewMode] = useState<'overview' | 'impulse' | 'tugofwar' | 'charts' | 'heatmap' | 'sectors' | 'anomalies' | 'table'>('overview');
   const [refreshIntervalSec, setRefreshIntervalSec] = useState<number>(3);
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
 
@@ -283,6 +285,7 @@ export function NiftyAnalysisRadar() {
         <div className="flex items-center gap-1.5 mt-4 pt-3 border-t border-slate-800/80 overflow-x-auto">
           {[
             { id: 'overview', label: 'Composite Overview', icon: Activity },
+            { id: 'impulse', label: 'Impulse & Culprit Radar', icon: Flame },
             { id: 'tugofwar', label: 'Sector Tug-of-War', icon: Swords },
             { id: 'charts', label: 'Multi-TF Charts (5m/15m/1h)', icon: BarChart3 },
             { id: 'heatmap', label: '50 Heatmap', icon: Grid },
@@ -313,12 +316,19 @@ export function NiftyAnalysisRadar() {
       {/* Main Content Area based on View Mode */}
       {viewMode === 'overview' && (
         <div className="space-y-5">
+          {data.impulseAttribution && (
+            <ImpulseAttributionCard attribution={data.impulseAttribution} indexName="NIFTY 50" />
+          )}
           <TugOfWarRadar sectors={data.sectors} indexName="NIFTY 50" spotNetChange={data.spotNetChange} />
           <PredictionLevelsCard prediction={data.prediction} />
           <SectorCoDependencyMatrix coDependency={data.coDependency} />
           {data.anomalies.length > 0 && <AnomalyAlertFeed anomalies={data.anomalies} />}
           <ConstituentsHeatmap stocks={data.stocks} />
         </div>
+      )}
+
+      {viewMode === 'impulse' && (
+        <ImpulseAttributionCard attribution={data.impulseAttribution} indexName="NIFTY 50" />
       )}
 
       {viewMode === 'tugofwar' && (

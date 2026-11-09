@@ -382,6 +382,39 @@ runTest('getIntradayExpectedVolumeRatio strictly handles session boundaries, wee
   assert.strictEqual(Number(getIntradayExpectedVolumeRatio(afternoon1345).toFixed(2)), 0.70, '13:45 PM IST must return 0.70');
 });
 
+// -------------------------------------------------------------
+// TEST 14: Sudden Impulse Attribution & Microstructure Cause Classification
+// -------------------------------------------------------------
+runTest('Impulse Attribution accurately isolates heavyweight culprit and attaches direct verification links', () => {
+  const spotPrevClose = 24500.0;
+  const updates = NIFTY_50_STOCKS_DATA.map((s) => ({
+    symbol: s.symbol,
+    price: s.symbol === 'RELIANCE' ? s.price * 1.025 : s.price,
+    changePct: s.symbol === 'RELIANCE' ? 2.5 : 0.0,
+    prevClose: s.price,
+    volume: s.symbol === 'RELIANCE' ? 25000000 : 1000000
+  }));
+
+  const analysis = buildNifty50Analysis(
+    updates,
+    24560,
+    14.0,
+    60.0,
+    spotPrevClose,
+    spotPrevClose,
+    24560,
+    spotPrevClose,
+    true
+  );
+
+  const impulse = analysis.impulseAttribution;
+  assert.ok(impulse, 'Impulse attribution must be generated');
+  assert.strictEqual(impulse.causeType, 'SINGLE_STOCK_CULPRIT', 'Must identify RELIANCE as single-stock culprit');
+  assert.strictEqual(impulse.culprit?.symbol, 'RELIANCE', 'Culprit must be RELIANCE');
+  assert.ok(impulse.actionLinks.length >= 3, 'Must provide 3 regulatory/news inspection links');
+  assert.ok(impulse.actionLinks.some(l => l.url.includes('RELIANCE')), 'Link URL must encode RELIANCE symbol');
+});
+
 console.log('\n===============================================================');
 console.log(`🎉 ALL ${testsPassed}/${testsPassed} VERIFICATION TESTS PASSED SUCCESSFULLY!`);
 console.log('===============================================================\n');

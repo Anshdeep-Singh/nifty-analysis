@@ -250,6 +250,45 @@ export interface AnomalyAlert {
   }[];
 }
 
+export interface CulpritStockDetail {
+  symbol: string;
+  name: string;
+  sector: string;
+  weight: number;
+  price: number;
+  changePct: number;
+  pointImpact: number;
+  pctOfDirectionalMove: number;
+  pctOfNetIndexMove: number;
+  relativeVolume: number;
+  turnoverCr: number;
+  volumeZScore?: number;
+}
+
+export interface ImpulseAttribution {
+  isImpulseDetected: boolean;
+  intensity: 'EXTREME' | 'HIGH' | 'MODERATE' | 'LOW';
+  direction: 'BULLISH_SURGE' | 'BEARISH_PLUNGE' | 'NEUTRAL_BALANCED';
+  netPoints: number;
+  grossPoints: number;
+  causeType: 'SINGLE_STOCK_CULPRIT' | 'BASKET_ARBITRAGE_SWEEP' | 'VACUUM_SLIPPAGE' | 'SECTOR_ROTATION_BALANCED' | 'ORDERLY_DRIFT';
+  causeBadge: string;
+  headline: string;
+  verdict: string;
+  recommendation: string;
+  concentrationRatio1: number;
+  concentrationRatio2: number;
+  culprit?: CulpritStockDetail;
+  secondaryCulprit?: CulpritStockDetail;
+  topDrivers: { symbol: string; name: string; weight: number; points: number; changePct: number; rvol: number }[];
+  topDraggers: { symbol: string; name: string; weight: number; points: number; changePct: number; rvol: number }[];
+  marketBreadthSyncPct: number;
+  aggregateRvol: number;
+  liquidityState: 'HEALTHY_DEPTH' | 'MODERATE_DEPTH' | 'THIN_AIR_POCKET';
+  actionLinks: { label: string; url: string }[];
+  timestamp: string;
+}
+
 export interface NiftyAnalysisState {
   spotPrice: number;
   spotNetChange: number;
@@ -268,6 +307,7 @@ export interface NiftyAnalysisState {
   coDependency: CoDependencySummary;
   anomalies: AnomalyAlert[];
   stocks: Nifty50Stock[];
+  impulseAttribution?: ImpulseAttribution;
 }
 
 export interface KiteSession {

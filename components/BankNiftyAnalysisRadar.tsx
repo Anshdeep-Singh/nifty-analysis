@@ -13,7 +13,8 @@ import {
   Key,
   BarChart3,
   Landmark,
-  Swords
+  Swords,
+  Flame
 } from 'lucide-react';
 import { BankNiftyAnalysisState } from '@/lib/types';
 import { PredictionLevelsCard } from './PredictionLevelsCard';
@@ -25,12 +26,13 @@ import { KiteAuthModal } from './KiteAuthModal';
 import { MultiTfParallelCharts } from './MultiTfParallelCharts';
 import { DashboardNav } from './DashboardNav';
 import { TugOfWarRadar } from './TugOfWarRadar';
+import { ImpulseAttributionCard } from './ImpulseAttributionCard';
 
 export function BankNiftyAnalysisRadar() {
   const [data, setData] = useState<BankNiftyAnalysisState | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
-  const [viewMode, setViewMode] = useState<'overview' | 'tugofwar' | 'charts' | 'heatmap' | 'sectors' | 'anomalies' | 'table'>('overview');
+  const [viewMode, setViewMode] = useState<'overview' | 'impulse' | 'tugofwar' | 'charts' | 'heatmap' | 'sectors' | 'anomalies' | 'table'>('overview');
   const [refreshIntervalSec, setRefreshIntervalSec] = useState<number>(3);
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
 
@@ -281,6 +283,7 @@ export function BankNiftyAnalysisRadar() {
         <div className="flex items-center gap-1.5 mt-4 pt-3 border-t border-slate-800/80 overflow-x-auto">
           {[
             { id: 'overview', label: 'Composite Overview', icon: Activity },
+            { id: 'impulse', label: 'Impulse & Culprit Radar', icon: Flame },
             { id: 'tugofwar', label: 'Bank Tug-of-War', icon: Swords },
             { id: 'charts', label: 'Multi-TF Charts (5m/15m/1h)', icon: BarChart3 },
             { id: 'heatmap', label: '14 Bank Heatmap', icon: Grid },
@@ -311,6 +314,9 @@ export function BankNiftyAnalysisRadar() {
       {/* Main Content Area based on View Mode */}
       {viewMode === 'overview' && (
         <div className="space-y-4">
+          {data.impulseAttribution && (
+            <ImpulseAttributionCard attribution={data.impulseAttribution} indexName="BANK NIFTY" />
+          )}
           <TugOfWarRadar sectors={data.sectors} indexName="BANK NIFTY" spotNetChange={data.spotNetChange} />
           <PredictionLevelsCard prediction={data.prediction} />
           <SectorCoDependencyMatrix
@@ -325,6 +331,10 @@ export function BankNiftyAnalysisRadar() {
             subtitle="Arranged by official NSE free-float weightage order across Private and PSU banks."
           />
         </div>
+      )}
+
+      {viewMode === 'impulse' && (
+        <ImpulseAttributionCard attribution={data.impulseAttribution} indexName="BANK NIFTY" />
       )}
 
       {viewMode === 'tugofwar' && (

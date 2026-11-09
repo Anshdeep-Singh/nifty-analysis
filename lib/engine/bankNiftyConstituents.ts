@@ -7,6 +7,7 @@ import {
   TrendIntensity
 } from '../types';
 import { buildSmartMoneyRoadmap } from './smartMoneyRoadmap';
+import { calculateImpulseAttribution } from './impulseAttribution';
 
 export interface RawBankStockDefinition {
   symbol: string;
@@ -625,6 +626,18 @@ export function buildBankNiftyAnalysis(
   const tacticalResistance = smartRoadmap.tacticalLevels.find(l => l.type === 'PULLBACK_RESISTANCE')?.price;
   const tacticalStopLoss = smartRoadmap.actionSignal.invalidationPrice;
 
+  const impulseAttribution = calculateImpulseAttribution({
+    indexSymbol: 'BANKNIFTY',
+    spotPrice,
+    spotNetChange: netPointImpact,
+    spotPrevClose: pivot,
+    vix: effectiveVix,
+    expected1DayMove,
+    stocks: analyzedStocks,
+    sectors,
+    advancesDeclines
+  });
+
   const prediction: PredictionLevels = {
     direction,
     trendScore,
@@ -664,6 +677,7 @@ export function buildBankNiftyAnalysis(
     spotHigh,
     spotLow,
     vix,
-    expected1DayMove
+    expected1DayMove,
+    impulseAttribution
   };
 }

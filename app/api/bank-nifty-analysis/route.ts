@@ -250,7 +250,8 @@ export async function GET(request: Request) {
       sectors: analysis.sectors,
       coDependency,
       anomalies,
-      stocks: analysis.analyzedStocks
+      stocks: analysis.analyzedStocks,
+      impulseAttribution: analysis.impulseAttribution
     };
 
     cachedPayload = {
