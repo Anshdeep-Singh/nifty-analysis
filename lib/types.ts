@@ -93,6 +93,23 @@ export interface ConfirmationSignal {
   weight: number; // Institutional weight in trend synthesis
 }
 
+export interface MicrostructureSafety {
+  riskLevel: 'LOW' | 'ELEVATED' | 'HIGH' | 'CRITICAL';
+  status: 'HEALTHY' | 'FAKEMOVE_WARNING' | 'LIQUIDITY_VACUUM' | 'ROTATION_CHOP';
+  trapDetected: boolean;
+  trapReason?: string;
+  governorPenalty: number;
+  rawTrendScore: number;
+  rawConfidencePct: number;
+  culpritSymbol?: string;
+  culpritPctOfMove?: number;
+  cr1: number;
+  cr2: number;
+  marketRvol: number;
+  liquidityState: 'HEALTHY_DEPTH' | 'MODERATE_DEPTH' | 'THIN_AIR_POCKET';
+  recommendation: string;
+}
+
 export interface PredictionLevels {
   direction: 'STRONG_BULLISH' | 'MODERATE_BULLISH' | 'NEUTRAL_CHOPPY' | 'MODERATE_BEARISH' | 'STRONG_BEARISH';
   trendScore: number; // -100 to +100
@@ -113,6 +130,7 @@ export interface PredictionLevels {
   keyNegativeDraggers: { symbol: string; weight: number; changePct: number; points: number }[];
   confirmationSignals: ConfirmationSignal[];
   summary: string;
+  microstructureSafety?: MicrostructureSafety;
   // Institutional Smart Money Roadmap & Tactical Levels
   smartRoadmap?: SmartMoneyRoadmapState;
   gapAnalysis?: GapRegimeAnalysis;

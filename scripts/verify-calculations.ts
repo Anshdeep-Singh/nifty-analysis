@@ -1,5 +1,6 @@
 import assert from 'assert';
 import { NIFTY_50_STOCKS_DATA, buildNifty50Analysis } from '../lib/engine/nifty50Constituents';
+import { BANK_NIFTY_STOCKS_DATA, buildBankNiftyAnalysis } from '../lib/engine/bankNiftyConstituents';
 import { buildSectorCoDependencyAnalysis } from '../lib/engine/sectorCoDependency';
 import { scanMicrostructureAnomalies } from '../lib/engine/anomalyScanner';
 import {
@@ -413,6 +414,196 @@ runTest('Impulse Attribution accurately isolates heavyweight culprit and attache
   assert.strictEqual(impulse.culprit?.symbol, 'RELIANCE', 'Culprit must be RELIANCE');
   assert.ok(impulse.actionLinks.length >= 3, 'Must provide 3 regulatory/news inspection links');
   assert.ok(impulse.actionLinks.some(l => l.url.includes('RELIANCE')), 'Link URL must encode RELIANCE symbol');
+});
+
+// -------------------------------------------------------------
+// TEST 15: Microstructure Safety Governor Integrates with Confirmation Engine
+// -------------------------------------------------------------
+runTest('Microstructure Safety Governor detects Single-Stock Trap, clamps confidence & flags warning', () => {
+  const spotPrevClose = 24500.0;
+  const updates = NIFTY_50_STOCKS_DATA.map((s) => ({
+    symbol: s.symbol,
+    price: s.symbol === 'RELIANCE' ? s.price * 1.025 : s.price,
+    changePct: s.symbol === 'RELIANCE' ? 2.5 : 0.0,
+    prevClose: s.price,
+    volume: s.symbol === 'RELIANCE' ? 25000000 : 1000000
+  }));
+
+  const analysis = buildNifty50Analysis(
+    updates,
+    24560,
+    14.0,
+    60.0,
+    spotPrevClose,
+    spotPrevClose,
+    24560,
+    spotPrevClose,
+    true
+  );
+
+  const safety = analysis.prediction.microstructureSafety;
+  assert.ok(safety, 'MicrostructureSafety must exist on prediction');
+  assert.strictEqual(safety.trapDetected, true, 'Trap must be detected when single stock moves index');
+  assert.strictEqual(safety.status, 'FAKEMOVE_WARNING', 'Status must be FAKEMOVE_WARNING');
+  assert.strictEqual(safety.culpritSymbol, 'RELIANCE', 'Culprit symbol must be RELIANCE');
+  assert.ok(safety.governorPenalty > 0, 'Governor penalty must be applied');
+  assert.ok(analysis.prediction.confidencePct <= 48, `Confidence must be clamped under 48%, got ${analysis.prediction.confidencePct}%`);
+  assert.ok(analysis.prediction.direction !== 'STRONG_BULLISH', 'Direction must not report STRONG_BULLISH under fakeout trap');
+
+  // Verify Signal 1 (HEAVYWEIGHT_ALIGNMENT) flagged skew
+  const top5Sig = analysis.prediction.confirmationSignals.find(s => s.id === 'HEAVYWEIGHT_ALIGNMENT');
+  assert.ok(top5Sig, 'HEAVYWEIGHT_ALIGNMENT signal must exist');
+  assert.strictEqual(top5Sig.status, 'DIVERGENT', 'Signal 1 must be DIVERGENT when single stock carries top 5 alone');
+  assert.ok(top5Sig.details.includes('SKEWED'), 'Signal 1 details must mention SKEWED');
+});
+
+// -------------------------------------------------------------
+// TEST 16: Bank Nifty Microstructure Safety Governor Integration
+// -------------------------------------------------------------
+runTest('Bank Nifty Microstructure Governor catches single-bank trap and penalizes confidence', () => {
+  const spotPrevClose = 51200.0;
+  const updates = BANK_NIFTY_STOCKS_DATA.map((s) => ({
+    symbol: s.symbol,
+    price: s.symbol === 'HDFCBANK' ? s.price * 1.03 : s.price,
+    changePct: s.symbol === 'HDFCBANK' ? 3.0 : 0.0,
+    prevClose: s.price,
+    volume: s.symbol === 'HDFCBANK' ? 50000000 : 2000000
+  }));
+
+  const analysis = buildBankNiftyAnalysis(
+    updates,
+    51450,
+    14.5,
+    250.0,
+    spotPrevClose,
+    spotPrevClose,
+    51450,
+    spotPrevClose,
+    true
+  );
+
+  const safety = analysis.prediction.microstructureSafety;
+  assert.ok(safety, 'MicrostructureSafety must exist on Bank Nifty prediction');
+  assert.strictEqual(safety.trapDetected, true, 'Trap must be detected on Bank Nifty');
+  assert.strictEqual(safety.status, 'FAKEMOVE_WARNING', 'Status must be FAKEMOVE_WARNING');
+  assert.strictEqual(safety.culpritSymbol, 'HDFCBANK', 'Culprit must be HDFCBANK');
+  assert.ok(analysis.prediction.confidencePct <= 48, 'Bank Nifty confidence must be clamped under 48%');
+
+  const top3Sig = analysis.prediction.confirmationSignals.find(s => s.id === 'HEAVYWEIGHT_ALIGNMENT');
+  assert.ok(top3Sig, 'Big-3 Heavyweights Hegemony signal must exist');
+  assert.strictEqual(top3Sig.status, 'DIVERGENT', 'Signal 1 must be DIVERGENT when HDFCBANK carries alone');
+});
+
+// -------------------------------------------------------------
+// TEST 17: Single-Stock Skew with Dispersed Positive Peers (Concentration Dominance)
+// -------------------------------------------------------------
+runTest('Governor detects single-stock skew even when multiple peer heavyweights have minor positive drift', () => {
+  const spotPrevClose = 24500.0;
+  const updates = NIFTY_50_STOCKS_DATA.map((s) => {
+    if (s.symbol === 'RELIANCE') {
+      return { symbol: s.symbol, price: s.price * 1.03, changePct: 3.0, prevClose: s.price, volume: 20000000 };
+    }
+    if (s.symbol === 'TCS') {
+      // Minor positive drift (0.05%) that does not constitute broad confirmation
+      return { symbol: s.symbol, price: s.price * 1.0005, changePct: 0.05, prevClose: s.price, volume: 1000000 };
+    }
+    if (s.symbol === 'HDFCBANK' || s.symbol === 'ICICIBANK' || s.symbol === 'INFY') {
+      return { symbol: s.symbol, price: s.price * 0.995, changePct: -0.5, prevClose: s.price, volume: 1000000 };
+    }
+    return { symbol: s.symbol, price: s.price, changePct: 0.0, prevClose: s.price, volume: 1000000 };
+  });
+
+  const analysis = buildNifty50Analysis(
+    updates,
+    24540,
+    14.0,
+    40.0,
+    spotPrevClose,
+    spotPrevClose,
+    24540,
+    spotPrevClose,
+    true
+  );
+
+  const safety = analysis.prediction.microstructureSafety;
+  assert.ok(safety, 'Safety must exist');
+  assert.strictEqual(safety.trapDetected, true, 'Trap must be flagged even with 2 positive stocks in top 5');
+  assert.strictEqual(safety.culpritSymbol, 'RELIANCE', 'Culprit must be RELIANCE');
+
+  const top5Sig = analysis.prediction.confirmationSignals.find(s => s.id === 'HEAVYWEIGHT_ALIGNMENT');
+  assert.strictEqual(top5Sig?.status, 'DIVERGENT', 'Top 5 must be DIVERGENT due to concentration dominance');
+  assert.ok(top5Sig?.details.includes('SKEWED'), 'Details must highlight SKEWED condition');
+});
+
+// -------------------------------------------------------------
+// TEST 18: Compound Risk Handling (Single-Stock Skew in Thin Air Pocket)
+// -------------------------------------------------------------
+runTest('Compound Risk (Single-Stock Skew + Dry Market RVOL) escalates to CRITICAL with 40% penalty', () => {
+  const spotPrevClose = 24500.0;
+  // Set all stocks volume to extremely low (dry market RVOL < 0.8x)
+  const updates = NIFTY_50_STOCKS_DATA.map((s) => ({
+    symbol: s.symbol,
+    price: s.symbol === 'RELIANCE' ? s.price * 1.025 : s.price,
+    changePct: s.symbol === 'RELIANCE' ? 2.5 : 0.0,
+    prevClose: s.price,
+    volume: 50000 // Very dry volume (< 0.2x normal ADV)
+  }));
+
+  const analysis = buildNifty50Analysis(
+    updates,
+    24560,
+    14.0,
+    60.0,
+    spotPrevClose,
+    spotPrevClose,
+    24560,
+    spotPrevClose,
+    true
+  );
+
+  const safety = analysis.prediction.microstructureSafety;
+  assert.ok(safety, 'Safety must exist');
+  assert.strictEqual(safety.trapDetected, true, 'Trap must be detected');
+  assert.strictEqual(safety.riskLevel, 'CRITICAL', 'Risk level must escalate to CRITICAL in thin air pocket');
+  assert.strictEqual(safety.governorPenalty, 40, 'Governor penalty must escalate to 40%');
+  assert.strictEqual(safety.liquidityState, 'THIN_AIR_POCKET', 'Liquidity state must reflect THIN_AIR_POCKET');
+  assert.ok(safety.trapReason?.includes('Thin Depth'), 'Trap reason must explicitly state Thin Depth');
+});
+
+// -------------------------------------------------------------
+// TEST 19: Clean Order Book State (No False Culprit)
+// -------------------------------------------------------------
+runTest('Clean Order Book generates HEALTHY status without spurious culprit symbol in UI state', () => {
+  const spotPrevClose = 24500.0;
+  // Uniform broad-based positive market
+  const updates = NIFTY_50_STOCKS_DATA.map((s) => ({
+    symbol: s.symbol,
+    price: s.price * 1.008,
+    changePct: 0.8,
+    prevClose: s.price,
+    volume: 5000000
+  }));
+
+  const analysis = buildNifty50Analysis(
+    updates,
+    24696,
+    13.0,
+    196.0,
+    spotPrevClose,
+    spotPrevClose,
+    24696,
+    spotPrevClose,
+    true
+  );
+
+  const safety = analysis.prediction.microstructureSafety;
+  assert.ok(safety, 'Safety must exist');
+  assert.strictEqual(safety.trapDetected, false, 'No trap should be detected on broad rally');
+  assert.strictEqual(safety.status, 'HEALTHY', 'Status must be HEALTHY');
+  assert.strictEqual(safety.riskLevel, 'LOW', 'Risk level must be LOW');
+  assert.strictEqual(safety.governorPenalty, 0, 'Governor penalty must be 0');
+  assert.strictEqual(safety.culpritSymbol, undefined, 'culpritSymbol must be undefined when no trap active');
+  assert.strictEqual(safety.culpritPctOfMove, undefined, 'culpritPctOfMove must be undefined when no trap active');
 });
 
 console.log('\n===============================================================');

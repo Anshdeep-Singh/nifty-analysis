@@ -135,15 +135,18 @@ export function calculateImpulseAttribution({
   // Check Sector Divergence Split (e.g. Bank vs IT divergence)
   const isSectorSplit = sectors.some((s) => s.pointImpact > 10) && sectors.some((s) => s.pointImpact < -10);
 
-  // Sector rotation condition: High gross churn with suppressed net drift (internal sector tug-of-war)
-  const isSectorRotation = (grossPoints >= (indexSymbol === 'BANKNIFTY' ? 60 : 25) && grossPoints > 2.0 * Math.max(1, absNetPoints)) || (isSectorSplit && absNetPoints < velocityThreshold * 1.5);
-
   // Single-stock condition: High concentration in top stock or top 2 stocks pulling the index
   const isSingleStockDislocation = Boolean(
     primaryStock &&
-    !isSectorRotation &&
     (concentrationRatio1 >= 38 || concentrationRatio2 >= 58 || (primaryPctOfNet >= 45 && absNetPoints >= velocityThreshold * 0.5)) &&
     (primaryAbsImpact >= (indexSymbol === 'BANKNIFTY' ? 25 : 8) || (primaryStock.relativeVolume ?? 1.0) >= 1.4)
+  );
+
+  // Sector rotation condition: High gross churn with suppressed net drift (internal sector tug-of-war)
+  // Operates only when single-stock concentration is not dominating
+  const isSectorRotation = !isSingleStockDislocation && (
+    (grossPoints >= (indexSymbol === 'BANKNIFTY' ? 60 : 25) && grossPoints > 2.0 * Math.max(1, absNetPoints)) ||
+    (isSectorSplit && absNetPoints < velocityThreshold * 1.5)
   );
 
   // Vacuum / Thin liquidity condition
@@ -152,20 +155,21 @@ export function calculateImpulseAttribution({
   // Basket sweep condition: Broadly uniform breadth with moderate/low concentration
   const isBasketSweep = marketBreadthSyncPct >= 70 && concentrationRatio2 <= 42 && absNetPoints >= velocityThreshold;
 
-  if (isSectorRotation) {
+  if (isSingleStockDislocation && primaryStock) {
+    causeType = 'SINGLE_STOCK_CULPRIT';
+    causeBadge = 'Single-Stock Dislocation';
+    const primaryRvol = (primaryStock.relativeVolume ?? 1.0).toFixed(1);
+    const primaryImpactStr = `${primaryStock.pointImpact > 0 ? '+' : ''}${primaryStock.pointImpact.toFixed(1)} pts`;
+    const remainingConstituentCount = Math.max(1, stocks.length - 1);
+    headline = `${primaryStock.symbol} Driving ${primaryPctOfNet > 100 ? '>100' : primaryPctOfNet}% of Index Move (${primaryImpactStr}, ${primaryRvol}x Vol)`;
+    verdict = `The index movement is heavily driven by ${primaryStock.name} (${primaryStock.symbol}), which accounts for ${primaryPctOfNet > 100 ? '>100' : primaryPctOfNet}% of the net point change. The remaining ${remainingConstituentCount} stocks are not broadly confirming this impulse.`;
+    recommendation = `CAUTION (FAKEMOVE RISK): Do not chase index breakouts/breakdowns driven by single-stock skew. A reversal or exhaustion in ${primaryStock.symbol} will likely trigger an index snap-back.`;
+  } else if (isSectorRotation) {
     causeType = 'SECTOR_ROTATION_BALANCED';
     causeBadge = 'Sector Capital Rotation';
     headline = `Internal Sector Tug-of-War (Gross: ${grossPoints.toFixed(0)} pts vs Net: ${netPoints.toFixed(0)} pts)`;
     verdict = `High constituent dispersion: gains in leading sectors are being directly absorbed by selling in lagging sectors. Strong stock-specific volatility, but muted directional index trend.`;
     recommendation = `RANGE / DELTA NEUTRAL: Favorable environment for short options carry and mean-reversion; naked directional trades will suffer from choppy whipsaws.`;
-  } else if (isSingleStockDislocation && primaryStock) {
-    causeType = 'SINGLE_STOCK_CULPRIT';
-    causeBadge = 'Single-Stock Dislocation';
-    const primaryRvol = (primaryStock.relativeVolume ?? 1.0).toFixed(1);
-    const primaryImpactStr = `${primaryStock.pointImpact > 0 ? '+' : ''}${primaryStock.pointImpact.toFixed(1)} pts`;
-    headline = `${primaryStock.symbol} Driving ${primaryPctOfNet > 100 ? '>100' : primaryPctOfNet}% of Index Move (${primaryImpactStr}, ${primaryRvol}x Vol)`;
-    verdict = `The index movement is heavily driven by ${primaryStock.name} (${primaryStock.symbol}), which accounts for ${primaryPctOfNet}% of the net point change. The remaining 49 stocks are not broadly confirming this impulse.`;
-    recommendation = `CAUTION (FAKEMOVE RISK): Do not chase index breakouts/breakdowns driven by single-stock skew. A reversal or exhaustion in ${primaryStock.symbol} will likely trigger an index snap-back.`;
   } else if (isThinVacuum) {
     causeType = 'VACUUM_SLIPPAGE';
     causeBadge = 'Low-Depth Air Pocket';
@@ -178,12 +182,6 @@ export function calculateImpulseAttribution({
     headline = `Institutional Index Basket Arbitrage (${marketBreadthSyncPct.toFixed(0)}% Breadth Sync)`;
     verdict = `Uniform institutional buying/selling across ${direction === 'BULLISH_SURGE' ? advancesDeclines.advances : advancesDeclines.declines} constituents with low stock-level concentration (CR2: ${concentrationRatio2}%). Consistent with Cash-Futures arbitrage algos or large index ETF basket rebalancing.`;
     recommendation = `RIDE TREND: High constituent synchrony indicates authentic multi-sector institutional participation. Look for continuation on pullbacks.`;
-  } else if (isSectorRotation) {
-    causeType = 'SECTOR_ROTATION_BALANCED';
-    causeBadge = 'Sector Capital Rotation';
-    headline = `Internal Sector Tug-of-War (Gross: ${grossPoints.toFixed(0)} pts vs Net: ${netPoints.toFixed(0)} pts)`;
-    verdict = `High constituent dispersion: gains in leading sectors are being directly absorbed by selling in lagging sectors. Strong stock-specific volatility, but muted directional index trend.`;
-    recommendation = `RANGE / DELTA NEUTRAL: Favorable environment for short options carry and mean-reversion; naked directional trades will suffer from choppy whipsaws.`;
   }
 
   // Intensity resolution

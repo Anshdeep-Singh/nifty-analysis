@@ -6,6 +6,7 @@ import {
   TrendingDown,
   Activity,
   ShieldCheck,
+  ShieldAlert,
   Zap,
   Target,
   Layers,
@@ -29,6 +30,7 @@ export function PredictionLevelsCard({ prediction }: PredictionLevelsCardProps) 
   const roadmap = prediction.smartRoadmap;
   const gap = prediction.gapAnalysis;
   const actionSignal = roadmap?.actionSignal;
+  const safety = prediction.microstructureSafety;
 
   return (
     <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-5 shadow-2xl backdrop-blur-md space-y-5">
@@ -108,6 +110,88 @@ export function PredictionLevelsCard({ prediction }: PredictionLevelsCardProps) 
           </div>
         )}
       </div>
+
+      {/* Microstructure Safety & Trade Risk Governor */}
+      {safety && (
+        <div className={`p-4 rounded-xl border transition-all ${
+          safety.trapDetected
+            ? 'bg-rose-950/25 border-rose-800/70 text-slate-200 shadow-lg shadow-rose-950/20'
+            : safety.status === 'ROTATION_CHOP'
+            ? 'bg-amber-950/25 border-amber-800/70 text-slate-200'
+            : 'bg-emerald-950/15 border-emerald-900/50 text-slate-300'
+        }`}>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 pb-2.5 border-b border-slate-800/80">
+            <div className="flex items-center gap-2.5">
+              <span className={`p-2 rounded-lg ${
+                safety.trapDetected
+                  ? 'bg-rose-500/20 text-rose-400 ring-1 ring-rose-500/30'
+                  : safety.status === 'ROTATION_CHOP'
+                  ? 'bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/30'
+                  : 'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30'
+              }`}>
+                {safety.trapDetected ? (
+                  <ShieldAlert className="w-5 h-5" />
+                ) : safety.status === 'ROTATION_CHOP' ? (
+                  <Activity className="w-5 h-5" />
+                ) : (
+                  <ShieldCheck className="w-5 h-5" />
+                )}
+              </span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-white">
+                    {safety.trapDetected
+                      ? 'Microstructure Safety Governor: Fake-Out Trap Active'
+                      : safety.status === 'ROTATION_CHOP'
+                      ? 'Microstructure Safety Governor: Internal Rotation Chop'
+                      : 'Microstructure Safety Governor: Order Book Clean'}
+                  </span>
+                  <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
+                    safety.riskLevel === 'CRITICAL'
+                      ? 'bg-rose-600/30 text-rose-300 border-rose-500/60'
+                      : safety.riskLevel === 'HIGH'
+                      ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                      : safety.riskLevel === 'ELEVATED'
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                      : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                  }`}>
+                    {safety.riskLevel} RISK
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Real-time cross-examination between macro confirmation signals and single-stock/liquidity microstructure.
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Metrics */}
+            <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono shrink-0">
+              {safety.trapDetected && safety.culpritSymbol && (
+                <span className="bg-slate-900/90 px-2.5 py-1 rounded text-rose-300 border border-rose-900/60">
+                  Culprit: <strong className="text-white">{safety.culpritSymbol}</strong> ({safety.culpritPctOfMove && safety.culpritPctOfMove > 100 ? '>100%' : `${safety.culpritPctOfMove ?? safety.cr1}%`} of net move)
+                </span>
+              )}
+              <span className="bg-slate-900/90 px-2.5 py-1 rounded text-slate-300 border border-slate-800">
+                Market RVOL: <strong className={safety.marketRvol < 0.8 ? 'text-amber-400' : 'text-emerald-400'}>{safety.marketRvol}x</strong>
+              </span>
+              {safety.governorPenalty > 0 && (
+                <span className="bg-rose-950/90 px-2.5 py-1 rounded text-rose-300 border border-rose-800/80">
+                  Governor: -{safety.governorPenalty}% Conf
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-2.5 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs">
+            <p className="text-slate-200 leading-snug">
+              {safety.trapReason || 'Constituent order flow is balanced across top heavyweights with healthy market depth.'}
+            </p>
+            <div className="shrink-0 text-[11px] font-mono px-3 py-1.5 rounded-lg bg-slate-900/95 border border-cyan-800/50 text-cyan-300 shadow-sm">
+              {safety.recommendation}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 2. Gap Regime Alert (If Market Opened with Gap) */}
       {gap && gap.hasGap && (
@@ -316,11 +400,19 @@ export function PredictionLevelsCard({ prediction }: PredictionLevelsCardProps) 
 
       {/* 5. Multi-Signal Confirmation Engine */}
       <div className="pt-1">
-        <div className="flex items-center gap-2 mb-2.5">
-          <ShieldCheck className="w-4 h-4 text-cyan-400" />
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-            Multi-Signal Confirmation Engine
-          </span>
+        <div className="flex items-center justify-between mb-2.5">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-cyan-400" />
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+              Multi-Signal Confirmation Engine
+            </span>
+          </div>
+          {safety?.trapDetected && (
+            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-rose-500/15 text-rose-300 border border-rose-500/30 flex items-center gap-1">
+              <AlertTriangle className="w-3 h-3" />
+              Microstructure Governor Active: Skew Penalized
+            </span>
+          )}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2.5">
           {prediction.confirmationSignals.map((signal) => (

@@ -4,7 +4,9 @@ import {
   SectorAnalysis,
   PredictionLevels,
   ConfirmationSignal,
-  TrendIntensity
+  TrendIntensity,
+  ImpulseAttribution,
+  MicrostructureSafety
 } from '../types';
 import { buildSmartMoneyRoadmap } from './smartMoneyRoadmap';
 import { calculateImpulseAttribution } from './impulseAttribution';
@@ -520,12 +522,52 @@ export function buildBankNiftyAnalysis(
     return 'NEUTRAL';
   }
 
+  // -------------------------------------------------------------
+  // MICROSTRUCTURE ATTRIBUTION & IMPULSE GOVERNOR
+  // -------------------------------------------------------------
+  const impulseAttribution = calculateImpulseAttribution({
+    indexSymbol: 'BANKNIFTY',
+    spotPrice,
+    spotNetChange: netPointImpact,
+    spotPrevClose: pivot,
+    vix: effectiveVix,
+    expected1DayMove,
+    stocks: analyzedStocks,
+    sectors,
+    advancesDeclines
+  });
+
   // Signal 1: Big-3 Heavyweights Hegemony (HDFCBANK, ICICIBANK, SBIN ~43.1% weight)
   const top3Symbols = ['HDFCBANK', 'ICICIBANK', 'SBIN'];
   const top3Stocks = analyzedStocks.filter(s => top3Symbols.includes(s.symbol));
   const top3NetPoints = top3Stocks.reduce((sum, s) => sum + s.pointImpact, 0);
-  const top3Score = Math.max(-100, Math.min(100, (top3NetPoints / (expected1DayMove * 0.40)) * 100));
-  const top3Status = evaluateSignalAlignment(top3Score, 20);
+  const rawTop3Score = Math.max(-100, Math.min(100, (top3NetPoints / (expected1DayMove * 0.40)) * 100));
+
+  const top3PositiveCount = top3Stocks.filter(s => s.changePct > 0).length;
+  const top3NegativeCount = top3Stocks.filter(s => s.changePct < 0).length;
+  const top3PositivePoints = top3Stocks.filter(s => s.pointImpact > 0).reduce((sum, s) => sum + s.pointImpact, 0);
+  const top3NegativePoints = top3Stocks.filter(s => s.pointImpact < 0).reduce((sum, s) => sum + Math.abs(s.pointImpact), 0);
+
+  const culpritSymbol = impulseAttribution.culprit?.symbol;
+  const culpritInTop3 = top3Stocks.find(s => s.symbol === culpritSymbol);
+  const isTop3SingleStockSkewed = Boolean(
+    impulseAttribution.causeType === 'SINGLE_STOCK_CULPRIT' && (
+      (top3NetPoints > 0 && top3PositiveCount <= 1) ||
+      (top3NetPoints < 0 && top3NegativeCount <= 1) ||
+      (top3NetPoints > 0 && culpritInTop3 && culpritInTop3.pointImpact > 0 && top3PositivePoints > 0 && (culpritInTop3.pointImpact / top3PositivePoints) >= 0.65) ||
+      (top3NetPoints < 0 && culpritInTop3 && culpritInTop3.pointImpact < 0 && top3NegativePoints > 0 && (Math.abs(culpritInTop3.pointImpact) / top3NegativePoints) >= 0.65)
+    )
+  );
+
+  let top3Score = rawTop3Score;
+  let top3Status = evaluateSignalAlignment(top3Score, 20);
+  let top3Details = `Top 3 banks contribute ${top3NetPoints > 0 ? '+' : ''}${top3NetPoints.toFixed(1)} pts (${top3PositiveCount}/3 positive).`;
+
+  if (isTop3SingleStockSkewed) {
+    top3Status = 'DIVERGENT';
+    top3Score = Number((rawTop3Score * 0.4).toFixed(1));
+    top3Details += ` ⚠️ SKEWED: ${culpritSymbol ?? 'Single bank'} carries move alone; peers divergent.`;
+  }
 
   // Signal 2: Weighted Breadth (Advancing Weight - Declining Weight)
   const breadthScore = advancingWeight - decliningWeight;
@@ -551,8 +593,15 @@ export function buildBankNiftyAnalysis(
   const top3AvgRvol = top3Stocks.length > 0
     ? Number((top3Stocks.reduce((sum, s) => sum + (s.relativeVolume || 1.0), 0) / top3Stocks.length).toFixed(2))
     : 1.0;
-  const volumeScore = Math.max(-100, Math.min(100, volumeFlowDelta));
-  const volumeStatus = evaluateSignalAlignment(volumeScore, 20);
+  let volumeScore = Math.max(-100, Math.min(100, volumeFlowDelta));
+  let volumeStatus = evaluateSignalAlignment(volumeScore, 20);
+  let volumeDetails = `${advancingVolumePct}% Inflow vs ${decliningVolumePct}% Outflow (₹${totalTurnoverCr.toFixed(0)} Cr turnover, Big-3 RVOL: ${top3AvgRvol.toFixed(1)}x).`;
+
+  if (impulseAttribution.liquidityState === 'THIN_AIR_POCKET') {
+    if (volumeStatus === 'CONFIRMED') volumeStatus = 'NEUTRAL';
+    volumeScore = Number((volumeScore * 0.5).toFixed(1));
+    volumeDetails += ` ⚠️ Thin depth: market RVOL ${impulseAttribution.aggregateRvol}x.`;
+  }
 
   const confirmationSignals: ConfirmationSignal[] = [
     {
@@ -560,7 +609,7 @@ export function buildBankNiftyAnalysis(
       name: 'Big-3 Heavyweights Hegemony (HDFC/ICICI/SBI)',
       status: top3Status,
       score: Number(top3Score.toFixed(1)),
-      details: `Top 3 banks contribute ${top3NetPoints > 0 ? '+' : ''}${top3NetPoints.toFixed(1)} pts (${top3Stocks.filter(s => s.changePct > 0).length}/3 positive).`,
+      details: top3Details,
       weight: 0.35
     },
     {
@@ -576,7 +625,7 @@ export function buildBankNiftyAnalysis(
       name: 'Turnover Flow & Institutional RVOL',
       status: volumeStatus,
       score: Number(volumeScore.toFixed(1)),
-      details: `${advancingVolumePct}% Inflow vs ${decliningVolumePct}% Outflow (₹${totalTurnoverCr.toFixed(0)} Cr turnover, Big-3 RVOL: ${top3AvgRvol.toFixed(1)}x).`,
+      details: volumeDetails,
       weight: 0.20
     },
     {
@@ -597,9 +646,53 @@ export function buildBankNiftyAnalysis(
     }
   ];
 
-  // Quantitative Trend Score (-100 to +100)
+  // Quantitative Composite Trend Score & Raw Confidence
   const weightedSignalScore = confirmationSignals.reduce((acc, sig) => acc + sig.score * sig.weight, 0);
-  const trendScore = Number(Math.max(-100, Math.min(100, weightedSignalScore)).toFixed(1));
+  const rawTrendScore = Number(Math.max(-100, Math.min(100, weightedSignalScore)).toFixed(1));
+
+  const rawConfidencePct = Math.min(95, Math.max(45, Math.round(
+    (Math.abs(breadthScore) * 0.4 + Math.abs(top3Score) * 0.4 + (confirmationSignals.filter(s => s.status === 'CONFIRMED').length / confirmationSignals.length) * 20)
+  )));
+
+  // Institutional Microstructure Governor Assessment
+  let riskLevel: MicrostructureSafety['riskLevel'] = 'LOW';
+  let safetyStatus: MicrostructureSafety['status'] = 'HEALTHY';
+  let trapDetected = false;
+  let trapReason: string | undefined;
+  let governorPenalty = 0;
+
+  if (impulseAttribution.causeType === 'SINGLE_STOCK_CULPRIT') {
+    trapDetected = true;
+    safetyStatus = 'FAKEMOVE_WARNING';
+    const culpritPct = impulseAttribution.culprit?.pctOfNetIndexMove ?? impulseAttribution.concentrationRatio1;
+    const isThinLiquidity = impulseAttribution.liquidityState === 'THIN_AIR_POCKET';
+    riskLevel = (isThinLiquidity || culpritPct >= 70 || impulseAttribution.concentrationRatio1 >= 60) ? 'CRITICAL' : 'HIGH';
+    governorPenalty = isThinLiquidity ? 40 : 35;
+    trapReason = `Single-Bank Skew${isThinLiquidity ? ' in Thin Depth' : ''}: ${impulseAttribution.culprit?.symbol ?? 'Leading bank'} accounts for ${culpritPct}% of net move${isThinLiquidity ? ` (${impulseAttribution.aggregateRvol}x RVOL)` : ''}. Snap-back / exhaustion trap risk high.`;
+  } else if (impulseAttribution.causeType === 'VACUUM_SLIPPAGE') {
+    trapDetected = true;
+    safetyStatus = 'LIQUIDITY_VACUUM';
+    riskLevel = 'HIGH';
+    trapReason = `Thin Air Pocket: Price moved on dry constituent volume (${impulseAttribution.aggregateRvol}x RVOL) without broad order book depth.`;
+    governorPenalty = 25;
+  } else if (impulseAttribution.causeType === 'SECTOR_ROTATION_BALANCED') {
+    safetyStatus = 'ROTATION_CHOP';
+    riskLevel = 'ELEVATED';
+    trapReason = `Private/PSU Rotation Tug-of-War: Gross churn (${impulseAttribution.grossPoints.toFixed(0)} pts) suppressing net drift (${impulseAttribution.netPoints.toFixed(0)} pts).`;
+    governorPenalty = 15;
+  }
+
+  // Apply Microstructure Safety Governor adjustments
+  let trendScore = rawTrendScore;
+  let confidencePct = rawConfidencePct;
+
+  if (trapDetected) {
+    trendScore = Number((rawTrendScore * 0.55).toFixed(1));
+    confidencePct = Math.min(48, Math.max(25, rawConfidencePct - governorPenalty));
+  } else if (safetyStatus === 'ROTATION_CHOP') {
+    trendScore = Number((rawTrendScore * 0.75).toFixed(1));
+    confidencePct = Math.min(55, Math.max(30, rawConfidencePct - governorPenalty));
+  }
 
   let direction: PredictionLevels['direction'] = 'NEUTRAL_CHOPPY';
   if (trendScore >= 40) direction = 'STRONG_BULLISH';
@@ -607,9 +700,31 @@ export function buildBankNiftyAnalysis(
   else if (trendScore <= -40) direction = 'STRONG_BEARISH';
   else if (trendScore <= -15) direction = 'MODERATE_BEARISH';
 
-  const confidencePct = Math.min(95, Math.max(45, Math.round(
-    (Math.abs(breadthScore) * 0.4 + Math.abs(top3Score) * 0.4 + (confirmationSignals.filter(s => s.status === 'CONFIRMED').length / confirmationSignals.length) * 20)
-  )));
+  // Governor Veto: Downgrade false strong breakouts under trap conditions
+  if (trapDetected) {
+    if (direction === 'STRONG_BULLISH') direction = 'MODERATE_BULLISH';
+    if (direction === 'STRONG_BEARISH') direction = 'MODERATE_BEARISH';
+  }
+  if (safetyStatus === 'ROTATION_CHOP' && Math.abs(trendScore) < 25) {
+    direction = 'NEUTRAL_CHOPPY';
+  }
+
+  const microstructureSafety: MicrostructureSafety = {
+    riskLevel,
+    status: safetyStatus,
+    trapDetected,
+    trapReason,
+    governorPenalty,
+    rawTrendScore,
+    rawConfidencePct,
+    culpritSymbol: trapDetected ? impulseAttribution.culprit?.symbol : undefined,
+    culpritPctOfMove: trapDetected ? impulseAttribution.culprit?.pctOfNetIndexMove : undefined,
+    cr1: impulseAttribution.concentrationRatio1,
+    cr2: impulseAttribution.concentrationRatio2,
+    marketRvol: impulseAttribution.aggregateRvol,
+    liquidityState: impulseAttribution.liquidityState,
+    recommendation: impulseAttribution.recommendation
+  };
 
   // Generate Institutional Smart Money Roadmap & Gap Structure for BANK NIFTY
   const smartRoadmap = buildSmartMoneyRoadmap({
@@ -626,17 +741,7 @@ export function buildBankNiftyAnalysis(
   const tacticalResistance = smartRoadmap.tacticalLevels.find(l => l.type === 'PULLBACK_RESISTANCE')?.price;
   const tacticalStopLoss = smartRoadmap.actionSignal.invalidationPrice;
 
-  const impulseAttribution = calculateImpulseAttribution({
-    indexSymbol: 'BANKNIFTY',
-    spotPrice,
-    spotNetChange: netPointImpact,
-    spotPrevClose: pivot,
-    vix: effectiveVix,
-    expected1DayMove,
-    stocks: analyzedStocks,
-    sectors,
-    advancesDeclines
-  });
+  const trapPrefix = trapDetected ? ` [⚠️ ${safetyStatus.replace('_', ' ')}]` : '';
 
   const prediction: PredictionLevels = {
     direction,
@@ -657,7 +762,8 @@ export function buildBankNiftyAnalysis(
     keyPositiveDrivers,
     keyNegativeDraggers,
     confirmationSignals,
-    summary: `${direction.replace('_', ' ')} (Score: ${trendScore > 0 ? '+' : ''}${trendScore}) | Net ${netPointImpact > 0 ? '+' : ''}${netPointImpact.toFixed(1)} pts | 1σ daily band [${s1_sigma} - ${r1_sigma}].`,
+    summary: `${direction.replace('_', ' ')}${trapPrefix} (Score: ${trendScore > 0 ? '+' : ''}${trendScore}) | Net ${netPointImpact > 0 ? '+' : ''}${netPointImpact.toFixed(1)} pts | 1σ daily band [${s1_sigma} - ${r1_sigma}].`,
+    microstructureSafety,
     smartRoadmap,
     gapAnalysis: smartRoadmap.gapAnalysis,
     tacticalStopLoss,
