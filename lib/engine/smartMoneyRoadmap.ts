@@ -279,12 +279,33 @@ export function buildSmartMoneyRoadmap(input: SmartMoneyRoadmapInput): SmartMone
   });
 
   // LEVEL 2: INTRADAY PULLBACK RESISTANCE / RECENT HIGH
-  const maxResDist = isBankNifty ? 120 : 35;
-  const minResDist = isBankNifty ? 45 : 15;
-  const immediateResistance = Math.max(
-    dayHigh,
-    spotPrice + Math.min(maxResDist, Math.max(minResDist, dailyExpectedMovePts * 0.12))
-  );
+  // Anchored to structural candle clusters, Session High, or institutional strike intervals
+  // Strictly prevents resistance targets from floating dynamically with live spot tick-by-tick!
+  const step = isBankNifty ? 100 : 50;
+  const clusterAbove = clusters
+    .filter(c => c.center > spotPrice + (isBankNifty ? 10 : 5))
+    .sort((a, b) => a.center - b.center)[0];
+
+  let immediateResistance: number;
+  let resistanceConfluence: string[];
+
+  if (clusterAbove) {
+    immediateResistance = clusterAbove.center;
+    resistanceConfluence = ['Cluster Price Shelf', `5m Acceptance (${clusterAbove.touches} touches)`];
+  } else if (dayHigh > spotPrice + (isBankNifty ? 15 : 8)) {
+    immediateResistance = Number(dayHigh.toFixed(1));
+    resistanceConfluence = ['Session High Shelf', 'Opening Range / Swing High'];
+  } else {
+    // Spot is testing or breaking session high: anchor to next round strike wall
+    const baseHigh = Math.max(dayHigh, spotPrice);
+    let nextStrike = Math.ceil((baseHigh + 1) / step) * step;
+    if (nextStrike - spotPrice < (isBankNifty ? 20 : 10)) {
+      nextStrike += step;
+    }
+    immediateResistance = Number(Math.min(nextStrike, macro1SigmaUpper).toFixed(1));
+    resistanceConfluence = ['Institutional Strike Wall', 'Expansion Target 1'];
+  }
+
   tacticalLevels.push({
     id: 'TACTICAL_RESISTANCE_1',
     price: Number(immediateResistance.toFixed(1)),
@@ -294,7 +315,7 @@ export function buildSmartMoneyRoadmap(input: SmartMoneyRoadmapInput): SmartMone
     description: 'First structural resistance shelf; break triggers momentum expansion towards session highs.',
     touches: clusters.filter(c => c.center > spotPrice).length || 2,
     strength: 78,
-    confluence: ['Opening Range / Swing High', '5m Price Action Shelf'],
+    confluence: resistanceConfluence,
     distancePts: Number((immediateResistance - spotPrice).toFixed(1))
   });
 
@@ -314,13 +335,58 @@ export function buildSmartMoneyRoadmap(input: SmartMoneyRoadmapInput): SmartMone
   });
 
   // LEVEL 4: IMMEDIATE TACTICAL SUPPORT / DIP BUYING SHELF (TIGHT STOP-LOSS)
-  const maxSupDist = isBankNifty ? 100 : 30;
-  const minSupDist = isBankNifty ? 45 : 18;
-  let immediateSupportPrice = Number((spotPrice - Math.min(maxSupDist, Math.max(minSupDist, dailyExpectedMovePts * 0.12))).toFixed(1));
-  if (gapAnalysis.hasGap && gapAnalysis.gapType === 'GAP_UP') {
-    // On gap up, if spot is above Day Open, the immediate support is Day Open or Day Low!
+  // Anchored to structural candle clusters, Day Open, Reclaimed Gap Base, or institutional strike shelf
+  // Strictly prevents support and stop loss levels from drifting dynamically with live spot tick-by-tick!
+  const clusterBelow = clusters
+    .filter(c => c.center < spotPrice - (isBankNifty ? 10 : 5))
+    .sort((a, b) => b.center - a.center)[0];
+
+  let immediateSupportPrice: number;
+  let supportConfluence: string[];
+
+  if (clusterBelow) {
+    immediateSupportPrice = clusterBelow.center;
+    supportConfluence = ['Cluster Price Shelf', `5m Acceptance (${clusterBelow.touches} touches)`];
+  } else if (gapAnalysis.hasGap && gapAnalysis.gapType === 'GAP_UP') {
     if (spotPrice > dayOpen) {
-      immediateSupportPrice = Math.max(dayLow, dayOpen);
+      immediateSupportPrice = Number(Math.max(dayLow, dayOpen).toFixed(1));
+      supportConfluence = ['Day Open Support Shelf', 'Opening Range Base'];
+    } else if (spotPrice > prevClose) {
+      immediateSupportPrice = Number(prevClose.toFixed(1));
+      supportConfluence = ['Previous Close', 'Gap Baseline Floor'];
+    } else {
+      immediateSupportPrice = Number(Math.min(dayLow, prevClose).toFixed(1));
+      supportConfluence = ['Session Floor', 'Extended Liquidation Base'];
+    }
+  } else if (gapAnalysis.hasGap && gapAnalysis.gapType === 'GAP_DOWN') {
+    if (spotPrice > prevClose) {
+      // Bullish gap reversal: spot reclaimed prevClose!
+      if (spotPrice - prevClose <= (isBankNifty ? 120 : 60)) {
+        immediateSupportPrice = Number(prevClose.toFixed(1));
+        supportConfluence = ['Reclaimed Prev Close', 'Bullish Gap Reversal Base'];
+      } else {
+        // Expanded well above prevClose: anchor to highest round strike shelf or prevClose
+        const strikeShelf = Math.floor(spotPrice / step) * step;
+        const midShelf = Number(((prevClose + dayHigh) / 2).toFixed(1));
+        immediateSupportPrice = Number(Math.max(prevClose, strikeShelf > prevClose ? strikeShelf : midShelf).toFixed(1));
+        supportConfluence = ['Institutional Strike Shelf', 'Intraday Demand Base'];
+      }
+    } else if (spotPrice >= dayOpen) {
+      immediateSupportPrice = Number(dayOpen.toFixed(1));
+      supportConfluence = ['Day Open Floor', 'Opening Range Support'];
+    } else {
+      immediateSupportPrice = Number(Math.min(dayLow, macro1SigmaLower).toFixed(1));
+      supportConfluence = ['Session Low Floor', 'Macro Expansion Floor'];
+    }
+  } else {
+    // Flat / Balanced Auction
+    if (spotPrice > anchorPrice + (isBankNifty ? 25 : 12)) {
+      immediateSupportPrice = Number(anchorPrice.toFixed(1));
+      supportConfluence = ['Session Open Base', 'Daily Decision Pivot'];
+    } else {
+      const strikeFloor = Math.floor((spotPrice - 1) / step) * step;
+      immediateSupportPrice = Number(Math.max(macro1SigmaLower, Math.min(dayLow, strikeFloor)).toFixed(1));
+      supportConfluence = ['Structural Strike Floor', 'Demand Shelf'];
     }
   }
 
@@ -333,7 +399,7 @@ export function buildSmartMoneyRoadmap(input: SmartMoneyRoadmapInput): SmartMone
     description: `Immediate structural support floor (${(spotPrice - immediateSupportPrice).toFixed(1)} pts away). Invalidation for longs.`,
     touches: clusters.filter(c => c.center < spotPrice).length || 2,
     strength: 84,
-    confluence: ['Opening Range Floor', 'Institutional Demand Shelf'],
+    confluence: supportConfluence,
     distancePts: Number((spotPrice - immediateSupportPrice).toFixed(1))
   });
 
