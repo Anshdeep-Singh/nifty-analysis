@@ -336,4 +336,103 @@ runTest('Exhaustion Trap Tracker accurately detects filled gap, trapped overhead
   assert.ok(briefing.actionPlan.includes('Bear Call') || briefing.actionPlan.includes('Do NOT buy'), 'Action plan must provide clear guidance');
 });
 
-console.log(`\n🎉 ALL ${testsPassed}/8 GAP PROBABILITY ENGINE TESTS PASSED!`);
+// -------------------------------------------------------------
+// TEST 10: Zero-Streak / Inside Day False Positive Prevention
+// -------------------------------------------------------------
+runTest('Market without authentic bullish gap does not falsely trigger exhaustion gap filled trap', () => {
+  const normalChopDaily = [
+    { date: '2026-11-01', open: 25000, high: 25050, low: 24980, close: 25000 },
+    { date: '2026-11-02', open: 25000, high: 25050, low: 24980, close: 25000 },
+    { date: '2026-11-03', open: 25005, high: 25060, low: 24990, close: 25010 }
+  ];
+
+  const res = evaluateGapProbability({
+    symbol: 'NIFTY',
+    spotPrice: 24940, // Drops 70 pts on flat open
+    spotPrevClose: 25010,
+    spotOpen: 25010,
+    spotHigh: 25020,
+    spotLow: 24930,
+    vix: 14.0,
+    dailyCandles: normalChopDaily
+  });
+
+  const tracker = res.exhaustionTrapTracker;
+  assert.ok(tracker, 'tracker must be defined');
+  assert.strictEqual(tracker.isExhaustionTrapDetected, false, 'Must NOT flag exhaustion trap when no bullish gap exists');
+  assert.strictEqual(tracker.trapStatus, 'MOMENTUM_HEALTHY', 'Status must remain MOMENTUM_HEALTHY');
+  assert.strictEqual(tracker.gapFloorPrice, 0, 'No gap floor should be fabricated');
+  assert.ok(tracker.plainEnglishBriefing.headline.includes('No Active Exhaustion Trap') || tracker.plainEnglishBriefing.headline.includes('Orderly Auction'), 'Headline must report orderly auction');
+});
+
+// -------------------------------------------------------------
+// TEST 11: Bearish Breakaway & Runaway Regimes
+// -------------------------------------------------------------
+runTest('Bearish Breakaway and Runaway trigger symmetric downside institutional playbooks', () => {
+  // 1. Bearish Breakaway below support
+  const bearBreakaway = evaluateGapProbability({
+    symbol: 'NIFTY',
+    spotPrice: 24350,
+    spotPrevClose: 24600,
+    spotOpen: 24400,
+    spotHigh: 24450,
+    spotLow: 24300,
+    vix: 16.5,
+    supportLevel: 24500, // Spot broke below support
+    dailyCandles: [
+      { date: '2026-11-01', open: 24650, high: 24700, low: 24580, close: 24620 },
+      { date: '2026-11-02', open: 24600, high: 24650, low: 24550, close: 24600 }
+    ]
+  });
+
+  assert.strictEqual(bearBreakaway.gapFillDynamics.gapClassification, 'BREAKAWAY');
+  assert.strictEqual(bearBreakaway.actionablePlaybook.morningBias, 'SELL_THE_RALLIES');
+  assert.ok(bearBreakaway.actionablePlaybook.recommendedSetup.includes('Bear Call'), 'Must recommend Bear Call spreads');
+  assert.ok(bearBreakaway.gapFillDynamics.structuralVerbiage.includes('breakdown below structural support'), 'Verbiage must identify breakdown');
+
+  // 2. Bearish Runaway (consecutive gap downs)
+  const bearRunaway = evaluateGapProbability({
+    symbol: 'NIFTY',
+    spotPrice: 24100,
+    spotPrevClose: 24350,
+    spotOpen: 24200,
+    vix: 17.0,
+    dailyCandles: [
+      { date: '2026-11-01', open: 24600, high: 24650, low: 24480, close: 24500 },
+      { date: '2026-11-02', open: 24420, high: 24450, low: 24300, close: 24350 },
+      { date: '2026-11-03', open: 24250, high: 24280, low: 24080, close: 24100 }
+    ]
+  });
+
+  assert.strictEqual(bearRunaway.gapFillDynamics.gapClassification, 'RUNAWAY');
+  assert.strictEqual(bearRunaway.actionablePlaybook.morningBias, 'BEARISH_CONTINUATION');
+  assert.ok(bearRunaway.actionablePlaybook.recommendedSetup.includes('Bear Call'), 'Must recommend Bear Call spreads for downside carry');
+});
+
+// -------------------------------------------------------------
+// TEST 12: Defensive NaN and Corrupted Input Resilience in Tracker
+// -------------------------------------------------------------
+runTest('Exhaustion Trap Tracker is resilient to NaN/zero/undefined inputs without string NaN in UI', () => {
+  const corrupted = evaluateGapProbability({
+    symbol: 'BANKNIFTY',
+    spotPrice: NaN as any,
+    spotPrevClose: 0,
+    spotOpen: undefined as any,
+    spotHigh: NaN as any,
+    spotLow: NaN as any,
+    vix: NaN as any,
+    dailyCandles: []
+  });
+
+  const tracker = corrupted.exhaustionTrapTracker;
+  assert.ok(tracker, 'Tracker must exist');
+  assert.ok(Number.isFinite(tracker.gapFloorPrice), 'gapFloorPrice must be finite');
+  assert.ok(Number.isFinite(tracker.institutionalFloorPrice), 'institutionalFloorPrice must be finite');
+  assert.ok(Number.isFinite(tracker.exhaustionScorePct), 'exhaustionScorePct must be finite');
+  assert.ok(!tracker.plainEnglishBriefing.headline.includes('NaN'), 'No NaN in headline');
+  assert.ok(!tracker.plainEnglishBriefing.whatHappened.includes('NaN'), 'No NaN in whatHappened');
+  assert.ok(!tracker.plainEnglishBriefing.dangerZone.includes('NaN'), 'No NaN in dangerZone');
+  assert.ok(!tracker.plainEnglishBriefing.realFloor.includes('NaN'), 'No NaN in realFloor');
+});
+
+console.log(`\n🎉 ALL ${testsPassed}/13 GAP PROBABILITY ENGINE TESTS PASSED!`);

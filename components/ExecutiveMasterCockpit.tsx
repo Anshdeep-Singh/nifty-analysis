@@ -321,10 +321,10 @@ export function ExecutiveMasterCockpit({
               <span>Quantitative Reality: Do All Gaps Get Covered?</span>
             </div>
             <p className="text-[11px] text-slate-300 leading-relaxed font-normal">
-              {gapDynamics.gapFillDynamics.gapMythVerdict}
+              {gapDynamics.gapFillDynamics?.gapMythVerdict}
             </p>
             <div className="text-[11px] text-cyan-300/90 font-mono pt-1 border-t border-cyan-900/40 leading-relaxed">
-              {gapDynamics.gapFillDynamics.structuralVerbiage}
+              {gapDynamics.gapFillDynamics?.structuralVerbiage}
             </div>
           </div>
 
@@ -348,7 +348,7 @@ export function ExecutiveMasterCockpit({
                       : 'text-emerald-400'
                   }`} />
                   <span className="font-bold text-sm tracking-tight text-white">
-                    {gapDynamics.exhaustionTrapTracker.plainEnglishBriefing.headline}
+                    {gapDynamics.exhaustionTrapTracker.plainEnglishBriefing?.headline}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 font-mono text-[11px]">
@@ -358,7 +358,11 @@ export function ExecutiveMasterCockpit({
                     </strong>
                   </span>
                   <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-300">
-                    Gap Floor: <strong className="text-amber-300">₹{gapDynamics.exhaustionTrapTracker.gapFloorPrice.toLocaleString('en-IN')}</strong>
+                    Gap Floor: <strong className="text-amber-300">
+                      {gapDynamics.exhaustionTrapTracker.gapFloorPrice > 0
+                        ? `₹${gapDynamics.exhaustionTrapTracker.gapFloorPrice.toLocaleString('en-IN')}`
+                        : 'None'}
+                    </strong>
                   </span>
                 </div>
               </div>
@@ -371,7 +375,7 @@ export function ExecutiveMasterCockpit({
                     <span>🛑 What Just Happened</span>
                   </div>
                   <p className="text-[11px] text-slate-300 leading-relaxed font-normal">
-                    {gapDynamics.exhaustionTrapTracker.plainEnglishBriefing.whatHappened}
+                    {gapDynamics.exhaustionTrapTracker.plainEnglishBriefing?.whatHappened}
                   </p>
                 </div>
 
@@ -380,11 +384,13 @@ export function ExecutiveMasterCockpit({
                   <div className="font-bold text-rose-300 flex items-center justify-between">
                     <span>⚠️ Danger Zone (Trapped Buyers)</span>
                     <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-rose-900/60 text-rose-200">
-                      ~{gapDynamics.exhaustionTrapTracker.trappedSupplyZone.volumePct}% Vol Trapped
+                      {gapDynamics.exhaustionTrapTracker.trappedSupplyZone.volumePct > 0
+                        ? `~${gapDynamics.exhaustionTrapTracker.trappedSupplyZone.volumePct}% Vol Trapped`
+                        : '0% Trapped'}
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-300 leading-relaxed font-normal">
-                    {gapDynamics.exhaustionTrapTracker.plainEnglishBriefing.dangerZone}
+                    {gapDynamics.exhaustionTrapTracker.plainEnglishBriefing?.dangerZone}
                   </p>
                 </div>
 
@@ -394,7 +400,7 @@ export function ExecutiveMasterCockpit({
                     <span>🕳️ The Air Pocket (Vacuum Zone)</span>
                   </div>
                   <p className="text-[11px] text-slate-300 leading-relaxed font-normal">
-                    {gapDynamics.exhaustionTrapTracker.plainEnglishBriefing.airPocket}
+                    {gapDynamics.exhaustionTrapTracker.plainEnglishBriefing?.airPocket}
                   </p>
                 </div>
 
@@ -403,11 +409,11 @@ export function ExecutiveMasterCockpit({
                   <div className="font-bold text-emerald-300 flex items-center justify-between">
                     <span>🎯 Real Institutional Floor (POC)</span>
                     <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-900/60 text-emerald-200">
-                      ₹{gapDynamics.exhaustionTrapTracker.institutionalFloorPrice.toLocaleString('en-IN')}
+                      ₹{(gapDynamics.exhaustionTrapTracker.institutionalFloorPrice ?? 0).toLocaleString('en-IN')}
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-300 leading-relaxed font-normal">
-                    {gapDynamics.exhaustionTrapTracker.plainEnglishBriefing.realFloor}
+                    {gapDynamics.exhaustionTrapTracker.plainEnglishBriefing?.realFloor}
                   </p>
                 </div>
               </div>
@@ -416,7 +422,7 @@ export function ExecutiveMasterCockpit({
               <div className="p-2.5 rounded-lg bg-slate-950/80 border border-cyan-900/50 text-[11px] flex items-start gap-2">
                 <span className="font-bold text-cyan-300 shrink-0">🛡️ What You Should Do:</span>
                 <span className="text-slate-300 font-normal leading-relaxed">
-                  {gapDynamics.exhaustionTrapTracker.plainEnglishBriefing.actionPlan}
+                  {gapDynamics.exhaustionTrapTracker.plainEnglishBriefing?.actionPlan}
                 </span>
               </div>
             </div>
