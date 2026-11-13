@@ -44,16 +44,19 @@ export async function resolveLatestIndexSpot(
     });
     if (res.ok) {
       const d = await res.json();
-      const meta = d?.chart?.result?.[0]?.meta;
+      const result = d?.chart?.result?.[0];
+      const meta = result?.meta;
+      const quote = result?.indicators?.quote?.[0];
       if (typeof meta?.regularMarketPrice === 'number' && meta.regularMarketPrice > 0) {
         const price = meta.regularMarketPrice;
         const prevClose = meta.chartPreviousClose || meta.previousClose;
         const netChange = prevClose > 0 ? Number((price - prevClose).toFixed(2)) : undefined;
+        const openVal = quote?.open?.find((v: number | null) => typeof v === 'number' && v > 0);
         return {
           price: Number(price.toFixed(2)),
           netChange,
           prevClose: prevClose ? Number(prevClose.toFixed(2)) : undefined,
-          open: meta.regularMarketDayHigh ? meta.regularMarketDayHigh : undefined,
+          open: openVal ? Number(openVal.toFixed(2)) : undefined,
           high: meta.regularMarketDayHigh,
           low: meta.regularMarketDayLow
         };

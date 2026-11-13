@@ -140,14 +140,17 @@ export async function GET(request: Request) {
 
         if (indexRes.ok) {
           const indexJson = await indexRes.json();
-          const meta = indexJson?.chart?.result?.[0]?.meta;
+          const result = indexJson?.chart?.result?.[0];
+          const meta = result?.meta;
+          const quote = result?.indicators?.quote?.[0];
           if (meta && typeof meta.regularMarketPrice === 'number' && meta.regularMarketPrice > 0) {
             spotPrice = meta.regularMarketPrice;
             spotPrevClose = meta.chartPreviousClose || meta.previousClose;
             if (spotPrevClose && spotPrevClose > 0) {
               spotNetChange = Number((spotPrice - spotPrevClose).toFixed(2));
             }
-            spotOpen = meta.regularMarketDayHigh ? meta.regularMarketDayHigh : undefined;
+            const openVal = quote?.open?.find((v: number | null) => typeof v === 'number' && v > 0);
+            spotOpen = openVal ? Number(openVal.toFixed(2)) : undefined;
             spotHigh = meta.regularMarketDayHigh;
             spotLow = meta.regularMarketDayLow;
             dataSource = 'EXCHANGE_LIVE';

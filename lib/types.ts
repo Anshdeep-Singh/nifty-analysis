@@ -183,6 +183,7 @@ export interface GapRegimeAnalysis {
   gapZone: { top: number; bottom: number };
   gapSupportPrice: number;
   gapFillTargetPrice: number;
+  dayOpenPrice?: number;
   regime: 'GAP_RUNAWAY' | 'GAP_FADE' | 'CORRIDOR_CONTAINMENT';
   verdict: string;
 }

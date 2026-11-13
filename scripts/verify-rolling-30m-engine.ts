@@ -462,4 +462,46 @@ runTest('Broad trend with heavyweight leading (HDFC -34 pts, 31 declines) avoids
   assert.ok(prediction.direction.includes('BEARISH'), `Direction must be BEARISH, got ${prediction.direction}`);
 });
 
+// -------------------------------------------------------------
+// TEST 11: Macro Volatility Envelope Session Anchoring & Structural Support
+// -------------------------------------------------------------
+runTest('Macro envelope anchors strictly to pivot (prevClose) with exact symmetry and structural gap-down support', () => {
+  const spotPrevClose = 25299.35;
+  const spotPrice = 25196.55; // -102.8 pts
+  const spotOpen = 25209.8;
+  const vix = 16.37;
+
+  const analysis = buildNifty50Analysis(
+    [],
+    spotPrice,
+    vix,
+    -102.8,
+    spotPrevClose,
+    spotOpen,
+    25246.35,
+    25180.0,
+    false
+  );
+
+  const pred = analysis.prediction;
+  // 1. Pivot must be Prev Close
+  assert.strictEqual(pred.pivot, spotPrevClose, 'Pivot must anchor to spotPrevClose');
+
+  // 2. Macro envelope must be exactly symmetric around pivot
+  const upperDelta = Number((pred.r1_sigma - pred.pivot).toFixed(1));
+  const lowerDelta = Number((pred.pivot - pred.s1_sigma).toFixed(1));
+  assert.ok(Math.abs(upperDelta - pred.expected1DayMove) <= 0.2, `Upper 1σ delta (${upperDelta}) must match expected1DayMove (${pred.expected1DayMove})`);
+  assert.ok(Math.abs(lowerDelta - pred.expected1DayMove) <= 0.2, `Lower 1σ delta (${lowerDelta}) must match expected1DayMove (${pred.expected1DayMove})`);
+  assert.ok(Math.abs(upperDelta - lowerDelta) <= 0.2, `Macro bands must be symmetric around pivot: upperDelta=${upperDelta}, lowerDelta=${lowerDelta}`);
+
+  // 3. Tactical support on gap-down below dayOpen must anchor to immediate structural shelf (within 60 pts), NOT the -1σ floor (250+ pts away)
+  assert.ok(pred.tacticalSupport != null, 'Tactical support must be defined');
+  const distToSupport = spotPrice - pred.tacticalSupport!;
+  assert.ok(distToSupport > 0 && distToSupport <= 60, `Tactical support must be an actionable structural shelf (got ${distToSupport} pts away at ${pred.tacticalSupport})`);
+
+  // 4. Gap analysis must carry dayOpenPrice
+  assert.ok(pred.gapAnalysis != null, 'Gap analysis must be present');
+  assert.strictEqual(pred.gapAnalysis?.dayOpenPrice, spotOpen, 'dayOpenPrice must match spotOpen');
+});
+
 console.log(`\n🎉 ALL ${testsPassed} TESTS PASSED WITH 100% MATHEMATICAL & MICROSTRUCTURE RIGOR!`);

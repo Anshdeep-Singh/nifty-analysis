@@ -497,19 +497,20 @@ export function buildNifty50Analysis(
   }).sort((a, b) => b.weight - a.weight);
 
   // 4. Volatility-Scaled Prediction Levels
-  // Continuous 1-sigma expected move: Spot * (VIX / 100) / sqrt(252)
+  // Continuous 1-sigma expected move: BaseSpot * (VIX / 100) / sqrt(252)
   const effectiveVix = Math.max(9.0, Math.min(60.0, vix));
-  const expected1DayMove = Math.max(40, Number((spotPrice * (effectiveVix / 100) / Math.sqrt(252)).toFixed(1)));
+  const expected1DayMove = Math.max(40, Number((baseSpot * (effectiveVix / 100) / Math.sqrt(252)).toFixed(1)));
   const constituentNetPoints = Number((totalPositivePoints + totalNegativePoints).toFixed(2));
   const netPointImpact = typeof spotNetChange === 'number' && Math.abs(spotNetChange) > 0.001
     ? spotNetChange
     : constituentNetPoints;
 
   const pivot = spotPrevClose && spotPrevClose > 0 ? spotPrevClose : spotPrice - netPointImpact;
-  const r1_sigma = Number((spotPrice + expected1DayMove).toFixed(1));
-  const s1_sigma = Number((spotPrice - expected1DayMove).toFixed(1));
-  const r2_sigma = Number((spotPrice + 2 * expected1DayMove).toFixed(1));
-  const s2_sigma = Number((spotPrice - 2 * expected1DayMove).toFixed(1));
+  // Macro volatility bands anchor to session pivot (Prev Close) ensuring full symmetry and no tick drift
+  const r1_sigma = Number((pivot + expected1DayMove).toFixed(1));
+  const s1_sigma = Number((pivot - expected1DayMove).toFixed(1));
+  const r2_sigma = Number((pivot + 2 * expected1DayMove).toFixed(1));
+  const s2_sigma = Number((pivot - 2 * expected1DayMove).toFixed(1));
 
   // Top Drivers & Draggers
   const sortedByPointsDesc = [...analyzedStocks].sort((a, b) => b.pointImpact - a.pointImpact);

@@ -217,8 +217,10 @@ export function PredictionLevelsCard({ prediction }: PredictionLevelsCardProps) 
           </div>
           <div className="flex items-center gap-2 text-xs font-mono shrink-0">
             <div className="bg-slate-900/80 px-2.5 py-1 rounded border border-slate-800">
-              <span className="text-[10px] text-slate-500 uppercase block">Day Open Support</span>
-              <span className="font-bold text-cyan-400">₹{gap.gapSupportPrice.toFixed(1)}</span>
+              <span className="text-[10px] text-slate-500 uppercase block">
+                {gap.gapType === 'GAP_UP' ? 'Day Open Support' : 'Day Open Pivot'}
+              </span>
+              <span className="font-bold text-cyan-400">₹{(gap.dayOpenPrice ?? gap.gapSupportPrice).toFixed(1)}</span>
             </div>
             <div className="bg-slate-900/80 px-2.5 py-1 rounded border border-slate-800">
               <span className="text-[10px] text-slate-500 uppercase block">Gap Fill Base</span>

@@ -207,6 +207,7 @@ export function analyzeGapRegime(
     gapZone,
     gapSupportPrice,
     gapFillTargetPrice,
+    dayOpenPrice: dayOpen,
     regime,
     verdict
   };
@@ -375,8 +376,12 @@ export function buildSmartMoneyRoadmap(input: SmartMoneyRoadmapInput): SmartMone
       immediateSupportPrice = Number(dayOpen.toFixed(1));
       supportConfluence = ['Day Open Floor', 'Opening Range Support'];
     } else {
-      immediateSupportPrice = Number(Math.min(dayLow, macro1SigmaLower).toFixed(1));
-      supportConfluence = ['Session Low Floor', 'Macro Expansion Floor'];
+      // Spot is expanding below Day Open in a gap down:
+      // Anchor to Session Low (if below spot), or immediate round strike floor
+      const strikeFloor = Math.floor((spotPrice - 1) / step) * step;
+      const targetFloor = (dayLow < spotPrice - (isBankNifty ? 15 : 8)) ? dayLow : strikeFloor;
+      immediateSupportPrice = Number(Math.max(macro1SigmaLower, targetFloor).toFixed(1));
+      supportConfluence = [(dayLow < spotPrice - (isBankNifty ? 15 : 8)) ? 'Session Low Floor' : 'Institutional Strike Floor', 'Demand Shelf'];
     }
   } else {
     // Flat / Balanced Auction
