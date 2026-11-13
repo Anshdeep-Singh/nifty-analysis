@@ -103,7 +103,8 @@ let cachedHistoricalNiftyDaily: DailyCandleBar[] | null = null;
 let cachedHistoricalBankNiftyDaily: DailyCandleBar[] | null = null;
 
 /**
- * Check if two calendar date strings are consecutive trading days (1 to 5 calendar days apart)
+ * Check if two calendar date strings are consecutive trading days (1 to 7 calendar days apart)
+ * 7-day window accommodates extended festive market holidays without breaking continuous swing
  */
 function isDateConsecutiveOrWeekend(prevDateStr: string, currDateStr: string): boolean {
   try {
@@ -111,7 +112,7 @@ function isDateConsecutiveOrWeekend(prevDateStr: string, currDateStr: string): b
     const curr = new Date(currDateStr).getTime();
     if (isNaN(prev) || isNaN(curr)) return false;
     const diffDays = Math.round((curr - prev) / (1000 * 60 * 60 * 24));
-    return diffDays >= 1 && diffDays <= 5;
+    return diffDays >= 1 && diffDays <= 7;
   } catch {
     return false;
   }
@@ -303,20 +304,33 @@ export function analyzeExhaustionTrapAndLiquidity(
   for (let i = swingBars.length - 1; i >= 1; i--) {
     const prevBar = swingBars[i - 1];
     const currBar = swingBars[i];
-    const gapDiff = currBar.open - prevBar.close;
+    const prevClose = Number.isFinite(prevBar.close) && prevBar.close > 0 ? prevBar.close : 0;
+    const currOpen = Number.isFinite(currBar.open) && currBar.open > 0 ? currBar.open : 0;
+    if (prevClose <= 0 || currOpen <= 0) continue;
+    const gapDiff = currOpen - prevClose;
 
     if (gapDiff >= threshold) {
       // Check if any bar between gap creation and the previous session already filled this gap
       let alreadyFilledPrior = false;
-      for (let j = i; j < swingBars.length - 1; j++) {
-        if (swingBars[j].low <= prevBar.close + (isBankNifty ? 15 : 5)) {
+      const lastBarIsToday = swingBars.length > 0 && (
+        swingBars[swingBars.length - 1].date === 'Today' ||
+        (Math.abs(swingBars[swingBars.length - 1].open - currentSafeOpen) < 1 &&
+         Math.abs(swingBars[swingBars.length - 1].close - currentSafeSpot) < 5)
+      );
+      const priorBarsEndIdx = lastBarIsToday ? swingBars.length - 1 : swingBars.length;
+
+      for (let j = i; j < priorBarsEndIdx; j++) {
+        const barLow = Number.isFinite(swingBars[j].low) && swingBars[j].low > 0
+          ? swingBars[j].low
+          : (Number.isFinite(swingBars[j].close) && swingBars[j].close > 0 ? swingBars[j].close : 0);
+        if (barLow > 0 && barLow <= prevClose + (isBankNifty ? 15 : 5)) {
           alreadyFilledPrior = true;
           break;
         }
       }
       if (!alreadyFilledPrior) {
-        detectedGapFloor = Math.round(prevBar.close);
-        detectedGapCeiling = Math.round(currBar.open);
+        detectedGapFloor = Math.round(prevClose);
+        detectedGapCeiling = Math.round(currOpen);
         detectedGapDate = currBar.date;
         break;
       }
@@ -351,11 +365,18 @@ export function analyzeExhaustionTrapAndLiquidity(
   let swingMax = currentSafeSpot;
 
   for (const b of swingBars) {
-    if (b.low > 0 && b.low < swingMin) swingMin = b.low;
-    if (b.high > swingMax) swingMax = b.high;
+    const validHigh = Number.isFinite(b.high) && b.high > 0 ? b.high : (Number.isFinite(b.close) && b.close > 0 ? b.close : currentSafeSpot);
+    const validLow = Number.isFinite(b.low) && b.low > 0 ? b.low : (Number.isFinite(b.close) && b.close > 0 ? b.close : currentSafeSpot);
+    if (validLow < swingMin) swingMin = validLow;
+    if (validHigh > swingMax) swingMax = validHigh;
   }
-  swingMin = Math.min(swingMin, currentLow);
-  swingMax = Math.max(swingMax, currentHigh);
+  swingMin = Number.isFinite(swingMin) ? Math.min(swingMin, currentLow) : currentLow;
+  swingMax = Number.isFinite(swingMax) ? Math.max(swingMax, currentHigh) : currentHigh;
+
+  if (!Number.isFinite(swingMin) || !Number.isFinite(swingMax) || swingMax - swingMin < step * 2) {
+    swingMin = currentSafeSpot - step * 3;
+    swingMax = currentSafeSpot + step * 3;
+  }
 
   const bucketStart = Math.floor(swingMin / step) * step;
   const bucketEnd = Math.ceil(swingMax / step) * step;
@@ -366,9 +387,13 @@ export function analyzeExhaustionTrapAndLiquidity(
   }
 
   for (const b of swingBars) {
-    const bHigh = Math.max(b.high, b.open, b.close);
-    const bLow = Math.min(b.low, b.open, b.close);
-    const vol = typeof b.volume === 'number' && b.volume > 0 ? b.volume : 100000;
+    const validHigh = Number.isFinite(b.high) && b.high > 0 ? b.high : (Number.isFinite(b.close) && b.close > 0 ? b.close : currentSafeSpot);
+    const validLow = Number.isFinite(b.low) && b.low > 0 ? b.low : (Number.isFinite(b.close) && b.close > 0 ? b.close : currentSafeSpot);
+    const validOpen = Number.isFinite(b.open) && b.open > 0 ? b.open : currentSafeSpot;
+    const validClose = Number.isFinite(b.close) && b.close > 0 ? b.close : currentSafeSpot;
+    const bHigh = Math.max(validHigh, validOpen, validClose);
+    const bLow = Math.min(validLow, validOpen, validClose);
+    const vol = typeof b.volume === 'number' && Number.isFinite(b.volume) && b.volume > 0 ? b.volume : 100000;
     const coveredBuckets: number[] = [];
 
     for (let p = bucketStart; p <= bucketEnd; p += step) {
@@ -401,6 +426,8 @@ export function analyzeExhaustionTrapAndLiquidity(
       }
     }
   }
+
+  institutionalFloor = Number.isFinite(institutionalFloor) ? institutionalFloor : (currentSafeSpot - step * 2);
 
   const trappedVolumePct = (totalSwingVol > 0 && trappedOverheadVol > 0)
     ? Math.min(85, Math.max(0, Math.round((trappedOverheadVol / totalSwingVol) * 100)))
@@ -543,12 +570,31 @@ export function evaluateGapProbability(inputs: GapProbabilityInputs): GapPredict
   if (dailyCandles && dailyCandles.length >= 2) {
     // If consecutive multi-day series is supplied, walk backwards through authentic daily candles
     const bars = [...dailyCandles];
+    const lastBar = bars[bars.length - 1];
+
+    // If the last bar in dailyCandles is yesterday (its close is safePrevClose, but open is not currentOpen),
+    // append today's active bar so the streak continuity includes today's live opening auction
+    const lastBarIsOpenToday = Math.abs(lastBar.open - currentOpen) < 1;
+    const lastBarIsYesterday = !lastBarIsOpenToday && Math.abs(lastBar.close - safePrevClose) < 2;
+
+    if (lastBarIsYesterday) {
+      bars.push({
+        date: 'Today',
+        open: currentOpen,
+        high: currentHigh,
+        low: currentLow,
+        close: safeSpot
+      });
+    }
+
     const lastIdx = bars.length - 1;
 
     for (let i = lastIdx; i >= 1; i--) {
-      // Check if trading days are consecutive (<= 4 calendar days for weekends/holidays)
-      if (!isDateConsecutiveOrWeekend(bars[i - 1].date, bars[i].date)) {
-        break;
+      // Check if trading days are consecutive (<= 7 calendar days for weekends/holidays)
+      if (bars[i].date !== 'Today' && bars[i - 1].date !== 'Today') {
+        if (!isDateConsecutiveOrWeekend(bars[i - 1].date, bars[i].date)) {
+          break;
+        }
       }
 
       const prevC = bars[i - 1].close;

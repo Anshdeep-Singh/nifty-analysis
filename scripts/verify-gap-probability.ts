@@ -435,4 +435,87 @@ runTest('Exhaustion Trap Tracker is resilient to NaN/zero/undefined inputs witho
   assert.ok(!tracker.plainEnglishBriefing.realFloor.includes('NaN'), 'No NaN in realFloor');
 });
 
-console.log(`\n🎉 ALL ${testsPassed}/13 GAP PROBABILITY ENGINE TESTS PASSED!`);
+// -------------------------------------------------------------
+// TEST 13: Live Trading Session Continuity (Historical + Today's Open)
+// -------------------------------------------------------------
+runTest('Live trading session continuity seamlessly aggregates today open onto yesterday series', () => {
+  // Historical candles end on Nov 12 with a gap up (24,800 -> 24,900)
+  const historicalEndingYesterday = [
+    { date: '2026-11-10', open: 24600, high: 24700, low: 24580, close: 24650 },
+    { date: '2026-11-11', open: 24720, high: 24800, low: 24700, close: 24780 },
+    { date: '2026-11-12', open: 24880, high: 24980, low: 24850, close: 24950 } // yesterday close = 24950
+  ];
+
+  // Today (Nov 13) opens at 25,050 (a 100 pt gap up over 24,950!)
+  const liveSession = evaluateGapProbability({
+    symbol: 'NIFTY',
+    spotPrice: 25080,
+    spotPrevClose: 24950,
+    spotOpen: 25050,
+    spotHigh: 25100,
+    spotLow: 25020,
+    vix: 14.5,
+    dailyCandles: historicalEndingYesterday
+  });
+
+  // Today (gap up) + Nov 12 (gap up) + Nov 11 (gap up) = 3 consecutive gap ups!
+  assert.strictEqual(liveSession.streakAnalysis.streakType, 'BULLISH_GAP');
+  assert.strictEqual(liveSession.streakAnalysis.consecutiveGaps, 3, 'Must accumulate live open + historical days into 3 consecutive gaps');
+});
+
+// -------------------------------------------------------------
+// TEST 14: Intraday Filled Gap on Last Bar Prevention
+// -------------------------------------------------------------
+runTest('Same-day filled gap on last historical bar is recognized as filled prior to today', () => {
+  // Yesterday opened with a gap from 24,800 to 24,900, but intraday dropped to 24,790, filling the gap!
+  const yesterdayFilledGap = [
+    { date: '2026-11-10', open: 24700, high: 24750, low: 24680, close: 24750 },
+    { date: '2026-11-11', open: 24750, high: 24820, low: 24740, close: 24800 },
+    { date: '2026-11-12', open: 24900, high: 24920, low: 24780, close: 24850 } // Low (24780) filled the 24800 gap!
+  ];
+
+  // Today opens flat at 24,850 and trades at 24,860
+  const res = evaluateGapProbability({
+    symbol: 'NIFTY',
+    spotPrice: 24860,
+    spotPrevClose: 24850,
+    spotOpen: 24850,
+    spotHigh: 24880,
+    spotLow: 24840,
+    vix: 14.0,
+    dailyCandles: yesterdayFilledGap
+  });
+
+  const tracker = res.exhaustionTrapTracker;
+  assert.strictEqual(tracker?.isExhaustionTrapDetected, false, 'Must NOT flag exhaustion trap for gap filled yesterday');
+  assert.strictEqual(tracker?.gapFloorPrice, 0, 'Must NOT register yesterday filled gap as an active unfilled floor');
+});
+
+// -------------------------------------------------------------
+// TEST 15: Extended 7-Day Festive Holiday Weekend Continuity
+// -------------------------------------------------------------
+runTest('Extended 7-day festive holiday weekend preserves continuous market swing without false reset', () => {
+  // 6 calendar days apart due to multi-day exchange holiday + weekend (e.g. Wednesday to next Tuesday)
+  const holidayBars = [
+    { date: '2026-10-28', open: 24500, high: 24600, low: 24480, close: 24550 },
+    { date: '2026-11-03', open: 24650, high: 24750, low: 24620, close: 24700 }, // 6 calendar days later!
+    { date: '2026-11-04', open: 24800, high: 24880, low: 24780, close: 24850 }
+  ];
+
+  const res = evaluateGapProbability({
+    symbol: 'NIFTY',
+    spotPrice: 24860,
+    spotPrevClose: 24700,
+    spotOpen: 24800,
+    spotHigh: 24880,
+    spotLow: 24780,
+    vix: 14.5,
+    dailyCandles: holidayBars
+  });
+
+  // Gap on 11-03 (100 pts) and Gap on 11-04 (100 pts) across the holiday must remain connected
+  assert.strictEqual(res.streakAnalysis.streakType, 'BULLISH_GAP');
+  assert.strictEqual(res.streakAnalysis.consecutiveGaps, 2, 'Must preserve 2-gap streak across festive holiday');
+});
+
+console.log(`\n🎉 ALL ${testsPassed}/16 GAP PROBABILITY ENGINE TESTS PASSED!`);

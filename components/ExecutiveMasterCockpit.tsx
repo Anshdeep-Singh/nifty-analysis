@@ -353,14 +353,14 @@ export function ExecutiveMasterCockpit({
                 </div>
                 <div className="flex items-center gap-2 font-mono text-[11px]">
                   <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-300">
-                    Exhaustion Score: <strong className={gapDynamics.exhaustionTrapTracker.exhaustionScorePct >= 60 ? 'text-rose-400' : 'text-cyan-300'}>
-                      {gapDynamics.exhaustionTrapTracker.exhaustionScorePct}%
+                    Exhaustion Score: <strong className={(gapDynamics.exhaustionTrapTracker.exhaustionScorePct ?? 0) >= 60 ? 'text-rose-400' : 'text-cyan-300'}>
+                      {gapDynamics.exhaustionTrapTracker.exhaustionScorePct ?? 0}%
                     </strong>
                   </span>
                   <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-300">
                     Gap Floor: <strong className="text-amber-300">
-                      {gapDynamics.exhaustionTrapTracker.gapFloorPrice > 0
-                        ? `₹${gapDynamics.exhaustionTrapTracker.gapFloorPrice.toLocaleString('en-IN')}`
+                      {(gapDynamics.exhaustionTrapTracker.gapFloorPrice ?? 0) > 0
+                        ? `₹${(gapDynamics.exhaustionTrapTracker.gapFloorPrice ?? 0).toLocaleString('en-IN')}`
                         : 'None'}
                     </strong>
                   </span>
@@ -384,8 +384,8 @@ export function ExecutiveMasterCockpit({
                   <div className="font-bold text-rose-300 flex items-center justify-between">
                     <span>⚠️ Danger Zone (Trapped Buyers)</span>
                     <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-rose-900/60 text-rose-200">
-                      {gapDynamics.exhaustionTrapTracker.trappedSupplyZone.volumePct > 0
-                        ? `~${gapDynamics.exhaustionTrapTracker.trappedSupplyZone.volumePct}% Vol Trapped`
+                      {(gapDynamics.exhaustionTrapTracker.trappedSupplyZone?.volumePct ?? 0) > 0
+                        ? `~${gapDynamics.exhaustionTrapTracker.trappedSupplyZone?.volumePct ?? 0}% Vol Trapped`
                         : '0% Trapped'}
                     </span>
                   </div>
