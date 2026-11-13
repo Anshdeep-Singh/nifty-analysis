@@ -130,11 +130,11 @@ runTest('All 15 sectors aggregate cleanly and sector weights sum to 100.00%', ()
 runTest('1-Sigma Expected Move scales continuously with Spot * VIX / sqrt(252)', () => {
   const spot = 24000;
   const vix = 15.874507866387544; // sqrt(252) ~ 15.8745 -> expected move should be exactly 24000 * 0.158745 / 15.8745 = 240 pts
-  const analysis = buildNifty50Analysis([], spot, vix);
+  const analysis = buildNifty50Analysis([], spot, vix, 0, spot);
   const expected = Math.round(spot * (vix / 100) / Math.sqrt(252));
   assert.strictEqual(Math.round(analysis.expected1DayMove), expected, 'Expected 1-day move calculation distorted');
-  assert.strictEqual(analysis.prediction.r1_sigma, spot + analysis.expected1DayMove);
-  assert.strictEqual(analysis.prediction.s1_sigma, spot - analysis.expected1DayMove);
+  assert.strictEqual(analysis.prediction.r1_sigma, analysis.prediction.pivot + analysis.expected1DayMove);
+  assert.strictEqual(analysis.prediction.s1_sigma, analysis.prediction.pivot - analysis.expected1DayMove);
 });
 
 // -------------------------------------------------------------

@@ -218,11 +218,13 @@ export function synthesizeOrComputeOptionChainGreeks(
     totalOiSum += (callOi + putOi);
 
     // Call Wall & Put Wall detection
-    if (callOi > maxCallOi) {
+    // Prefer overhead resistance (strike >= safeSpot) for Call Wall
+    if (strike >= safeSpot && callOi > maxCallOi) {
       maxCallOi = callOi;
       callWallStrike = strike;
     }
-    if (putOi > maxPutOi) {
+    // Prefer downside support (strike <= safeSpot) for Put Wall
+    if (strike <= safeSpot && putOi > maxPutOi) {
       maxPutOi = putOi;
       putWallStrike = strike;
     }
@@ -239,6 +241,31 @@ export function synthesizeOrComputeOptionChainGreeks(
       putGexCr,
       netGexCr
     });
+  }
+
+  // Fallbacks if one side was empty or uninitialized
+  if (callWallStrike <= safeSpot || callWallStrike <= putWallStrike) {
+    let fallbackMaxCall = -1;
+    let fallbackCallStrike = atmStrike + strikeStep;
+    for (const s of strikes) {
+      if (s.strike > safeSpot && s.callOi > fallbackMaxCall) {
+        fallbackMaxCall = s.callOi;
+        fallbackCallStrike = s.strike;
+      }
+    }
+    callWallStrike = fallbackCallStrike;
+  }
+
+  if (putWallStrike >= safeSpot || putWallStrike >= callWallStrike) {
+    let fallbackMaxPut = -1;
+    let fallbackPutStrike = atmStrike - strikeStep;
+    for (const s of strikes) {
+      if (s.strike < safeSpot && s.putOi > fallbackMaxPut) {
+        fallbackMaxPut = s.putOi;
+        fallbackPutStrike = s.strike;
+      }
+    }
+    putWallStrike = fallbackPutStrike;
   }
 
   const netGexTotalCr = Number((totalCallGexCr - totalPutGexCr).toFixed(2));

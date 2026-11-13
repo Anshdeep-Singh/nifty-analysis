@@ -81,7 +81,7 @@ export function ExecutiveMasterCockpit({
             <span className="px-2.5 py-0.5 rounded text-[11px] font-bold tracking-wider uppercase bg-cyan-950/80 border border-cyan-800/70 text-cyan-300">
               Executive Summary • {indexName}
             </span>
-            {spotPrice && (
+            {typeof spotPrice === 'number' && spotPrice > 0 && (
               <span className="text-xs text-slate-300 font-mono">
                 Spot: <strong className="text-white">₹{spotPrice.toLocaleString('en-IN', { minimumFractionDigits: 1 })}</strong>
               </span>
@@ -232,7 +232,9 @@ export function ExecutiveMasterCockpit({
           <div className="mt-3 p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-[11px] font-mono grid grid-cols-2 sm:grid-cols-4 gap-3 text-slate-300 animate-in fade-in duration-200">
             <div>
               <span className="text-slate-500 block">Gamma Flip:</span>
-              <strong className="text-cyan-300">₹{techSpecs.gammaFlip.toLocaleString('en-IN')}</strong>
+              <strong className="text-cyan-300">
+                {techSpecs.gammaFlip ? `₹${techSpecs.gammaFlip.toLocaleString('en-IN')}` : 'N/A'}
+              </strong>
             </div>
             <div>
               <span className="text-slate-500 block">Dealer Regime:</span>
@@ -240,7 +242,9 @@ export function ExecutiveMasterCockpit({
             </div>
             <div>
               <span className="text-slate-500 block">Put Wall / Call Wall:</span>
-              <strong className="text-white">₹{techSpecs.putWall} / ₹{techSpecs.callWall}</strong>
+              <strong className="text-white">
+                ₹{techSpecs.putWall.toLocaleString('en-IN')} / ₹{techSpecs.callWall.toLocaleString('en-IN')}
+              </strong>
             </div>
             <div>
               <span className="text-slate-500 block">OI Velocity Flow:</span>
@@ -250,15 +254,15 @@ export function ExecutiveMasterCockpit({
               <div className="col-span-2">
                 <span className="text-slate-500 block">Primary Culprit Concentration:</span>
                 <strong className="text-amber-300">
-                  {techSpecs.culpritSymbol} ({techSpecs.culpritContributionPct ? `${techSpecs.culpritContributionPct.toFixed(0)}% of move` : 'Dominant'})
+                  {techSpecs.culpritSymbol} ({typeof techSpecs.culpritContributionPct === 'number' ? `${techSpecs.culpritContributionPct.toFixed(0)}% of move` : 'Dominant'})
                 </strong>
               </div>
             )}
             <div className="col-span-2">
               <span className="text-slate-500 block">Rupee Volume Split:</span>
-              <strong className="text-emerald-400">{techSpecs.advancingTurnoverPct.toFixed(0)}% Inflow</strong>
+              <strong className="text-emerald-400">{(techSpecs.advancingTurnoverPct ?? 0).toFixed(0)}% Inflow</strong>
               <span className="text-slate-500"> vs </span>
-              <strong className="text-rose-400">{techSpecs.decliningTurnoverPct.toFixed(0)}% Outflow</strong>
+              <strong className="text-rose-400">{(techSpecs.decliningTurnoverPct ?? 0).toFixed(0)}% Outflow</strong>
             </div>
           </div>
         )}
