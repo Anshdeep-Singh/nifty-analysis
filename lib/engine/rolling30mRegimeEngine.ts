@@ -306,9 +306,23 @@ export function evaluate30mRollingRegime({
     reconciliationState = 'FAKEOUT_EXHAUSTION';
     finalScore = Number((compositeScore * 0.50).toFixed(1));
     finalConfidence = Math.min(48, finalConfidence - 35);
-    primaryDriver = `Single-Stock Dislocation Trap: Leading constituent carrying move alone against divergent breadth`;
-    verdictHeadline = `⚠️ FAKEOUT WARNING: Anemic Breadth (Confidence ${finalConfidence}%)`;
-    actionablePlaybook = `Do NOT chase breakout momentum. High statistical probability of mean-reversion within 30m once single-stock block volume exhausts.`;
+    const culpritSym = impulseAttribution?.culprit?.symbol;
+    const culpritPts = impulseAttribution?.culprit?.pointImpact;
+    const isDownMove = spotNetChange < 0;
+
+    if (isDownMove) {
+      primaryDriver = culpritSym && culpritPts != null
+        ? `Single-Stock Dislocation: ${culpritSym} dragging index down alone (${culpritPts > 0 ? '+' : ''}${culpritPts.toFixed(1)} pts) against divergent breadth`
+        : `Single-Stock Dislocation Trap: Leading constituent dragging move alone against divergent breadth`;
+      verdictHeadline = `⚠️ FAKEOUT WARNING: Anemic Breadth (Confidence ${finalConfidence}%)`;
+      actionablePlaybook = `Do NOT chase breakdown panic. High statistical probability of snap-back within 30m once single-stock block selling exhausts.`;
+    } else {
+      primaryDriver = culpritSym && culpritPts != null
+        ? `Single-Stock Dislocation: ${culpritSym} lifting index up alone (${culpritPts > 0 ? '+' : ''}${culpritPts.toFixed(1)} pts) against divergent breadth`
+        : `Single-Stock Dislocation Trap: Leading constituent carrying move alone against divergent breadth`;
+      verdictHeadline = `⚠️ FAKEOUT WARNING: Anemic Breadth (Confidence ${finalConfidence}%)`;
+      actionablePlaybook = `Do NOT chase breakout momentum. High statistical probability of mean-reversion within 30m once single-stock block buying exhausts.`;
+    }
   } else if (hasVacuumSlippage) {
     reconciliationState = 'AIR_POCKET_SLIPPAGE';
     finalScore = Number((compositeScore * 0.65).toFixed(1));

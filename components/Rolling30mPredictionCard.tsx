@@ -169,7 +169,9 @@ export function Rolling30mPredictionCard({
             </span>
             <p className="text-slate-300 mt-0.5">
               {reconciliationState === 'FAKEOUT_EXHAUSTION'
-                ? `Leading constituent is pushing the index without broad constituent support. Trend confidence has been penalized and clamped to ${confidencePct}% to guard against breakout traps.`
+                ? (netPointImpact < 0 || isBear
+                    ? `${volumeMetrics.anomalySymbol ?? 'Leading constituent'} is dragging the index down alone without broad multi-sector capitulation. Trend confidence has been penalized and clamped to ${confidencePct}% to guard against breakdown traps.`
+                    : `${volumeMetrics.anomalySymbol ?? 'Leading constituent'} is lifting the index up alone without broad constituent confirmation. Trend confidence has been penalized and clamped to ${confidencePct}% to guard against breakout traps.`)
                 : `Move occurred in low constituent volume depth (${volumeMetrics.top5HeavyweightRvol}x RVOL). Risk of rapid mean-reversion is elevated.`}
             </p>
           </div>
