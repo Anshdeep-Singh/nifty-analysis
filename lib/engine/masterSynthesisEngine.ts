@@ -10,6 +10,7 @@ import {
   SectorAnalysis,
   SmartMoneyRoadmapState
 } from '../types';
+import { evaluateGapProbability, GapPredictionResult } from './gapProbabilityEngine';
 
 export interface MasterSynthesisInputs {
   symbol: 'NIFTY' | 'BANKNIFTY';
@@ -28,6 +29,7 @@ export interface MasterSynthesisInputs {
   smartRoadmap?: SmartMoneyRoadmapState;
   greeks?: OptionGreeksMetrics;
   rolling30mPrediction?: Rolling30mPrediction;
+  gapDynamics?: GapPredictionResult;
 }
 
 export function synthesizeExecutiveMasterCockpit(inputs: MasterSynthesisInputs): ExecutiveMasterSynthesis {
@@ -304,6 +306,18 @@ export function synthesizeExecutiveMasterCockpit(inputs: MasterSynthesisInputs):
     strictInvalidation = `🛑 Invalidation: Clean 15m breakout above ₹${hardCeilingPrice.toLocaleString('en-IN')} or breakdown below ₹${hardFloorPrice.toLocaleString('en-IN')}.`;
   }
 
+  const gapDynamics = inputs.gapDynamics || evaluateGapProbability({
+    symbol,
+    spotPrice: safeSpot,
+    spotPrevClose: safePrevClose,
+    spotOpen,
+    spotHigh,
+    spotLow,
+    vix: safeVix,
+    resistanceLevel: hardCeilingPrice,
+    supportLevel: hardFloorPrice
+  });
+
   return {
     headlineState: {
       status: headlineStatus,
@@ -323,6 +337,7 @@ export function synthesizeExecutiveMasterCockpit(inputs: MasterSynthesisInputs):
       strictInvalidation
     },
     liquidityPool,
+    gapDynamics,
     techSpecs: {
       gammaFlip: greeks?.gammaFlip || 0,
       putWall: hardFloorPrice,

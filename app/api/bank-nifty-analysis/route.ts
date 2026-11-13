@@ -301,6 +301,7 @@ export async function GET(request: Request) {
       impulseAttribution: analysis.impulseAttribution,
       rolling30mPrediction,
       greeks: updatedGreeks,
+      gapPrediction: masterSynthesis.gapDynamics,
       masterSynthesis
     };
 

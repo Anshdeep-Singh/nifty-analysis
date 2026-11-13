@@ -379,8 +379,12 @@ export interface NiftyAnalysisState {
   impulseAttribution?: ImpulseAttribution;
   rolling30mPrediction?: Rolling30mPrediction;
   greeks?: OptionGreeksMetrics;
+  gapPrediction?: GapPredictionResult;
   masterSynthesis?: ExecutiveMasterSynthesis;
 }
+
+export type { GapPredictionResult, GapProbabilityInputs } from './engine/gapProbabilityEngine';
+import type { GapPredictionResult } from './engine/gapProbabilityEngine';
 
 export interface RetailLiquidityPool {
   longStopZone: { high: number; low: number; label: string };
@@ -412,6 +416,7 @@ export interface ExecutiveMasterSynthesis {
     strictInvalidation: string;
   };
   liquidityPool: RetailLiquidityPool;
+  gapDynamics?: GapPredictionResult;
   techSpecs?: {
     gammaFlip: number;
     putWall: number;

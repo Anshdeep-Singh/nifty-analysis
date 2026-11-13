@@ -15,7 +15,11 @@ import {
   Zap,
   Layers,
   Sparkles,
-  Info
+  Info,
+  Gauge,
+  ArrowUpRight,
+  ArrowDownRight,
+  Minus
 } from 'lucide-react';
 import { ExecutiveMasterSynthesis } from '@/lib/types';
 
@@ -40,6 +44,7 @@ export function ExecutiveMasterCockpit({
     keyLevels,
     playbook,
     liquidityPool,
+    gapDynamics,
     techSpecs
   } = synthesis;
 
@@ -197,6 +202,133 @@ export function ExecutiveMasterCockpit({
           </div>
         </div>
       </div>
+
+      {/* OPENING PROBABILITY & GAP FILL RADAR */}
+      {gapDynamics && (
+        <div className="bg-slate-950/85 border border-cyan-900/50 rounded-xl p-4 space-y-3.5 shadow-lg">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-800/80">
+            <div className="flex items-center gap-2">
+              <Gauge className="w-4 h-4 text-cyan-400" />
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
+                Next Open Probability & Gap Dynamics Radar
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase border ${
+                gapDynamics.streakAnalysis.exhaustionState === 'OVERBOUGHT_DIGESTION'
+                  ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
+                  : gapDynamics.streakAnalysis.exhaustionState === 'EXTENDED_EXHAUSTION'
+                  ? 'bg-rose-500/15 border-rose-500/40 text-rose-300'
+                  : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+              }`}>
+                {gapDynamics.streakAnalysis.exhaustionState.replace('_', ' ')}
+              </span>
+            </div>
+          </div>
+
+          {/* Three-Way Probability Segmented Bar */}
+          <div className="space-y-1.5 bg-slate-900/70 border border-slate-800 rounded-lg p-3">
+            <div className="flex items-center justify-between text-xs font-mono font-bold">
+              <span className="text-emerald-400 flex items-center gap-1">
+                <ArrowUpRight className="w-3.5 h-3.5" /> Gap Up: {gapDynamics.openingProbability.gapUpPct}%
+              </span>
+              <span className="text-cyan-300 flex items-center gap-1">
+                <Minus className="w-3.5 h-3.5" /> Flat Open: {gapDynamics.openingProbability.flatPct}%
+              </span>
+              <span className="text-rose-400 flex items-center gap-1">
+                <ArrowDownRight className="w-3.5 h-3.5" /> Gap Down: {gapDynamics.openingProbability.gapDownPct}%
+              </span>
+            </div>
+            <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden flex shadow-inner">
+              <div
+                className="bg-emerald-500 h-full transition-all duration-500"
+                style={{ width: `${Math.max(4, gapDynamics.openingProbability.gapUpPct)}%` }}
+                title={`Gap Up: ${gapDynamics.openingProbability.gapUpPct}%`}
+              />
+              <div
+                className="bg-cyan-500 h-full transition-all duration-500"
+                style={{ width: `${Math.max(4, gapDynamics.openingProbability.flatPct)}%` }}
+                title={`Flat Open: ${gapDynamics.openingProbability.flatPct}%`}
+              />
+              <div
+                className="bg-rose-500 h-full transition-all duration-500"
+                style={{ width: `${Math.max(4, gapDynamics.openingProbability.gapDownPct)}%` }}
+                title={`Gap Down: ${gapDynamics.openingProbability.gapDownPct}%`}
+              />
+            </div>
+          </div>
+
+          {/* 3 Detail Columns: Expected Band, Gap Fill Odds, Streak Health */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* Column 1: Expected Opening Range */}
+            <div className="bg-slate-900/80 border border-slate-800/90 rounded-lg p-3 space-y-1">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                🎯 Expected Opening Corridor
+              </div>
+              <div className="text-lg font-black font-mono text-cyan-300">
+                ₹{gapDynamics.expectedOpeningRange.low.toLocaleString('en-IN')} – ₹{gapDynamics.expectedOpeningRange.high.toLocaleString('en-IN')}
+              </div>
+              <div className="text-[11px] text-slate-400 leading-tight">
+                Central: <strong className="text-white">₹{gapDynamics.expectedOpeningRange.centralPoint.toLocaleString('en-IN')}</strong> (1σ Move: ±{gapDynamics.expectedOpeningRange.dailyExpectedMovePts} pts)
+              </div>
+            </div>
+
+            {/* Column 2: Gap Fill vs Continuation Odds */}
+            <div className="bg-slate-900/80 border border-slate-800/90 rounded-lg p-3 space-y-1">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tight flex items-center justify-between">
+                <span>🔄 Fill vs Continuation Odds</span>
+                <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-950 border border-cyan-800 text-cyan-300">
+                  {gapDynamics.gapFillDynamics.gapClassification.replace('_', ' ')}
+                </span>
+              </div>
+              <div className="text-xs font-mono font-bold text-slate-200 pt-0.5 space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-slate-400 font-normal">Same-Day Gap Fill:</span>
+                  <span className="text-amber-300">{gapDynamics.gapFillDynamics.sameDayFillProbabilityPct}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400 font-normal">Trend Continuation:</span>
+                  <span className="text-emerald-400">{gapDynamics.gapFillDynamics.continuationProbabilityPct}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400 font-normal">Fade / Snapback:</span>
+                  <span className="text-rose-400">{gapDynamics.gapFillDynamics.fadeProbabilityPct}%</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Column 3: Streak & Microstructure Digestion */}
+            <div className="bg-slate-900/80 border border-slate-800/90 rounded-lg p-3 space-y-1">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                ⚡ Momentum Streak Health
+              </div>
+              <div className="text-sm font-bold font-mono text-white pt-0.5">
+                {gapDynamics.streakAnalysis.consecutiveGaps > 0
+                  ? `${gapDynamics.streakAnalysis.consecutiveGaps} Consecutive ${gapDynamics.streakAnalysis.streakType === 'BULLISH_GAP' ? 'Bullish Gaps' : 'Bearish Gaps'}`
+                  : 'Balanced Equilibrium'}
+              </div>
+              <div className="text-[11px] text-slate-400 leading-tight">
+                Close Location Value (CLV): <strong className="text-cyan-300">{(gapDynamics.streakAnalysis.clv * 100).toFixed(0)}%</strong>
+                {gapDynamics.streakAnalysis.atrCompression ? ' • Daily ATR Compressing' : ' • Normal Range Expansion'}
+              </div>
+            </div>
+          </div>
+
+          {/* Educational Myth-Buster Callout Box */}
+          <div className="p-3 rounded-lg bg-cyan-950/25 border border-cyan-800/40 text-cyan-200 text-xs space-y-1.5">
+            <div className="flex items-center gap-1.5 font-bold text-cyan-300">
+              <HelpCircle className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+              <span>Quantitative Reality: Do All Gaps Get Covered?</span>
+            </div>
+            <p className="text-[11px] text-slate-300 leading-relaxed font-normal">
+              {gapDynamics.gapFillDynamics.gapMythVerdict}
+            </p>
+            <div className="text-[11px] text-cyan-300/90 font-mono pt-1 border-t border-cyan-900/40 leading-relaxed">
+              {gapDynamics.gapFillDynamics.structuralVerbiage}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ACTIONABLE TRADER PLAYBOOK (DOs and DONTs) */}
       <div className="bg-slate-950/70 border border-cyan-900/40 rounded-xl p-4 space-y-2.5">
