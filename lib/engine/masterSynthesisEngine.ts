@@ -10,7 +10,7 @@ import {
   SectorAnalysis,
   SmartMoneyRoadmapState
 } from '../types';
-import { evaluateGapProbability, GapPredictionResult } from './gapProbabilityEngine';
+import { evaluateGapProbability, GapPredictionResult, DailyCandleBar } from './gapProbabilityEngine';
 
 export interface MasterSynthesisInputs {
   symbol: 'NIFTY' | 'BANKNIFTY';
@@ -30,6 +30,7 @@ export interface MasterSynthesisInputs {
   greeks?: OptionGreeksMetrics;
   rolling30mPrediction?: Rolling30mPrediction;
   gapDynamics?: GapPredictionResult;
+  dailyCandles?: DailyCandleBar[];
 }
 
 export function synthesizeExecutiveMasterCockpit(inputs: MasterSynthesisInputs): ExecutiveMasterSynthesis {
@@ -314,6 +315,7 @@ export function synthesizeExecutiveMasterCockpit(inputs: MasterSynthesisInputs):
     spotHigh,
     spotLow,
     vix: safeVix,
+    dailyCandles: inputs.dailyCandles,
     resistanceLevel: hardCeilingPrice,
     supportLevel: hardFloorPrice
   });

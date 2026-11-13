@@ -64,75 +64,112 @@ export interface GapProbabilityInputs {
 
 // Global cached daily bars loaded from authentic historical store
 let cachedHistoricalNiftyDaily: DailyCandleBar[] | null = null;
+let cachedHistoricalBankNiftyDaily: DailyCandleBar[] | null = null;
+
+/**
+ * Check if two calendar date strings are consecutive trading days (1 to 4 calendar days apart)
+ */
+function isDateConsecutiveOrWeekend(prevDateStr: string, currDateStr: string): boolean {
+  try {
+    const prev = new Date(prevDateStr).getTime();
+    const curr = new Date(currDateStr).getTime();
+    if (isNaN(prev) || isNaN(curr)) return false;
+    const diffDays = Math.round((curr - prev) / (1000 * 60 * 60 * 24));
+    return diffDays >= 1 && diffDays <= 4;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Load authentic daily bars aggregated from Kite historical 1-minute files
  */
-export function getAuthenticDailyCandles(): DailyCandleBar[] {
-  if (cachedHistoricalNiftyDaily && cachedHistoricalNiftyDaily.length > 0) {
-    return cachedHistoricalNiftyDaily;
+export function getAuthenticDailyCandles(symbol: 'NIFTY' | 'BANKNIFTY' = 'NIFTY'): DailyCandleBar[] {
+  if (symbol === 'BANKNIFTY') {
+    if (cachedHistoricalBankNiftyDaily && cachedHistoricalBankNiftyDaily.length > 0) {
+      return cachedHistoricalBankNiftyDaily;
+    }
+  } else {
+    if (cachedHistoricalNiftyDaily && cachedHistoricalNiftyDaily.length > 0) {
+      return cachedHistoricalNiftyDaily;
+    }
   }
 
   try {
-    const historicalFile = path.resolve(
+    const historicalDir = path.resolve(
       process.cwd(),
       '..',
       'kite-options-pilot',
       'data',
-      'historical',
-      'kite_nifty_minute_2026-01-01_2026-09-30.json'
+      'historical'
     );
 
-    if (fs.existsSync(historicalFile)) {
-      const raw = fs.readFileSync(historicalFile, 'utf-8');
-      const parsed = JSON.parse(raw);
-      const rawCandles = parsed?.candles;
+    if (fs.existsSync(historicalDir)) {
+      const files = fs.readdirSync(historicalDir);
+      const filePattern = symbol === 'BANKNIFTY' ? 'bank' : 'nifty';
+      const matched = files.filter(f => f.toLowerCase().includes(filePattern) && f.endsWith('.json') && f.startsWith('kite_'));
 
-      if (Array.isArray(rawCandles) && rawCandles.length > 0) {
-        const daysMap = new Map<string, { open: number; high: number; low: number; close: number; volume: number }>();
-
-        for (const c of rawCandles) {
-          const date = typeof c.dateStr === 'string' ? c.dateStr.slice(0, 10) : '';
-          if (!date) continue;
-
-          const existing = daysMap.get(date);
-          if (!existing) {
-            daysMap.set(date, {
-              open: Number(c.open),
-              high: Number(c.high),
-              low: Number(c.low),
-              close: Number(c.close),
-              volume: Number(c.volume) || 0
-            });
-          } else {
-            existing.high = Math.max(existing.high, Number(c.high));
-            existing.low = Math.min(existing.low, Number(c.low));
-            existing.close = Number(c.close);
-            existing.volume += Number(c.volume) || 0;
-          }
-        }
-
-        const sortedDates = Array.from(daysMap.keys()).sort();
-        const dailyBars: DailyCandleBar[] = sortedDates.map(dt => {
-          const b = daysMap.get(dt)!;
-          return {
-            date: dt,
-            open: b.open,
-            high: b.high,
-            low: b.low,
-            close: b.close,
-            volume: b.volume
-          };
+      if (matched.length > 0) {
+        // Sort by file size descending so the comprehensive multi-month dataset is prioritized over 1-month slices
+        matched.sort((a, b) => {
+          const sizeA = fs.statSync(path.join(historicalDir, a)).size;
+          const sizeB = fs.statSync(path.join(historicalDir, b)).size;
+          return sizeB - sizeA;
         });
+        const raw = fs.readFileSync(path.join(historicalDir, matched[0]), 'utf-8');
+        const parsed = JSON.parse(raw);
+        const rawCandles = parsed?.candles || (Array.isArray(parsed) ? parsed : []);
 
-        if (dailyBars.length > 20) {
-          cachedHistoricalNiftyDaily = dailyBars;
-          return dailyBars;
+        if (Array.isArray(rawCandles) && rawCandles.length > 0) {
+          const daysMap = new Map<string, { open: number; high: number; low: number; close: number; volume: number }>();
+
+          for (const c of rawCandles) {
+            const date = typeof c.dateStr === 'string' ? c.dateStr.slice(0, 10) : '';
+            if (!date) continue;
+
+            const existing = daysMap.get(date);
+            if (!existing) {
+              daysMap.set(date, {
+                open: Number(c.open),
+                high: Number(c.high),
+                low: Number(c.low),
+                close: Number(c.close),
+                volume: Number(c.volume) || 0
+              });
+            } else {
+              existing.high = Math.max(existing.high, Number(c.high));
+              existing.low = Math.min(existing.low, Number(c.low));
+              existing.close = Number(c.close);
+              existing.volume += Number(c.volume) || 0;
+            }
+          }
+
+          const sortedDates = Array.from(daysMap.keys()).sort();
+          const dailyBars: DailyCandleBar[] = sortedDates.map(dt => {
+            const b = daysMap.get(dt)!;
+            return {
+              date: dt,
+              open: b.open,
+              high: b.high,
+              low: b.low,
+              close: b.close,
+              volume: b.volume
+            };
+          });
+
+          if (dailyBars.length > 20) {
+            if (symbol === 'BANKNIFTY') {
+              cachedHistoricalBankNiftyDaily = dailyBars;
+            } else {
+              cachedHistoricalNiftyDaily = dailyBars;
+            }
+            return dailyBars;
+          }
         }
       }
     }
   } catch (err) {
-    console.warn('[gapProbabilityEngine] Unable to parse historical minute file, using fallback baseline:', err);
+    console.warn(`[gapProbabilityEngine] Unable to parse historical file for ${symbol}:`, err);
   }
 
   return [];
@@ -170,63 +207,55 @@ export function evaluateGapProbability(inputs: GapProbabilityInputs): GapPredict
   const minThresholdPct = 0.0015; // 0.15% standard intraday threshold
   const gapThresholdPts = Math.max(isBankNifty ? 50 : 25, Number((safeSpot * minThresholdPct).toFixed(1)));
 
-  // 2. Load historical series to resolve streak and empirical transition distribution
-  let bars: DailyCandleBar[];
-  if (dailyCandles && dailyCandles.length > 0) {
-    bars = [...dailyCandles];
-    const lastBar = bars[bars.length - 1];
-    if (typeof spotOpen === 'number' && spotOpen > 0) lastBar.open = spotOpen;
-    if (typeof spotHigh === 'number' && spotHigh > 0) lastBar.high = Math.max(lastBar.high, spotHigh);
-    if (typeof spotLow === 'number' && spotLow > 0) lastBar.low = Math.min(lastBar.low, spotLow);
-    lastBar.close = safeSpot;
-  } else {
-    bars = [...getAuthenticDailyCandles()];
-    const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-    if (bars.length === 0 || bars[bars.length - 1].date !== todayIST) {
-      bars.push({
-        date: todayIST,
-        open: currentOpen,
-        high: currentHigh,
-        low: currentLow,
-        close: safeSpot
-      });
-    } else {
-      const lastBar = bars[bars.length - 1];
-      lastBar.high = Math.max(lastBar.high, currentHigh, safeSpot);
-      lastBar.low = Math.min(lastBar.low, currentLow, safeSpot);
-      lastBar.close = safeSpot;
-    }
-  }
+  // 2. Evaluate Today's Opening Gap State Anchor
+  // Today's open vs yesterday's official close
+  const todayGapPts = Number((currentOpen - safePrevClose).toFixed(1));
+  const isTodayGapUp = todayGapPts >= gapThresholdPts;
+  const isTodayGapDown = todayGapPts <= -gapThresholdPts;
 
-  // 3. Compute Historical Gap Streaks in the Active Swing Wave
-  // Allows up to 2 tight consolidation bars at the peak without breaking the active impulse wave
+  // 3. Compute Gap Streaks across Active Wave
   let gapUps = 0;
   let gapDowns = 0;
   let consolidationDays = 0;
   let activeStreakType: 'BULLISH' | 'BEARISH' | null = null;
 
-  for (let i = bars.length - 1; i >= 1; i--) {
-    const prevC = bars[i - 1].close;
-    const currO = bars[i].open;
-    const diff = currO - prevC;
+  if (dailyCandles && dailyCandles.length >= 2) {
+    // If consecutive multi-day series is supplied, walk backwards through authentic daily candles
+    const bars = [...dailyCandles];
+    const lastIdx = bars.length - 1;
 
-    if (diff >= gapThresholdPts) {
-      if (activeStreakType === 'BEARISH') {
+    for (let i = lastIdx; i >= 1; i--) {
+      // Check if trading days are consecutive (<= 4 calendar days for weekends/holidays)
+      if (!isDateConsecutiveOrWeekend(bars[i - 1].date, bars[i].date)) {
         break;
       }
+
+      const prevC = bars[i - 1].close;
+      const currO = bars[i].open;
+      const diff = currO - prevC;
+
+      if (diff >= gapThresholdPts) {
+        if (activeStreakType === 'BEARISH') break;
+        activeStreakType = 'BULLISH';
+        gapUps++;
+      } else if (diff <= -gapThresholdPts) {
+        if (activeStreakType === 'BULLISH') break;
+        activeStreakType = 'BEARISH';
+        gapDowns++;
+      } else {
+        consolidationDays++;
+        if (consolidationDays > 2) break;
+      }
+    }
+  } else {
+    // Single session or no consecutive daily series provided:
+    // Determine streak anchor strictly from today's opening auction relative to safePrevClose
+    if (isTodayGapUp) {
       activeStreakType = 'BULLISH';
-      gapUps++;
-    } else if (diff <= -gapThresholdPts) {
-      if (activeStreakType === 'BULLISH') {
-        break;
-      }
+      gapUps = 1;
+    } else if (isTodayGapDown) {
       activeStreakType = 'BEARISH';
-      gapDowns++;
-    } else {
-      consolidationDays++;
-      if (consolidationDays > 2) {
-        break;
-      }
+      gapDowns = 1;
     }
   }
 
@@ -242,15 +271,18 @@ export function evaluateGapProbability(inputs: GapProbabilityInputs): GapPredict
   }
 
   // 4. Calculate Close Location Value (CLV) & ATR Compression
-  // CLV = (Close - Low) / (High - Low)
-  const range = Math.max(1, currentHigh - currentLow);
-  const clv = Number(((safeSpot - currentLow) / range).toFixed(2));
+  // Ensure effective high and low envelop safeSpot cleanly against lagged quote ticks
+  const effHigh = Math.max(currentHigh, safeSpot);
+  const effLow = Math.min(currentLow, safeSpot);
+  const range = Math.max(1, effHigh - effLow);
+  const rawClv = (safeSpot - effLow) / range;
+  const clv = Number(Math.max(0, Math.min(1, rawClv)).toFixed(2));
 
   // Compute 14-day average true range (ATR)
   let atr14 = dailyExpectedMove;
-  if (bars.length >= 15) {
+  if (dailyCandles && dailyCandles.length >= 15) {
     let trSum = 0;
-    const recent = bars.slice(-15);
+    const recent = dailyCandles.slice(-15);
     for (let k = 1; k < recent.length; k++) {
       const h = recent[k].high;
       const l = recent[k].low;
@@ -293,7 +325,7 @@ export function evaluateGapProbability(inputs: GapProbabilityInputs): GapPredict
   }
 
   // 6. Empirical Markov Transition State Probabilities
-  // Base empirical distribution across all authentic sessions:
+  // Base empirical distribution across authentic sessions:
   // Gap Up: 33%, Flat: 32%, Gap Down: 35%
   let pGapUp = 33;
   let pFlat = 32;
@@ -313,7 +345,7 @@ export function evaluateGapProbability(inputs: GapProbabilityInputs): GapPredict
       pFlat = 46;
       pGapDown = 34;
     } else if (streakCount >= 4) {
-      // 4+ Consecutive Gaps: Law of diminishing returns takes over.
+      // 4+ Consecutive Gaps: Diminishing momentum returns take over.
       // Probability of another gap-up decays to <15%; FLAT digestion or mild GAP DOWN takes over.
       pGapUp = 14;
       pFlat = 52;
@@ -348,14 +380,28 @@ export function evaluateGapProbability(inputs: GapProbabilityInputs): GapPredict
     pGapDown -= 2.5;
   }
 
-  // Normalize percentages to sum to 100
+  // Normalize percentages so they are strictly non-negative integers summing to 100
   pGapUp = Math.max(5, Math.min(85, pGapUp));
   pFlat = Math.max(10, Math.min(85, pFlat));
   pGapDown = Math.max(5, Math.min(85, pGapDown));
   const totalP = pGapUp + pFlat + pGapDown;
-  const normGapUp = Number(((pGapUp / totalP) * 100).toFixed(0));
-  const normFlat = Number(((pFlat / totalP) * 100).toFixed(0));
-  const normGapDown = 100 - normGapUp - normFlat;
+
+  let normGapUp = Math.round((pGapUp / totalP) * 100);
+  let normFlat = Math.round((pFlat / totalP) * 100);
+  let normGapDown = 100 - normGapUp - normFlat;
+
+  if (normGapDown < 0) {
+    if (normFlat >= normGapUp) {
+      normFlat += normGapDown;
+    } else {
+      normGapUp += normGapDown;
+    }
+    normGapDown = 0;
+  } else if (normGapDown > 100) {
+    normGapDown = 100;
+    normGapUp = 0;
+    normFlat = 0;
+  }
 
   let predictedState: GapPredictionResult['openingProbability']['predictedState'] = 'FLAT';
   if (normGapUp > normFlat && normGapUp > normGapDown) {
@@ -379,18 +425,18 @@ export function evaluateGapProbability(inputs: GapProbabilityInputs): GapPredict
   }
 
   const centralPoint = Math.round(safeSpot + overnightDriftPts);
-  const bandHalfWidth = Math.round(dailyExpectedMove * 0.32);
+  const bandHalfWidth = Math.max(10, Math.round(dailyExpectedMove * 0.32));
   const openRangeLow = centralPoint - bandHalfWidth;
   const openRangeHigh = centralPoint + bandHalfWidth;
 
   // 8. Gap Fill vs Continuation Odds (Myth-busting Reality)
-  // Historical data proves 57.4% of gaps DO NOT fill same day!
+  // Historical Kite data proves 57.4% of gaps DO NOT fill same day!
   let sameDayFill = 42;
   let continuation = 46;
   let fade = 12;
   let gapClassification: GapPredictionResult['gapFillDynamics']['gapClassification'] = 'BREAKAWAY_RUNAWAY';
 
-  const isAboveResistance = typeof resistanceLevel === 'number' && safeSpot > resistanceLevel;
+  const isAboveResistance = typeof resistanceLevel === 'number' && Number.isFinite(resistanceLevel) && safeSpot > resistanceLevel;
 
   if (isAboveResistance || streakCount >= 2) {
     gapClassification = streakCount >= 4 && isAtrCompressed ? 'EXHAUSTION_BLOWOFF' : 'BREAKAWAY_RUNAWAY';

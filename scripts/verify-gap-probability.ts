@@ -22,7 +22,7 @@ function runTest(name: string, fn: () => void) {
 // TEST 1: Authentic Historical Daily Data Ingestion
 // -------------------------------------------------------------
 runTest('Authentic Kite historical daily candles load and aggregate properly', () => {
-  const daily = getAuthenticDailyCandles();
+  const daily = getAuthenticDailyCandles('NIFTY');
   assert.ok(Array.isArray(daily), 'Daily candles must be an array');
   assert.ok(daily.length > 50, `Expected >50 daily candles from Kite minute cache, found ${daily.length}`);
   
@@ -91,6 +91,7 @@ runTest('Breakaway gaps reflect low same-day fill rate and myth-busting verdict'
     symbol: 'NIFTY',
     spotPrice: 25200,
     spotPrevClose: 24900,
+    spotOpen: 25150,
     vix: 14.0,
     resistanceLevel: 25000 // Spot has broken above key resistance
   });
@@ -103,24 +104,116 @@ runTest('Breakaway gaps reflect low same-day fill rate and myth-busting verdict'
 // -------------------------------------------------------------
 // TEST 4: Master Synthesis Integration
 // -------------------------------------------------------------
-runTest('Master synthesis cockpit automatically exposes gapDynamics', () => {
-  const synthesis = synthesizeExecutiveMasterCockpit({
+runTest('Master synthesis cockpit automatically exposes gapDynamics for both NIFTY and BANKNIFTY', () => {
+  const synthesisNifty = synthesizeExecutiveMasterCockpit({
     symbol: 'NIFTY',
     spotPrice: 25450,
     spotNetChange: 80,
     spotPrevClose: 25370,
+    spotOpen: 25420,
     vix: 13.8
   });
 
-  assert.ok(synthesis.gapDynamics, 'synthesis.gapDynamics must be populated');
-  assert.ok(synthesis.gapDynamics.openingProbability.confidence >= 30, 'Confidence must be >= 30');
-  assert.ok(synthesis.gapDynamics.expectedOpeningRange.high > synthesis.gapDynamics.expectedOpeningRange.low, 'Range must be valid');
+  assert.ok(synthesisNifty.gapDynamics, 'synthesisNifty.gapDynamics must be populated');
+  assert.ok(synthesisNifty.gapDynamics.openingProbability.confidence >= 30, 'Confidence must be >= 30');
+  assert.ok(synthesisNifty.gapDynamics.expectedOpeningRange.high > synthesisNifty.gapDynamics.expectedOpeningRange.low, 'Range must be valid');
+
+  const synthesisBank = synthesizeExecutiveMasterCockpit({
+    symbol: 'BANKNIFTY',
+    spotPrice: 55200,
+    spotNetChange: 350,
+    spotPrevClose: 54850,
+    spotOpen: 55100,
+    vix: 14.5
+  });
+
+  assert.ok(synthesisBank.gapDynamics, 'synthesisBank.gapDynamics must be populated');
+  assert.ok(synthesisBank.gapDynamics.expectedOpeningRange.dailyExpectedMovePts > 400, 'Bank Nifty expected move must scale properly (>400 pts)');
+  assert.ok(synthesisBank.gapDynamics.expectedOpeningRange.low > 50000, 'Bank Nifty bounds must not be contaminated by Nifty index levels');
 });
 
 // -------------------------------------------------------------
-// TEST 5: Edge Case Resilience (Zero, NaN, undefined)
+// TEST 5: Gap Down vs Gap Up Directional Accuracy (No Date-Discontinuity Contamination)
 // -------------------------------------------------------------
-runTest('Engine gracefully handles undefined/zero/extreme inputs', () => {
+runTest('Gap Down open (spotOpen < spotPrevClose) is accurately detected as BEARISH_GAP', () => {
+  const resGapDown = evaluateGapProbability({
+    symbol: 'NIFTY',
+    spotPrice: 25500,
+    spotPrevClose: 25600, // yesterday closed at 25600
+    spotOpen: 25500,      // opened down 100 pts
+    vix: 14.5
+  });
+
+  assert.strictEqual(resGapDown.streakAnalysis.streakType, 'BEARISH_GAP', 'Must accurately detect Bearish Gap');
+  assert.strictEqual(resGapDown.streakAnalysis.consecutiveGaps, 1, 'Single-day gap down should have streak count 1');
+  assert.ok(resGapDown.openingProbability.gapDownPct >= 30, 'Gap down probability must be elevated');
+
+  const resGapUp = evaluateGapProbability({
+    symbol: 'NIFTY',
+    spotPrice: 25700,
+    spotPrevClose: 25600, // yesterday closed at 25600
+    spotOpen: 25680,      // opened up 80 pts
+    vix: 14.5
+  });
+
+  assert.strictEqual(resGapUp.streakAnalysis.streakType, 'BULLISH_GAP', 'Must accurately detect Bullish Gap');
+  assert.strictEqual(resGapUp.streakAnalysis.consecutiveGaps, 1, 'Single-day gap up should have streak count 1');
+});
+
+// -------------------------------------------------------------
+// TEST 6: Bank Nifty Spot Scaling & Isolation
+// -------------------------------------------------------------
+runTest('Bank Nifty operates with dynamic threshold, distinct ATR, and independent price levels', () => {
+  const resBN = evaluateGapProbability({
+    symbol: 'BANKNIFTY',
+    spotPrice: 55000,
+    spotPrevClose: 54800,
+    spotOpen: 55000,
+    spotHigh: 55150,
+    spotLow: 54950,
+    vix: 15.0
+  });
+
+  // Bank Nifty 1σ expected move: 55000 * 0.15 / sqrt(252) ≈ 519 pts
+  assert.ok(resBN.expectedOpeningRange.dailyExpectedMovePts > 450, 'Bank Nifty move must be > 450 pts');
+  assert.ok(resBN.expectedOpeningRange.low > 54000, 'Bank Nifty corridor low must be around 54k-55k');
+  assert.ok(resBN.expectedOpeningRange.high < 56000, 'Bank Nifty corridor high must be around 55k-56k');
+  assert.strictEqual(resBN.streakAnalysis.streakType, 'BULLISH_GAP', '200 pt gap up on Bank Nifty is a Bullish Gap');
+});
+
+// -------------------------------------------------------------
+// TEST 7: CLV Clamping & ATR Compression with Lagged Quotes
+// -------------------------------------------------------------
+runTest('CLV is strictly bounded in [0.0, 1.0] even with inverted or lagged quotes', () => {
+  // Case A: spotPrice exceeds spotHigh (lagged quote tick)
+  const resOver = evaluateGapProbability({
+    symbol: 'NIFTY',
+    spotPrice: 25750,
+    spotPrevClose: 25600,
+    spotOpen: 25650,
+    spotHigh: 25700, // lower than spotPrice!
+    spotLow: 25600,
+    vix: 14.5
+  });
+  assert.ok(resOver.streakAnalysis.clv >= 0.0 && resOver.streakAnalysis.clv <= 1.0, `CLV must be clamped in [0, 1], got ${resOver.streakAnalysis.clv}`);
+
+  // Case B: spotPrice below spotLow
+  const resUnder = evaluateGapProbability({
+    symbol: 'NIFTY',
+    spotPrice: 25550,
+    spotPrevClose: 25600,
+    spotOpen: 25600,
+    spotHigh: 25700,
+    spotLow: 25600, // higher than spotPrice!
+    vix: 14.5
+  });
+  assert.ok(resUnder.streakAnalysis.clv >= 0.0 && resUnder.streakAnalysis.clv <= 1.0, `CLV must be clamped in [0, 1], got ${resUnder.streakAnalysis.clv}`);
+});
+
+// -------------------------------------------------------------
+// TEST 8: Edge Case Resilience (Zero, NaN, undefined)
+// -------------------------------------------------------------
+runTest('Engine gracefully handles undefined/zero/extreme inputs without NaN propagation', () => {
   const res = evaluateGapProbability({
     symbol: 'NIFTY',
     spotPrice: 0,
@@ -130,11 +223,15 @@ runTest('Engine gracefully handles undefined/zero/extreme inputs', () => {
 
   assert.ok(Number.isFinite(res.expectedOpeningRange.low), 'Low must be finite');
   assert.ok(Number.isFinite(res.expectedOpeningRange.high), 'High must be finite');
+  assert.ok(res.expectedOpeningRange.high > res.expectedOpeningRange.low, 'High must be strictly > Low');
   assert.strictEqual(
     res.openingProbability.gapUpPct + res.openingProbability.flatPct + res.openingProbability.gapDownPct,
     100,
     'Probabilities must sum to 100 even with corrupted inputs'
   );
+  assert.ok(res.openingProbability.gapUpPct >= 0, 'No negative probabilities');
+  assert.ok(res.openingProbability.flatPct >= 0, 'No negative probabilities');
+  assert.ok(res.openingProbability.gapDownPct >= 0, 'No negative probabilities');
 });
 
-console.log(`\n🎉 ALL ${testsPassed}/5 GAP PROBABILITY ENGINE TESTS PASSED!`);
+console.log(`\n🎉 ALL ${testsPassed}/8 GAP PROBABILITY ENGINE TESTS PASSED!`);
