@@ -15,12 +15,12 @@ import { evaluateGapProbability, GapPredictionResult, DailyCandleBar } from './g
 export interface MasterSynthesisInputs {
   symbol: 'NIFTY' | 'BANKNIFTY';
   spotPrice: number;
-  spotNetChange: number;
-  spotPrevClose: number;
+  spotNetChange?: number;
+  spotPrevClose?: number;
   spotOpen?: number;
   spotHigh?: number;
   spotLow?: number;
-  vix: number;
+  vix?: number;
   advancesDeclines?: AdvancesDeclinesSummary;
   stocks?: Nifty50Stock[];
   sectors?: SectorAnalysis[];
@@ -60,7 +60,7 @@ export function synthesizeExecutiveMasterCockpit(inputs: MasterSynthesisInputs):
   const totalStocksCount = (stocks && stocks.length > 0) ? stocks.length : (isBankNifty ? 12 : 50);
 
   // 0. Strict input sanitization against zero / NaN / uninitialized broker feeds
-  const safeSpot = typeof spotPrice === 'number' && Number.isFinite(spotPrice) && spotPrice > 0 ? spotPrice : 25000;
+  const safeSpot = typeof spotPrice === 'number' && Number.isFinite(spotPrice) && spotPrice > 0 ? spotPrice : (isBankNifty ? 55000 : 25000);
   const safePrevClose = typeof spotPrevClose === 'number' && Number.isFinite(spotPrevClose) && spotPrevClose > 0 ? spotPrevClose : safeSpot;
   const safeNetChange = typeof spotNetChange === 'number' && Number.isFinite(spotNetChange)
     ? spotNetChange

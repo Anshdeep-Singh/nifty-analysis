@@ -370,17 +370,17 @@ export function ExecutiveMasterCockpit({
             </div>
             <div>
               <span className="text-slate-500 block">Dealer Regime:</span>
-              <strong className="text-white">{techSpecs.dealerRegime.replaceAll('_', ' ')}</strong>
+              <strong className="text-white">{(techSpecs.dealerRegime || 'TRANSITIONAL_BORDER').replaceAll('_', ' ')}</strong>
             </div>
             <div>
               <span className="text-slate-500 block">Put Wall / Call Wall:</span>
               <strong className="text-white">
-                ₹{techSpecs.putWall.toLocaleString('en-IN')} / ₹{techSpecs.callWall.toLocaleString('en-IN')}
+                ₹{(techSpecs.putWall ?? 0).toLocaleString('en-IN')} / ₹{(techSpecs.callWall ?? 0).toLocaleString('en-IN')}
               </strong>
             </div>
             <div>
               <span className="text-slate-500 block">OI Velocity Flow:</span>
-              <strong className="text-emerald-300">{techSpecs.oiVelocityRegime.replaceAll('_', ' ')}</strong>
+              <strong className="text-emerald-300">{(techSpecs.oiVelocityRegime || 'BALANCED_FLOW').replaceAll('_', ' ')}</strong>
             </div>
             {techSpecs.culpritSymbol && (
               <div className="col-span-2">

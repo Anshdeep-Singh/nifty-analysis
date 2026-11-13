@@ -76,6 +76,15 @@ runTest('Engine gracefully handles undefined, NaN, and zero inputs without runti
   assert.ok(synthesis.keyLevels.hardFloor.price > 0, 'Hard floor must be positive');
   assert.ok(synthesis.keyLevels.hardCeiling.price > 0, 'Hard ceiling must be positive');
   assert.ok(synthesis.liquidityPool.longStopZone.low > 0, 'Long stop zone low must be positive');
+
+  const synthesisBN = synthesizeExecutiveMasterCockpit({
+    symbol: 'BANKNIFTY',
+    spotPrice: 0,
+    spotPrevClose: NaN as any,
+    vix: -5 as any
+  });
+  assert.ok(synthesisBN.keyLevels.hardFloor.price >= 50000, 'Bank Nifty fallback spot must be around 55k');
+  assert.ok(synthesisBN.keyLevels.hardCeiling.price > synthesisBN.keyLevels.hardFloor.price, 'Ceiling > Floor');
 });
 
 // -------------------------------------------------------------
