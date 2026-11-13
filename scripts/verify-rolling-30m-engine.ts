@@ -398,4 +398,68 @@ runTest('Engine gracefully handles NaN, zero, and negative inputs without NaN pr
   assert.ok(Number.isFinite(greeks.vega), 'Vega must be finite');
 });
 
+// -------------------------------------------------------------
+// TEST 10: Broad Bearish Trend Immunity (No Spurious 48% Fakeout Clamp)
+// -------------------------------------------------------------
+runTest('Broad trend with heavyweight leading (HDFC -34 pts, 31 declines) avoids false 48% clamp', () => {
+  clearRollingBuffer();
+  const spotPrevClose = 25299.35;
+  const spotPrice = 25196.55; // -102.8 pts
+  const vix = 16.37;
+
+  // Simulate exact snapshot: 31 declining stocks (75.5% wt), HDFCBANK -1.35% (-34 pts)
+  const stockUpdates = NIFTY_50_STOCKS_DATA.map((s, idx) => {
+    if (s.symbol === 'HDFCBANK') {
+      return { symbol: s.symbol, price: s.price * 0.9865, changePct: -1.35, prevClose: s.price, volume: 15000000 };
+    }
+    if (s.symbol === 'ICICIBANK' || s.symbol === 'RELIANCE' || s.symbol === 'SBIN') {
+      return { symbol: s.symbol, price: s.price * 0.995, changePct: -0.5, prevClose: s.price, volume: 8000000 };
+    }
+    // 31 declines total (index 0 to 30), 19 advances (index 31 to 49)
+    if (idx < 31) {
+      return { symbol: s.symbol, price: s.price * 0.996, changePct: -0.4, prevClose: s.price, volume: 2000000 };
+    }
+    return { symbol: s.symbol, price: s.price * 1.004, changePct: 0.4, prevClose: s.price, volume: 1500000 };
+  });
+
+  const analysis = buildNifty50Analysis(
+    stockUpdates,
+    spotPrice,
+    vix,
+    -102.8,
+    spotPrevClose,
+    25209.8,
+    25235.0,
+    25180.0,
+    true
+  );
+
+  const { scanMicrostructureAnomalies } = require('../lib/engine/anomalyScanner');
+  const anomalies = scanMicrostructureAnomalies(analysis.analyzedStocks, analysis.sectors);
+
+  // HDFCBANK must NOT be tagged as CRITICAL EXTREME_DRIFT
+  const hdfcDrift = anomalies.find((a: any) => a.symbol === 'HDFCBANK' && a.type === 'EXTREME_DRIFT');
+  assert.strictEqual(hdfcDrift, undefined, 'HDFCBANK (-1.35%) must not be flagged as EXTREME_DRIFT');
+
+  const { metrics } = synthesizeOrComputeOptionChainGreeks('NIFTY', spotPrice, vix);
+  const { prediction } = evaluate30mRollingRegime({
+    symbol: 'NIFTY',
+    spotPrice,
+    spotNetChange: -102.8,
+    spotPrevClose,
+    vix,
+    advancesDeclines: analysis.advancesDeclines,
+    stocks: analysis.analyzedStocks,
+    greeks: metrics,
+    impulseAttribution: analysis.impulseAttribution,
+    anomalies
+  });
+
+  // Must not be falsely intercepted as FAKEOUT_EXHAUSTION
+  assert.notStrictEqual(prediction.reconciliationState, 'FAKEOUT_EXHAUSTION', 'Must not trigger fakeout exhaustion on broad trend');
+  assert.strictEqual(prediction.volumeMetrics.anomalyDetected, false, 'No single-stock anomaly should be detected');
+  assert.ok(prediction.confidencePct >= 60, `Confidence must remain healthy (>=60%), got ${prediction.confidencePct}%`);
+  assert.ok(prediction.direction.includes('BEARISH'), `Direction must be BEARISH, got ${prediction.direction}`);
+});
+
 console.log(`\n🎉 ALL ${testsPassed} TESTS PASSED WITH 100% MATHEMATICAL & MICROSTRUCTURE RIGOR!`);

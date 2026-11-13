@@ -136,8 +136,15 @@ export function calculateImpulseAttribution({
   const isSectorSplit = sectors.some((s) => s.pointImpact > 10) && sectors.some((s) => s.pointImpact < -10);
 
   // Single-stock condition: High concentration in top stock or top 2 stocks pulling the index
+  // A true single-stock dislocation requires either:
+  // (a) Divergent or anemic breadth (marketBreadthSyncPct < 60%) where the leader moves alone, OR
+  // (b) Extreme concentration dominance (CR1 >= 65% or primaryPctOfNet >= 75%) where one stock dwarfs the basket
+  const hasDivergentBreadth = marketBreadthSyncPct < 60;
+  const hasExtremeConcentration = concentrationRatio1 >= 65 || primaryPctOfNet >= 75;
+
   const isSingleStockDislocation = Boolean(
     primaryStock &&
+    (hasDivergentBreadth || hasExtremeConcentration) &&
     (concentrationRatio1 >= 38 || concentrationRatio2 >= 58 || (primaryPctOfNet >= 45 && absNetPoints >= velocityThreshold * 0.5)) &&
     (primaryAbsImpact >= (indexSymbol === 'BANKNIFTY' ? 25 : 8) || (primaryStock.relativeVolume ?? 1.0) >= 1.4)
   );

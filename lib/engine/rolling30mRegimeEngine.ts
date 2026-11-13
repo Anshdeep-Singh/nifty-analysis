@@ -130,8 +130,7 @@ export function evaluate30mRollingRegime({
 
   // 2. Anomaly Flags
   const hasSingleStockAnomaly = Boolean(
-    impulseAttribution?.causeType === 'SINGLE_STOCK_CULPRIT' ||
-    anomalies?.some(a => a.type === 'EXTREME_DRIFT' && a.severity === 'CRITICAL')
+    impulseAttribution?.causeType === 'SINGLE_STOCK_CULPRIT'
   );
   const hasVacuumSlippage = Boolean(
     impulseAttribution?.liquidityState === 'THIN_AIR_POCKET' ||
@@ -308,7 +307,7 @@ export function evaluate30mRollingRegime({
     finalConfidence = Math.min(48, finalConfidence - 35);
     const culpritSym = impulseAttribution?.culprit?.symbol;
     const culpritPts = impulseAttribution?.culprit?.pointImpact;
-    const isDownMove = spotNetChange < 0;
+    const isDownMove = spotNetChange < 0 || compositeScore < 0 || (culpritPts != null && culpritPts < 0);
 
     if (isDownMove) {
       primaryDriver = culpritSym && culpritPts != null

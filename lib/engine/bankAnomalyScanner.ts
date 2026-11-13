@@ -29,18 +29,19 @@ export function scanBankMicrostructureAnomalies(
       }
     ];
 
-    // Case 1: Extreme Bullish / Bearish Drift (|ChangePct| >= 2.5% or Point Impact >= 40 pts on Bank Nifty)
-    if (Math.abs(stock.changePct) >= 2.5 || Math.abs(stock.pointImpact) >= 40) {
+    // Case 1: Extreme Bullish / Bearish Drift (|ChangePct| >= 2.5% scaled to constituent price deviation)
+    if (Math.abs(stock.changePct) >= 2.5) {
       const isBull = stock.changePct > 0;
+      const isCritical = Math.abs(stock.changePct) >= 4.0 || (Math.abs(stock.changePct) >= 3.0 && Math.abs(stock.pointImpact) >= 80);
       alerts.push({
         id: `DRIFT_${stock.symbol}_${Date.now()}`,
         symbol: stock.symbol,
         companyName: stock.name,
         sector: stock.sector,
-        severity: Math.abs(stock.changePct) >= 4.0 || Math.abs(stock.pointImpact) >= 70 ? 'CRITICAL' : 'WARNING',
+        severity: isCritical ? 'CRITICAL' : 'WARNING',
         type: 'EXTREME_DRIFT',
         headline: `${stock.symbol} ${isBull ? 'SUPER BULLISH' : 'SUPER BEARISH'} (${isBull ? '+' : ''}${stock.changePct.toFixed(2)}%)`,
-        description: `Contributing ${stock.pointImpact > 0 ? '+' : ''}${stock.pointImpact.toFixed(1)} Bank Nifty points. High momentum impulse detected. Check news disclosures for corporate actions, credit growth updates, or quarterly asset quality prints.`,
+        description: `Contributing ${stock.pointImpact > 0 ? '+' : ''}${stock.pointImpact.toFixed(1)} Bank Nifty points (${stock.weight.toFixed(1)}% weight). High momentum price drift detected. Check news disclosures for corporate actions, credit growth updates, or quarterly asset quality prints.`,
         changePct: stock.changePct,
         pointImpact: stock.pointImpact,
         timestamp: new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' }),
@@ -82,7 +83,7 @@ export function scanBankMicrostructureAnomalies(
         symbol: stock.symbol,
         companyName: stock.name,
         sector: stock.sector,
-        severity: Math.abs(stock.pointImpact) >= 60 ? 'CRITICAL' : 'NOTICE',
+        severity: Math.abs(stock.pointImpact) >= 80 ? 'WARNING' : 'NOTICE',
         type: 'HEAVYWEIGHT_PIVOT',
         headline: `${stock.symbol} Heavyweight Driver (${stock.pointImpact > 0 ? '+' : ''}${stock.pointImpact.toFixed(1)} Bank Nifty Pts)`,
         description: `Single-handedly steering Bank Nifty by ${stock.pointImpact > 0 ? '+' : ''}${stock.pointImpact.toFixed(1)} points (${stock.weight.toFixed(1)}% index weight). Institutional positioning pivot.`,
