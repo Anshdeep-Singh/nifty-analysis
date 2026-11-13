@@ -27,6 +27,7 @@ import { MultiTfParallelCharts } from './MultiTfParallelCharts';
 import { DashboardNav } from './DashboardNav';
 import { TugOfWarRadar } from './TugOfWarRadar';
 import { ImpulseAttributionCard } from './ImpulseAttributionCard';
+import { Rolling30mPredictionCard } from './Rolling30mPredictionCard';
 
 export function BankNiftyAnalysisRadar() {
   const [data, setData] = useState<BankNiftyAnalysisState | null>(null);
@@ -314,6 +315,9 @@ export function BankNiftyAnalysisRadar() {
       {/* Main Content Area based on View Mode */}
       {viewMode === 'overview' && (
         <div className="space-y-4">
+          {data.rolling30mPrediction && (
+            <Rolling30mPredictionCard prediction={data.rolling30mPrediction} indexName="BANK NIFTY" />
+          )}
           {data.impulseAttribution && (
             <ImpulseAttributionCard attribution={data.impulseAttribution} indexName="BANK NIFTY" />
           )}

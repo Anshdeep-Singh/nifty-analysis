@@ -3,6 +3,8 @@ import { getKiteSessionFromRequest, fetchKiteQuotes } from '@/lib/kite/session';
 import { BANK_NIFTY_STOCKS_DATA, buildBankNiftyAnalysis, RawBankStockDefinition } from '@/lib/engine/bankNiftyConstituents';
 import { buildBankSectorCoDependencyAnalysis } from '@/lib/engine/bankSectorCoDependency';
 import { scanBankMicrostructureAnomalies } from '@/lib/engine/bankAnomalyScanner';
+import { synthesizeOrComputeOptionChainGreeks } from '@/lib/engine/optionGreeksEngine';
+import { evaluate30mRollingRegime } from '@/lib/engine/rolling30mRegimeEngine';
 import { BankNiftyAnalysisState } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -232,6 +234,27 @@ export async function GET(request: Request) {
     // 3. Scan Microstructure Anomalies & Anomaly News Alerts
     const anomalies = scanBankMicrostructureAnomalies(analysis.analyzedStocks, analysis.sectors);
 
+    // 4. Compute Option Greeks & Dealer GEX Positioning
+    const { metrics: greeksMetrics } = synthesizeOrComputeOptionChainGreeks(
+      'BANKNIFTY',
+      analysis.spotPrice,
+      analysis.vix
+    );
+
+    // 5. Evaluate Continuous 30-Minute Rolling Directional Prediction
+    const { prediction: rolling30mPrediction, updatedGreeks } = evaluate30mRollingRegime({
+      symbol: 'BANKNIFTY',
+      spotPrice: analysis.spotPrice,
+      spotNetChange: analysis.spotNetChange,
+      spotPrevClose: analysis.spotPrevClose,
+      vix: analysis.vix,
+      advancesDeclines: analysis.advancesDeclines,
+      stocks: analysis.analyzedStocks,
+      greeks: greeksMetrics,
+      impulseAttribution: analysis.impulseAttribution,
+      anomalies
+    });
+
     const fullPayload: BankNiftyAnalysisState = {
       symbol: 'BANKNIFTY',
       spotPrice: analysis.spotPrice,
@@ -251,7 +274,9 @@ export async function GET(request: Request) {
       coDependency,
       anomalies,
       stocks: analysis.analyzedStocks,
-      impulseAttribution: analysis.impulseAttribution
+      impulseAttribution: analysis.impulseAttribution,
+      rolling30mPrediction,
+      greeks: updatedGreeks
     };
 
     cachedPayload = {

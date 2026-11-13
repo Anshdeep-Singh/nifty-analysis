@@ -307,6 +307,56 @@ export interface ImpulseAttribution {
   timestamp: string;
 }
 
+export interface OptionGreeksMetrics {
+  spotPrice: number;
+  vix: number;
+  gammaFlip: number;
+  callWall: number;
+  putWall: number;
+  netGexCr: number; // In ₹ Crores
+  callGexCr: number;
+  putGexCr: number;
+  gexRegime: 'DEALER_LONG_GAMMA_PIN' | 'DEALER_SHORT_GAMMA_CASCADE' | 'TRANSITIONAL_BORDER';
+  callOiTotal: number;
+  putOiTotal: number;
+  pcrRatio: number;
+  atmIv: number;
+  deltaVector: number; // Net option delta drift (-1.0 to +1.0)
+  rolling30mCallOiChangePct: number; // dOI/dt CE (% change over rolling 30m)
+  rolling30mPutOiChangePct: number; // dOI/dt PE (% change over rolling 30m)
+  oiVelocityRegime: 'BULLISH_SHORT_COVERING' | 'BEARISH_LONG_UNWINDING' | 'CALL_ADDITION_RESISTANCE' | 'PUT_ADDITION_SUPPORT' | 'BALANCED_FLOW';
+}
+
+export interface Rolling30mPrediction {
+  timestamp: string;
+  timeIST: string;
+  windowMinutes: 30;
+  isContinuous: true;
+  direction: 'STRONG_BULLISH' | 'MODERATE_BULLISH' | 'NEUTRAL_CHOPPY' | 'MODERATE_BEARISH' | 'STRONG_BEARISH';
+  confidencePct: number; // 25 to 95
+  score: number; // -100 to +100
+  expected30mMovePts: number;
+  targetHigh: number;
+  targetLow: number;
+  tacticalStopLoss: number;
+  primaryDriver: string;
+  verdictHeadline: string;
+  actionablePlaybook: string;
+  netPointImpact: number; // Net points from BaseSpot/prevClose
+  drift30mPts: number; // Net points drift over rolling 30m window
+  greeksMetrics: OptionGreeksMetrics;
+  volumeMetrics: {
+    advancingTurnoverPct: number;
+    decliningTurnoverPct: number;
+    volumeConviction: string;
+    top5HeavyweightRvol: number;
+    anomalyDetected: boolean;
+    anomalyType?: string;
+    anomalySymbol?: string;
+  };
+  reconciliationState: 'CONFLUENT_TREND' | 'VOLATILITY_EXPANSION' | 'FORTRESS_PIN' | 'FAKEOUT_EXHAUSTION' | 'AIR_POCKET_SLIPPAGE';
+}
+
 export interface NiftyAnalysisState {
   spotPrice: number;
   spotNetChange: number;
@@ -326,6 +376,8 @@ export interface NiftyAnalysisState {
   anomalies: AnomalyAlert[];
   stocks: Nifty50Stock[];
   impulseAttribution?: ImpulseAttribution;
+  rolling30mPrediction?: Rolling30mPrediction;
+  greeks?: OptionGreeksMetrics;
 }
 
 export interface KiteSession {

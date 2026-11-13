@@ -3,6 +3,8 @@ import { getKiteSessionFromRequest, fetchKiteQuotes } from '@/lib/kite/session';
 import { NIFTY_50_STOCKS_DATA, buildNifty50Analysis } from '@/lib/engine/nifty50Constituents';
 import { buildSectorCoDependencyAnalysis } from '@/lib/engine/sectorCoDependency';
 import { scanMicrostructureAnomalies } from '@/lib/engine/anomalyScanner';
+import { synthesizeOrComputeOptionChainGreeks } from '@/lib/engine/optionGreeksEngine';
+import { evaluate30mRollingRegime } from '@/lib/engine/rolling30mRegimeEngine';
 import { NiftyAnalysisState } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -236,6 +238,27 @@ export async function GET(request: Request) {
     // 3. Scan Microstructure Anomalies & Anomaly News Alerts
     const anomalies = scanMicrostructureAnomalies(analysis.analyzedStocks, analysis.sectors);
 
+    // 4. Compute Option Greeks & Dealer GEX Positioning
+    const { metrics: greeksMetrics } = synthesizeOrComputeOptionChainGreeks(
+      'NIFTY',
+      analysis.spotPrice,
+      analysis.vix
+    );
+
+    // 5. Evaluate Continuous 30-Minute Rolling Directional Prediction
+    const { prediction: rolling30mPrediction, updatedGreeks } = evaluate30mRollingRegime({
+      symbol: 'NIFTY',
+      spotPrice: analysis.spotPrice,
+      spotNetChange: analysis.spotNetChange,
+      spotPrevClose: analysis.spotPrevClose,
+      vix: analysis.vix,
+      advancesDeclines: analysis.advancesDeclines,
+      stocks: analysis.analyzedStocks,
+      greeks: greeksMetrics,
+      impulseAttribution: analysis.impulseAttribution,
+      anomalies
+    });
+
     const fullPayload: NiftyAnalysisState = {
       spotPrice: analysis.spotPrice,
       spotNetChange: analysis.spotNetChange,
@@ -254,7 +277,9 @@ export async function GET(request: Request) {
       coDependency,
       anomalies,
       stocks: analysis.analyzedStocks,
-      impulseAttribution: analysis.impulseAttribution
+      impulseAttribution: analysis.impulseAttribution,
+      rolling30mPrediction,
+      greeks: updatedGreeks
     };
 
     cachedPayload = {
