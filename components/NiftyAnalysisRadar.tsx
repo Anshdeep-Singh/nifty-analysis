@@ -31,6 +31,7 @@ import { DashboardNav } from './DashboardNav';
 import { TugOfWarRadar } from './TugOfWarRadar';
 import { ImpulseAttributionCard } from './ImpulseAttributionCard';
 import { Rolling30mPredictionCard } from './Rolling30mPredictionCard';
+import { ExecutiveMasterCockpit } from './ExecutiveMasterCockpit';
 
 export function NiftyAnalysisRadar() {
   const [data, setData] = useState<NiftyAnalysisState | null>(null);
@@ -317,6 +318,13 @@ export function NiftyAnalysisRadar() {
       {/* Main Content Area based on View Mode */}
       {viewMode === 'overview' && (
         <div className="space-y-5">
+          {data.masterSynthesis && (
+            <ExecutiveMasterCockpit
+              synthesis={data.masterSynthesis}
+              indexName="NIFTY 50"
+              spotPrice={data.spotPrice}
+            />
+          )}
           {data.rolling30mPrediction && (
             <Rolling30mPredictionCard prediction={data.rolling30mPrediction} indexName="NIFTY 50" />
           )}

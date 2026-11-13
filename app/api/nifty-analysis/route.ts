@@ -5,6 +5,7 @@ import { buildSectorCoDependencyAnalysis } from '@/lib/engine/sectorCoDependency
 import { scanMicrostructureAnomalies } from '@/lib/engine/anomalyScanner';
 import { synthesizeOrComputeOptionChainGreeks } from '@/lib/engine/optionGreeksEngine';
 import { evaluate30mRollingRegime } from '@/lib/engine/rolling30mRegimeEngine';
+import { synthesizeExecutiveMasterCockpit } from '@/lib/engine/masterSynthesisEngine';
 import { NiftyAnalysisState } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -262,6 +263,26 @@ export async function GET(request: Request) {
       anomalies
     });
 
+    // 6. Synthesize Executive Master Cockpit (Layman Synthesis + Retail Liquidity Pools)
+    const masterSynthesis = synthesizeExecutiveMasterCockpit({
+      symbol: 'NIFTY',
+      spotPrice: analysis.spotPrice,
+      spotNetChange: analysis.spotNetChange,
+      spotPrevClose: analysis.spotPrevClose,
+      spotOpen: analysis.spotOpen,
+      spotHigh: analysis.spotHigh,
+      spotLow: analysis.spotLow,
+      vix: analysis.vix,
+      advancesDeclines: analysis.advancesDeclines,
+      stocks: analysis.analyzedStocks,
+      sectors: analysis.sectors,
+      coDependency,
+      impulseAttribution: analysis.impulseAttribution,
+      smartRoadmap: analysis.prediction.smartRoadmap,
+      greeks: updatedGreeks,
+      rolling30mPrediction
+    });
+
     const fullPayload: NiftyAnalysisState = {
       spotPrice: analysis.spotPrice,
       spotNetChange: analysis.spotNetChange,
@@ -282,7 +303,8 @@ export async function GET(request: Request) {
       stocks: analysis.analyzedStocks,
       impulseAttribution: analysis.impulseAttribution,
       rolling30mPrediction,
-      greeks: updatedGreeks
+      greeks: updatedGreeks,
+      masterSynthesis
     };
 
     cachedPayload = {

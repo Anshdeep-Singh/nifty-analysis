@@ -379,6 +379,50 @@ export interface NiftyAnalysisState {
   impulseAttribution?: ImpulseAttribution;
   rolling30mPrediction?: Rolling30mPrediction;
   greeks?: OptionGreeksMetrics;
+  masterSynthesis?: ExecutiveMasterSynthesis;
+}
+
+export interface RetailLiquidityPool {
+  longStopZone: { high: number; low: number; label: string };
+  shortStopZone: { high: number; low: number; label: string };
+  trapState: 'NO_TRAP' | 'LONG_STOP_HUNT_SWEEP' | 'SHORT_SQUEEZE_SWEEP' | 'CASCADE_CONFIRMED';
+  explanation: string;
+}
+
+export interface ExecutiveMasterSynthesis {
+  headlineState: {
+    status: 'BULLISH_TREND' | 'BEARISH_CASCADE' | 'FAKE_BREAKDOWN_TRAP' | 'FAKE_BREAKOUT_TRAP' | 'RANGE_TUG_OF_WAR' | 'ORDERLY_CONSOLIDATION';
+    badge: string;
+    badgeColor: 'emerald' | 'rose' | 'amber' | 'cyan';
+  };
+  plainSummary: {
+    whatsHappening: string;
+    broaderMarket: string;
+    bigPlayerPosition: string;
+  };
+  keyLevels: {
+    hardFloor: { price: number; label: string; reason: string };
+    stopHuntZone: { range: string; reason: string };
+    hardCeiling: { price: number; label: string; reason: string };
+  };
+  playbook: {
+    actionBias: 'AVOID_PUTS' | 'AVOID_CALLS' | 'WAIT_FOR_BOUNCE' | 'TREND_FOLLOW' | 'STAND_ASIDE';
+    doNotDo: string;
+    opportunity: string;
+    strictInvalidation: string;
+  };
+  liquidityPool: RetailLiquidityPool;
+  techSpecs?: {
+    gammaFlip: number;
+    putWall: number;
+    callWall: number;
+    culpritSymbol?: string;
+    culpritContributionPct?: number;
+    dealerRegime: string;
+    advancingTurnoverPct: number;
+    decliningTurnoverPct: number;
+    oiVelocityRegime: string;
+  };
 }
 
 export interface KiteSession {
