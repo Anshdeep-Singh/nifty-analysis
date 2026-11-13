@@ -96,9 +96,65 @@ runTest('Breakaway gaps reflect low same-day fill rate and myth-busting verdict'
     resistanceLevel: 25000 // Spot has broken above key resistance
   });
 
+  assert.strictEqual(res.gapFillDynamics.gapClassification, 'BREAKAWAY', 'Fresh breakout must classify as BREAKAWAY');
   assert.ok(res.gapFillDynamics.sameDayFillProbabilityPct < 50, 'Breakaway gap must have <50% same-day fill rate');
   assert.ok(res.gapFillDynamics.gapMythVerdict.includes('MYTH BUSTED'), 'Must include explicit myth-busting explanation');
   assert.ok(res.gapFillDynamics.gapMythVerdict.includes('57.4%'), 'Must quote authentic empirical statistics');
+});
+
+// -------------------------------------------------------------
+// TEST 3B: 4-Regime Microstructure Taxonomy Verification
+// -------------------------------------------------------------
+runTest('Engine distinctly discriminates BREAKAWAY, RUNAWAY, EXHAUSTION, and COMMON regimes', () => {
+  // 1. Runaway test: streak >= 2 with normal range expansion
+  const runawayRes = evaluateGapProbability({
+    symbol: 'NIFTY',
+    spotPrice: 25400,
+    spotPrevClose: 25250,
+    spotOpen: 25350,
+    vix: 13.5,
+    dailyCandles: [
+      { date: '2026-11-01', open: 24800, high: 24950, low: 24780, close: 24940 },
+      { date: '2026-11-02', open: 25000, high: 25150, low: 24980, close: 25140 },
+      { date: '2026-11-03', open: 25200, high: 25420, low: 25180, close: 25400 }
+    ]
+  });
+  assert.strictEqual(runawayRes.gapFillDynamics.gapClassification, 'RUNAWAY', 'Streak >= 2 without compression must be RUNAWAY');
+
+  // 2. Exhaustion test: streak >= 4 with compressed range at resistance
+  const exhaustionRes = evaluateGapProbability({
+    symbol: 'NIFTY',
+    spotPrice: 25660,
+    spotPrevClose: 25600,
+    spotOpen: 25650,
+    spotHigh: 25680,
+    spotLow: 25630,
+    vix: 15.0,
+    dailyCandles: [
+      { date: '2026-11-01', open: 25000, high: 25150, low: 24980, close: 25140 },
+      { date: '2026-11-02', open: 25200, high: 25300, low: 25180, close: 25290 },
+      { date: '2026-11-03', open: 25360, high: 25480, low: 25340, close: 25470 },
+      { date: '2026-11-04', open: 25520, high: 25620, low: 25500, close: 25600 },
+      { date: '2026-11-05', open: 25650, high: 25680, low: 25630, close: 25660 }
+    ],
+    resistanceLevel: 25680
+  });
+  assert.strictEqual(exhaustionRes.gapFillDynamics.gapClassification, 'EXHAUSTION', 'Compressed peak after streak must be EXHAUSTION');
+  assert.ok(exhaustionRes.gapFillDynamics.sameDayFillProbabilityPct >= 55, 'Exhaustion gap must have elevated fill odds');
+
+  // 3. Common chop test: zero streak / inside range
+  const commonRes = evaluateGapProbability({
+    symbol: 'NIFTY',
+    spotPrice: 25000,
+    spotPrevClose: 25020,
+    spotOpen: 25010,
+    vix: 12.0,
+    dailyCandles: [
+      { date: '2026-11-01', open: 25000, high: 25200, low: 24900, close: 25050 },
+      { date: '2026-11-02', open: 25020, high: 25150, low: 24950, close: 25000 }
+    ]
+  });
+  assert.strictEqual(commonRes.gapFillDynamics.gapClassification, 'COMMON', 'Inside range open must be COMMON');
 });
 
 // -------------------------------------------------------------
@@ -232,6 +288,52 @@ runTest('Engine gracefully handles undefined/zero/extreme inputs without NaN pro
   assert.ok(res.openingProbability.gapUpPct >= 0, 'No negative probabilities');
   assert.ok(res.openingProbability.flatPct >= 0, 'No negative probabilities');
   assert.ok(res.openingProbability.gapDownPct >= 0, 'No negative probabilities');
+});
+
+// -------------------------------------------------------------
+// TEST 9: Exhaustion Trap & Volume Profile Liquidity Radar
+// -------------------------------------------------------------
+runTest('Exhaustion Trap Tracker accurately detects filled gap, trapped overhead volume, and plain-English briefing', () => {
+  // Simulate the exact chart from user:
+  // Impulse from 24,800 to 25,400. Gap up from 25,140 close to 25,220 open.
+  // Today's candle drops to 25,070, slicing through the 25,140 gap floor!
+  const userChartDaily = [
+    { date: '2026-11-04', open: 24700, high: 24850, low: 24680, close: 24800, volume: 500000 },
+    { date: '2026-11-05', open: 24850, high: 25020, low: 24800, close: 25000, volume: 800000 }, // High volume accumulation base at 25,000
+    { date: '2026-11-06', open: 25020, high: 25160, low: 25000, close: 25140, volume: 400000 },
+    // Nov 11 Gap up: opens at 25,220 (gap of 80 pts above 25,140 close)
+    { date: '2026-11-11', open: 25220, high: 25380, low: 25200, close: 25320, volume: 600000 },
+    // Consolidation day at peak with heavy volume
+    { date: '2026-11-12', open: 25330, high: 25420, low: 25280, close: 25340, volume: 700000 }
+  ];
+
+  const res = evaluateGapProbability({
+    symbol: 'NIFTY',
+    spotPrice: 25144, // Today's spot trading down
+    spotPrevClose: 25340,
+    spotOpen: 25300,
+    spotHigh: 25350,
+    spotLow: 25070, // Sliced through the 25,140 gap floor!
+    vix: 14.5,
+    dailyCandles: userChartDaily,
+    resistanceLevel: 25400
+  });
+
+  const tracker = res.exhaustionTrapTracker;
+  assert.ok(tracker, 'exhaustionTrapTracker must be present');
+  assert.strictEqual(tracker.isExhaustionTrapDetected, true, 'Must detect exhaustion trap');
+  assert.strictEqual(tracker.trapStatus, 'EXHAUSTION_CONFIRMED_GAP_FILLED', 'Must confirm gap filled when low penetrates floor');
+  assert.ok(tracker.gapFloorPrice <= 25150, `Gap floor must be ~25,140, got ${tracker.gapFloorPrice}`);
+  assert.ok(tracker.trappedSupplyZone.volumePct > 25, `Overhead trapped volume must be significant (>25%), got ${tracker.trappedSupplyZone.volumePct}%`);
+  assert.ok(tracker.institutionalFloorPrice <= 25050, `Institutional floor must locate around 25,000 POC, got ${tracker.institutionalFloorPrice}`);
+
+  // Verify Plain-English Briefing
+  const briefing = tracker.plainEnglishBriefing;
+  assert.ok(briefing.headline.includes('Exhaustion Top Confirmed'), 'Headline must declare exhaustion top confirmed');
+  assert.ok(briefing.whatHappened.includes('exhaustion trap'), 'What happened must explain the exhaustion trap');
+  assert.ok(briefing.dangerZone.includes('underwater') || briefing.dangerZone.includes('Heavy volume'), 'Danger zone must explain trapped buyers');
+  assert.ok(briefing.realFloor.includes('25,000') || briefing.realFloor.includes(tracker.institutionalFloorPrice.toLocaleString('en-IN')), 'Real floor must highlight POC');
+  assert.ok(briefing.actionPlan.includes('Bear Call') || briefing.actionPlan.includes('Do NOT buy'), 'Action plan must provide clear guidance');
 });
 
 console.log(`\n🎉 ALL ${testsPassed}/8 GAP PROBABILITY ENGINE TESTS PASSED!`);

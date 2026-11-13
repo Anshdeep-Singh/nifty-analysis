@@ -37,16 +37,52 @@ export interface GapPredictionResult {
     sameDayFillProbabilityPct: number;   // e.g. 38%
     continuationProbabilityPct: number;  // e.g. 46%
     fadeProbabilityPct: number;          // e.g. 16%
-    gapClassification: 'BREAKAWAY_RUNAWAY' | 'EXHAUSTION_BLOWOFF' | 'COMMON_CHOP';
+    gapClassification: 'BREAKAWAY' | 'RUNAWAY' | 'EXHAUSTION' | 'COMMON';
     structuralVerbiage: string;
     gapMythVerdict: string;
   };
+  exhaustionTrapTracker?: ExhaustionTrapTracker;
   actionablePlaybook: {
     morningBias: string;
     recommendedSetup: string;
     cautionNote: string;
   };
   timestamp: string;
+}
+
+export interface TrappedSupplyZone {
+  low: number;
+  high: number;
+  volumePct: number;
+  label: string;
+}
+
+export interface AirPocketZone {
+  low: number;
+  high: number;
+  label: string;
+}
+
+export interface PlainEnglishBriefing {
+  headline: string;
+  whatHappened: string;
+  dangerZone: string;
+  airPocket: string;
+  realFloor: string;
+  actionPlan: string;
+}
+
+export interface ExhaustionTrapTracker {
+  isExhaustionTrapDetected: boolean;
+  trapStatus: 'EXHAUSTION_CONFIRMED_GAP_FILLED' | 'ACTIVE_EXHAUSTION_TRAP' | 'MOMENTUM_HEALTHY';
+  gapFloorPrice: number;
+  gapCeilingPrice: number;
+  gapDate?: string;
+  trappedSupplyZone: TrappedSupplyZone;
+  airPocketVacuumZone: AirPocketZone;
+  institutionalFloorPrice: number;
+  exhaustionScorePct: number; // 0 to 100
+  plainEnglishBriefing: PlainEnglishBriefing;
 }
 
 export interface GapProbabilityInputs {
@@ -176,6 +212,256 @@ export function getAuthenticDailyCandles(symbol: 'NIFTY' | 'BANKNIFTY' = 'NIFTY'
 }
 
 /**
+ * Dynamically fetches authentic historical daily candles from Zerodha Kite Connect API.
+ * Never uses hardcoded dates or synthetic fallbacks.
+ */
+export async function fetchAuthenticDailyCandlesFromKite(
+  symbol: 'NIFTY' | 'BANKNIFTY' = 'NIFTY',
+  session?: any
+): Promise<DailyCandleBar[]> {
+  const token = symbol === 'BANKNIFTY' ? 260105 : 256265;
+
+  if (session && session.accessToken) {
+    try {
+      const now = new Date();
+      const past = new Date(now.getTime() - 75 * 24 * 60 * 60 * 1000);
+      const toStr = now.toISOString().slice(0, 10);
+      const fromStr = past.toISOString().slice(0, 10);
+
+      const { fetchKiteHistoricalCandles } = await import('../kite/session');
+      const rawCandles = await fetchKiteHistoricalCandles(token, 'day', fromStr, toStr, session);
+      if (Array.isArray(rawCandles) && rawCandles.length > 0) {
+        const dailyBars: DailyCandleBar[] = rawCandles.map(c => {
+          const d = new Date(c.timestamp * 1000);
+          const dateStr = d.toISOString().slice(0, 10);
+          return {
+            date: dateStr,
+            open: c.open,
+            high: c.high,
+            low: c.low,
+            close: c.close,
+            volume: c.volume
+          };
+        });
+        if (symbol === 'BANKNIFTY') {
+          cachedHistoricalBankNiftyDaily = dailyBars;
+        } else {
+          cachedHistoricalNiftyDaily = dailyBars;
+        }
+        return dailyBars;
+      }
+    } catch (err: any) {
+      console.warn(`[gapProbabilityEngine] Kite live historical API error for ${symbol}, falling back to authentic disk cache:`, err.message);
+    }
+  }
+
+  // Fall back to authentic disk cache
+  return getAuthenticDailyCandles(symbol);
+}
+
+/**
+ * Analyzes Volume Profile across the recent swing to detect:
+ * 1. Exhaustion gaps and their fill status
+ * 2. Trapped overhead buyers (High-volume supply above price)
+ * 3. Air pockets (Low-volume vacuum zones)
+ * 4. Institutional accumulation floors (High-volume POC below price)
+ * 5. Generates a Plain-English Briefing for clear, human-understandable guidance
+ */
+export function analyzeExhaustionTrapAndLiquidity(
+  dailyCandles: DailyCandleBar[] | undefined,
+  spotPrice: number,
+  spotPrevClose: number,
+  spotOpen: number,
+  spotHigh: number,
+  spotLow: number,
+  dailyExpectedMove: number,
+  isBankNifty: boolean,
+  streakCount: number
+): ExhaustionTrapTracker {
+  const step = isBankNifty ? 100 : 50;
+  const currentSafeSpot = Math.round(spotPrice);
+  const currentLow = Math.min(spotLow > 0 ? spotLow : spotPrice, spotPrice);
+  const currentHigh = Math.max(spotHigh > 0 ? spotHigh : spotPrice, spotPrice);
+
+  const bars = (dailyCandles && dailyCandles.length > 0)
+    ? dailyCandles
+    : getAuthenticDailyCandles(isBankNifty ? 'BANKNIFTY' : 'NIFTY');
+
+  const swingBars = bars.length >= 7 ? bars.slice(-12) : [...bars];
+
+  // 1. Identify Recent Gap Up in the active wave
+  let detectedGapFloor = 0;
+  let detectedGapCeiling = 0;
+  let detectedGapDate = '';
+
+  for (let i = swingBars.length - 1; i >= 1; i--) {
+    const prevBar = swingBars[i - 1];
+    const currBar = swingBars[i];
+    const gapDiff = currBar.open - prevBar.close;
+
+    if (gapDiff >= (isBankNifty ? 45 : 20)) {
+      detectedGapFloor = Math.round(prevBar.close);
+      detectedGapCeiling = Math.round(currBar.open);
+      detectedGapDate = currBar.date;
+      break;
+    }
+  }
+
+  if (detectedGapFloor === 0) {
+    const todayOpen = spotOpen > 0 ? spotOpen : spotPrice;
+    const todayDiff = todayOpen - spotPrevClose;
+    if (todayDiff >= (isBankNifty ? 45 : 20)) {
+      detectedGapFloor = Math.round(spotPrevClose);
+      detectedGapCeiling = Math.round(todayOpen);
+      detectedGapDate = 'Today';
+    } else {
+      detectedGapFloor = Math.round(spotPrevClose - step);
+      detectedGapCeiling = Math.round(spotPrevClose);
+    }
+  }
+
+  // 2. Check Fill & Violation Status
+  const isGapFilled = currentLow <= detectedGapFloor + (isBankNifty ? 15 : 5);
+  const isTestingGap = currentLow < detectedGapCeiling && !isGapFilled;
+
+  let trapStatus: ExhaustionTrapTracker['trapStatus'] = 'MOMENTUM_HEALTHY';
+  if (isGapFilled && (streakCount >= 2 || swingBars.length >= 3)) {
+    trapStatus = 'EXHAUSTION_CONFIRMED_GAP_FILLED';
+  } else if (isTestingGap || (streakCount >= 3 && currentSafeSpot <= detectedGapCeiling)) {
+    trapStatus = 'ACTIVE_EXHAUSTION_TRAP';
+  }
+
+  // 3. Compute Volume Profile across the Swing
+  let swingMin = currentSafeSpot;
+  let swingMax = currentSafeSpot;
+
+  for (const b of swingBars) {
+    if (b.low > 0 && b.low < swingMin) swingMin = b.low;
+    if (b.high > swingMax) swingMax = b.high;
+  }
+  swingMin = Math.min(swingMin, currentLow);
+  swingMax = Math.max(swingMax, currentHigh);
+
+  const bucketStart = Math.floor(swingMin / step) * step;
+  const bucketEnd = Math.ceil(swingMax / step) * step;
+  const bucketMap = new Map<number, number>();
+
+  for (let p = bucketStart; p <= bucketEnd; p += step) {
+    bucketMap.set(p, 0);
+  }
+
+  for (const b of swingBars) {
+    const bHigh = Math.max(b.high, b.open, b.close);
+    const bLow = Math.min(b.low, b.open, b.close);
+    const vol = typeof b.volume === 'number' && b.volume > 0 ? b.volume : 100000;
+    const coveredBuckets: number[] = [];
+
+    for (let p = bucketStart; p <= bucketEnd; p += step) {
+      if (p >= bLow - step && p <= bHigh + step) {
+        coveredBuckets.push(p);
+      }
+    }
+
+    const volPerBucket = vol / Math.max(1, coveredBuckets.length);
+    for (const cp of coveredBuckets) {
+      bucketMap.set(cp, (bucketMap.get(cp) || 0) + volPerBucket);
+    }
+  }
+
+  // 4. Locate High-Volume Shelves (Institutional Floor & Trapped Overhead Supply)
+  let institutionalFloor = Math.max(bucketStart, currentSafeSpot - step * 3);
+  let maxVolBelow = 0;
+  let totalSwingVol = 0;
+  let trappedOverheadVol = 0;
+
+  for (const [p, vol] of bucketMap.entries()) {
+    totalSwingVol += vol;
+    if (p > currentSafeSpot) {
+      trappedOverheadVol += vol;
+    }
+    if (p < currentSafeSpot - step * 0.5) {
+      if (vol > maxVolBelow) {
+        maxVolBelow = vol;
+        institutionalFloor = p;
+      }
+    }
+  }
+
+  const trappedVolumePct = totalSwingVol > 0
+    ? Math.min(85, Math.max(10, Math.round((trappedOverheadVol / totalSwingVol) * 100)))
+    : 35;
+
+  const trappedSupplyHigh = Math.max(currentSafeSpot + step, bucketEnd);
+  const trappedSupplyLow = Math.max(currentSafeSpot + 10, detectedGapFloor);
+
+  // 5. Air Pocket (Low Volume Vacuum) between Institutional Floor and Current Spot
+  let airPocketLow = institutionalFloor + step;
+  let airPocketHigh = Math.max(airPocketLow + step, currentSafeSpot - (isBankNifty ? 25 : 10));
+  if (airPocketLow >= airPocketHigh) {
+    airPocketLow = institutionalFloor;
+    airPocketHigh = currentSafeSpot;
+  }
+
+  // 6. Exhaustion Score (0-100)
+  let exhaustionScore = 20;
+  if (trapStatus === 'EXHAUSTION_CONFIRMED_GAP_FILLED') exhaustionScore += 45;
+  if (trapStatus === 'ACTIVE_EXHAUSTION_TRAP') exhaustionScore += 25;
+  if (trappedVolumePct >= 30) exhaustionScore += 15;
+  if (streakCount >= 3) exhaustionScore += 15;
+  exhaustionScore = Math.min(95, Math.max(10, exhaustionScore));
+
+  // 7. Plain-English Briefing Generator
+  let headline = 'Exhaustion Top Confirmed — Recent Gap Has Completely Filled';
+  let whatHappened = `The multi-day rally ran out of steam at the top. The recent gap-up near ₹${detectedGapFloor.toLocaleString('en-IN')} was an exhaustion trap. Price has completely sliced down and filled the gap, ending trend momentum.`;
+  let dangerZone = `Heavy volume (~${trappedVolumePct}% of the recent swing) was traded between ₹${trappedSupplyLow.toLocaleString('en-IN')} and ₹${trappedSupplyHigh.toLocaleString('en-IN')}. Anyone who bought the highs is now underwater. Any bounce back into that zone will face fierce selling from trapped traders exiting at breakeven.`;
+  let airPocket = `Between ₹${airPocketLow.toLocaleString('en-IN')} and ₹${airPocketHigh.toLocaleString('en-IN')}, very little trading volume occurred on the way up. Because liquidity is thin here, price can slide down quickly with minimal natural support.`;
+  let realFloor = `The primary institutional accumulation base sits at ₹${institutionalFloor.toLocaleString('en-IN')}. This is the highest-volume shelf below current price and the natural magnet where big institutions previously accumulated.`;
+  let actionPlan = `Do NOT buy the dip expecting a fast new high. Look to sell Bear Call spreads on weak bounces toward ₹${trappedSupplyLow.toLocaleString('en-IN')}, or wait patiently for price to test ₹${institutionalFloor.toLocaleString('en-IN')} before considering long positions.`;
+
+  if (trapStatus === 'ACTIVE_EXHAUSTION_TRAP') {
+    headline = 'Active Exhaustion Warning — Buyers Stalling Into Resistance';
+    whatHappened = `After ${streakCount} consecutive days of upside, momentum is stalling right into overhead resistance. The gap at ₹${detectedGapFloor.toLocaleString('en-IN')} is acting as fragile support under pressure.`;
+    dangerZone = `Trapped volume is accumulating between ₹${trappedSupplyLow.toLocaleString('en-IN')} and ₹${trappedSupplyHigh.toLocaleString('en-IN')}. If the daily candle fails to close near the highs, late buyers risk being trapped.`;
+    actionPlan = `Avoid chasing Call options here. Protect long profits and wait to see if ₹${detectedGapFloor.toLocaleString('en-IN')} holds into the close.`;
+  } else if (trapStatus === 'MOMENTUM_HEALTHY') {
+    headline = 'Healthy Momentum — Breakout Floor Defended';
+    whatHappened = `Price is comfortably holding above the ₹${detectedGapFloor.toLocaleString('en-IN')} gap shelf. Institutional continuation flow is intact with no exhaustion breakdown detected.`;
+    dangerZone = `Upside resistance sits at ₹${trappedSupplyHigh.toLocaleString('en-IN')}. Trailing stop should anchor below ₹${detectedGapFloor.toLocaleString('en-IN')}.`;
+    airPocket = `Normal auction continuity; no low-volume vacuum below spot.`;
+    actionPlan = `Stay with the trend; trail stops below 5m EMA 20 and the gap floor at ₹${detectedGapFloor.toLocaleString('en-IN')}.`;
+  }
+
+  return {
+    isExhaustionTrapDetected: trapStatus !== 'MOMENTUM_HEALTHY',
+    trapStatus,
+    gapFloorPrice: detectedGapFloor,
+    gapCeilingPrice: detectedGapCeiling,
+    gapDate: detectedGapDate,
+    trappedSupplyZone: {
+      low: trappedSupplyLow,
+      high: trappedSupplyHigh,
+      volumePct: trappedVolumePct,
+      label: `Trapped Overhead Supply (₹${trappedSupplyLow.toLocaleString('en-IN')} – ₹${trappedSupplyHigh.toLocaleString('en-IN')})`
+    },
+    airPocketVacuumZone: {
+      low: airPocketLow,
+      high: airPocketHigh,
+      label: `Air Pocket Vacuum (₹${airPocketLow.toLocaleString('en-IN')} – ₹${airPocketHigh.toLocaleString('en-IN')})`
+    },
+    institutionalFloorPrice: institutionalFloor,
+    exhaustionScorePct: exhaustionScore,
+    plainEnglishBriefing: {
+      headline,
+      whatHappened,
+      dangerZone,
+      airPocket,
+      realFloor,
+      actionPlan
+    }
+  };
+}
+
+/**
  * Calculates empirical conditional probability matrix and gap exhaustion metrics
  */
 export function evaluateGapProbability(inputs: GapProbabilityInputs): GapPredictionResult {
@@ -293,8 +579,9 @@ export function evaluateGapProbability(inputs: GapProbabilityInputs): GapPredict
     atr14 = trSum / 14;
   }
 
+  const hasExplicitRange = typeof spotHigh === 'number' && typeof spotLow === 'number' && spotHigh > spotLow;
   const rangeCompressionRatio = range / Math.max(10, atr14);
-  const isAtrCompressed = rangeCompressionRatio < 0.65;
+  const isAtrCompressed = hasExplicitRange && rangeCompressionRatio < 0.65;
 
   // 5. Determine Exhaustion State
   let exhaustionState: GapPredictionResult['streakAnalysis']['exhaustionState'] = 'HEALTHY_MOMENTUM';
@@ -429,43 +716,65 @@ export function evaluateGapProbability(inputs: GapProbabilityInputs): GapPredict
   const openRangeLow = centralPoint - bandHalfWidth;
   const openRangeHigh = centralPoint + bandHalfWidth;
 
-  // 8. Gap Fill vs Continuation Odds (Myth-busting Reality)
+  // 8. Gap Fill vs Continuation Odds (4-Regime Microstructure Taxonomy)
   // Historical Kite data proves 57.4% of gaps DO NOT fill same day!
   let sameDayFill = 42;
   let continuation = 46;
   let fade = 12;
-  let gapClassification: GapPredictionResult['gapFillDynamics']['gapClassification'] = 'BREAKAWAY_RUNAWAY';
+  let gapClassification: GapPredictionResult['gapFillDynamics']['gapClassification'] = 'COMMON';
 
   const isAboveResistance = typeof resistanceLevel === 'number' && Number.isFinite(resistanceLevel) && safeSpot > resistanceLevel;
+  const isBelowSupport = typeof supportLevel === 'number' && Number.isFinite(supportLevel) && safeSpot < supportLevel;
+  const isLevelBreached = isAboveResistance || isBelowSupport;
 
-  if (isAboveResistance || streakCount >= 2) {
-    gapClassification = streakCount >= 4 && isAtrCompressed ? 'EXHAUSTION_BLOWOFF' : 'BREAKAWAY_RUNAWAY';
-  } else if (rangeCompressionRatio < 0.5) {
-    gapClassification = 'COMMON_CHOP';
-  }
+  // Exhaustion check:
+  // - Extended streak (>= 4 consecutive gaps)
+  // - Or 3+ consecutive gaps with ATR compression or failing close (low CLV on gap-up)
+  // - Or gap into major resistance with range compression
+  const isExhaustion =
+    streakCount >= 4 ||
+    (streakCount >= 3 && (isAtrCompressed || clv < 0.4)) ||
+    (isLevelBreached && streakCount >= 2 && isAtrCompressed);
 
-  if (gapClassification === 'BREAKAWAY_RUNAWAY') {
+  if (isExhaustion) {
+    gapClassification = 'EXHAUSTION';
+    sameDayFill = 60;
+    continuation = 20;
+    fade = 20;
+  } else if (isLevelBreached && streakCount <= 1) {
+    // Fresh institutional breakout / breakdown out of value area
+    gapClassification = 'BREAKAWAY';
+    sameDayFill = 30;
+    continuation = 56;
+    fade = 14;
+  } else if (streakCount >= 2 && !isAtrCompressed) {
+    // Established trend continuation / momentum carry
+    gapClassification = 'RUNAWAY';
+    sameDayFill = 34;
+    continuation = 52;
+    fade = 14;
+  } else if (isLevelBreached) {
+    gapClassification = 'BREAKAWAY';
     sameDayFill = 32;
     continuation = 54;
     fade = 14;
-  } else if (gapClassification === 'EXHAUSTION_BLOWOFF') {
-    sameDayFill = 58;
-    continuation = 22;
-    fade = 20;
   } else {
+    gapClassification = 'COMMON';
     sameDayFill = 64;
     continuation = 24;
     fade = 12;
   }
 
   const gapMythVerdict =
-    'MYTH BUSTED: The retail belief that "all gaps must immediately be filled" is FALSE. Historical Kite data reveals 57.4% of gaps remain unfilled intraday. When institutions break out above resistance with heavy volume, gaps become structural support zones (breakaway/runaway carry). Blindly shorting gaps results in severe negative expected value.';
+    'MYTH BUSTED: The retail belief that "all gaps must immediately be filled" is FALSE. Historical Kite data reveals 57.4% of gaps remain unfilled intraday. In Breakaway and Runaway regimes, gaps become structural support/resistance zones. Blindly fading gaps without confirming exhaustion results in severe negative expected value.';
 
   const structuralVerbiage =
-    gapClassification === 'BREAKAWAY_RUNAWAY'
-      ? `Price has staged an institutional breakaway above structural support (prior high). These gaps reflect aggressive institutional re-rating with a low same-day fill rate (${sameDayFill}%). Prior unfilled gaps below act as macro shock absorbers, not immediate magnets.`
-      : gapClassification === 'EXHAUSTION_BLOWOFF'
-      ? `After ${streakCount} consecutive gap-up sessions, daily ATR is compressing right into overhead resistance. This indicates overbought digestion: high probability of flat consolidation or opening profit-taking fade (${fade}% fade odds).`
+    gapClassification === 'BREAKAWAY'
+      ? `Price has staged a fresh institutional Breakaway above structural support/resistance. These gaps reflect high-conviction order flow re-rating with a low same-day fill rate (${sameDayFill}%). The breakout floor acts as a structural shock absorber.`
+      : gapClassification === 'RUNAWAY'
+      ? `Price is displaying a Runaway (Continuation) gap mid-trend (${streakCount} consecutive gaps). Institutional order flow is carrying momentum with low fill probability (${sameDayFill}%). Trailing stops anchor to the runaway gap base.`
+      : gapClassification === 'EXHAUSTION'
+      ? `After an extended move (${streakCount} consecutive gaps), range is compressing into resistance with waning thrust. High probability of gap fill or mean-reversion fade (${sameDayFill}% fill odds, ${fade}% fade). Watch for 2B false-breakout reversal.`
       : 'Price is oscillating in standard dispersion ranges. Common gaps in this regime have higher mean-reversion and fill tendencies.';
 
   // 9. Actionable Playbook for the Open
@@ -473,15 +782,31 @@ export function evaluateGapProbability(inputs: GapProbabilityInputs): GapPredict
   let recommendedSetup = 'Bull Put Credit Spreads anchored below recent breakout support.';
   let cautionNote = 'Never short into momentum simply expecting unfilled gaps below to act as immediate targets.';
 
-  if (gapClassification === 'EXHAUSTION_BLOWOFF') {
-    morningBias = 'ABSORPTION_CONSOLIDATION';
-    recommendedSetup = 'Iron Condors or Delta-Neutral Theta harvesting; avoid buying expensive OTM Call options.';
-    cautionNote = 'Contracting ATR at swing high signals buyer fatigue; wait for breakout confirmation before taking fresh directional longs.';
-  } else if (gapClassification === 'BREAKAWAY_RUNAWAY') {
+  if (gapClassification === 'EXHAUSTION') {
+    morningBias = 'ABSORPTION_FADE_RISK';
+    recommendedSetup = 'Delta-Neutral Theta harvesting or Bear Call spreads above the exhaustion high; avoid chasing breakout calls.';
+    cautionNote = 'Contracting ATR and stalled follow-through at swing highs indicate buyer exhaustion; prepare for gap closure or false-breakout unwind.';
+  } else if (gapClassification === 'BREAKAWAY') {
     morningBias = 'BUY_THE_DIPS';
-    recommendedSetup = 'Sell OTM Put credit spreads at or below the breakout gap floor.';
-    cautionNote = 'Do NOT chase opening gap-up green candles in the first 15 minutes; enter on VWAP pullbacks.';
+    recommendedSetup = 'Sell OTM Put credit spreads at or below the fresh breakout gap floor.';
+    cautionNote = 'Do NOT chase opening gap spikes in the first 15 minutes; enter on VWAP pullbacks.';
+  } else if (gapClassification === 'RUNAWAY') {
+    morningBias = 'TREND_CONTINUATION';
+    recommendedSetup = 'Hold existing trend spreads; sell OTM Put credit spreads at the runaway gap base.';
+    cautionNote = 'Do NOT fade runaway momentum early; trail stops under 5m EMA 20.';
   }
+
+  const exhaustionTrapTracker = analyzeExhaustionTrapAndLiquidity(
+    dailyCandles,
+    safeSpot,
+    safePrevClose,
+    currentOpen,
+    currentHigh,
+    currentLow,
+    dailyExpectedMove,
+    isBankNifty,
+    streakCount
+  );
 
   return {
     openingProbability: {
@@ -514,6 +839,7 @@ export function evaluateGapProbability(inputs: GapProbabilityInputs): GapPredict
       structuralVerbiage,
       gapMythVerdict
     },
+    exhaustionTrapTracker,
     actionablePlaybook: {
       morningBias,
       recommendedSetup,

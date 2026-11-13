@@ -6,6 +6,7 @@ import { scanMicrostructureAnomalies } from '@/lib/engine/anomalyScanner';
 import { synthesizeOrComputeOptionChainGreeks } from '@/lib/engine/optionGreeksEngine';
 import { evaluate30mRollingRegime } from '@/lib/engine/rolling30mRegimeEngine';
 import { synthesizeExecutiveMasterCockpit } from '@/lib/engine/masterSynthesisEngine';
+import { fetchAuthenticDailyCandlesFromKite } from '@/lib/engine/gapProbabilityEngine';
 import { NiftyAnalysisState } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -263,6 +264,9 @@ export async function GET(request: Request) {
       anomalies
     });
 
+    // 5.5 Fetch authentic daily candles (from Kite API if connected, or authentic disk cache)
+    const authenticDailyCandles = await fetchAuthenticDailyCandlesFromKite('NIFTY', session);
+
     // 6. Synthesize Executive Master Cockpit (Layman Synthesis + Retail Liquidity Pools)
     const masterSynthesis = synthesizeExecutiveMasterCockpit({
       symbol: 'NIFTY',
@@ -280,7 +284,8 @@ export async function GET(request: Request) {
       impulseAttribution: analysis.impulseAttribution,
       smartRoadmap: analysis.prediction.smartRoadmap,
       greeks: updatedGreeks,
-      rolling30mPrediction
+      rolling30mPrediction,
+      dailyCandles: authenticDailyCandles
     });
 
     const fullPayload: NiftyAnalysisState = {

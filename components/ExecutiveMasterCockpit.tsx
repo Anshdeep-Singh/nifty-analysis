@@ -278,7 +278,7 @@ export function ExecutiveMasterCockpit({
               <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tight flex items-center justify-between">
                 <span>🔄 Fill vs Continuation Odds</span>
                 <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-950 border border-cyan-800 text-cyan-300">
-                  {(gapDynamics.gapFillDynamics?.gapClassification || 'COMMON_CHOP').replaceAll('_', ' ')}
+                  {(gapDynamics.gapFillDynamics?.gapClassification || 'COMMON').replaceAll('_', ' ')}
                 </span>
               </div>
               <div className="text-xs font-mono font-bold text-slate-200 pt-0.5 space-y-1">
@@ -327,6 +327,100 @@ export function ExecutiveMasterCockpit({
               {gapDynamics.gapFillDynamics.structuralVerbiage}
             </div>
           </div>
+
+          {/* Trend Exhaustion & Trapped Liquidity Radar (Plain-English Briefing) */}
+          {gapDynamics.exhaustionTrapTracker && (
+            <div className={`p-3.5 rounded-xl border space-y-3 ${
+              gapDynamics.exhaustionTrapTracker.trapStatus === 'EXHAUSTION_CONFIRMED_GAP_FILLED'
+                ? 'bg-rose-950/20 border-rose-800/50 text-rose-200'
+                : gapDynamics.exhaustionTrapTracker.trapStatus === 'ACTIVE_EXHAUSTION_TRAP'
+                ? 'bg-amber-950/20 border-amber-800/50 text-amber-200'
+                : 'bg-emerald-950/20 border-emerald-800/50 text-emerald-200'
+            }`}>
+              {/* Header Banner */}
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
+                <div className="flex items-center gap-2">
+                  <ShieldAlert className={`w-4 h-4 ${
+                    gapDynamics.exhaustionTrapTracker.trapStatus === 'EXHAUSTION_CONFIRMED_GAP_FILLED'
+                      ? 'text-rose-400'
+                      : gapDynamics.exhaustionTrapTracker.trapStatus === 'ACTIVE_EXHAUSTION_TRAP'
+                      ? 'text-amber-400'
+                      : 'text-emerald-400'
+                  }`} />
+                  <span className="font-bold text-sm tracking-tight text-white">
+                    {gapDynamics.exhaustionTrapTracker.plainEnglishBriefing.headline}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 font-mono text-[11px]">
+                  <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-300">
+                    Exhaustion Score: <strong className={gapDynamics.exhaustionTrapTracker.exhaustionScorePct >= 60 ? 'text-rose-400' : 'text-cyan-300'}>
+                      {gapDynamics.exhaustionTrapTracker.exhaustionScorePct}%
+                    </strong>
+                  </span>
+                  <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-300">
+                    Gap Floor: <strong className="text-amber-300">₹{gapDynamics.exhaustionTrapTracker.gapFloorPrice.toLocaleString('en-IN')}</strong>
+                  </span>
+                </div>
+              </div>
+
+              {/* 4 Plain-English Breakdown Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-xs">
+                {/* 1. What Just Happened */}
+                <div className="p-2.5 rounded-lg bg-slate-900/90 border border-slate-800 space-y-1">
+                  <div className="font-bold text-cyan-300 flex items-center gap-1.5">
+                    <span>🛑 What Just Happened</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed font-normal">
+                    {gapDynamics.exhaustionTrapTracker.plainEnglishBriefing.whatHappened}
+                  </p>
+                </div>
+
+                {/* 2. Danger Zone (Trapped Buyers) */}
+                <div className="p-2.5 rounded-lg bg-rose-950/30 border border-rose-900/50 space-y-1">
+                  <div className="font-bold text-rose-300 flex items-center justify-between">
+                    <span>⚠️ Danger Zone (Trapped Buyers)</span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-rose-900/60 text-rose-200">
+                      ~{gapDynamics.exhaustionTrapTracker.trappedSupplyZone.volumePct}% Vol Trapped
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed font-normal">
+                    {gapDynamics.exhaustionTrapTracker.plainEnglishBriefing.dangerZone}
+                  </p>
+                </div>
+
+                {/* 3. The Air Pocket (Vacuum) */}
+                <div className="p-2.5 rounded-lg bg-slate-900/90 border border-slate-800 space-y-1">
+                  <div className="font-bold text-amber-300 flex items-center gap-1.5">
+                    <span>🕳️ The Air Pocket (Vacuum Zone)</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed font-normal">
+                    {gapDynamics.exhaustionTrapTracker.plainEnglishBriefing.airPocket}
+                  </p>
+                </div>
+
+                {/* 4. Real Institutional Floor */}
+                <div className="p-2.5 rounded-lg bg-emerald-950/30 border border-emerald-900/50 space-y-1">
+                  <div className="font-bold text-emerald-300 flex items-center justify-between">
+                    <span>🎯 Real Institutional Floor (POC)</span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-900/60 text-emerald-200">
+                      ₹{gapDynamics.exhaustionTrapTracker.institutionalFloorPrice.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed font-normal">
+                    {gapDynamics.exhaustionTrapTracker.plainEnglishBriefing.realFloor}
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Plan */}
+              <div className="p-2.5 rounded-lg bg-slate-950/80 border border-cyan-900/50 text-[11px] flex items-start gap-2">
+                <span className="font-bold text-cyan-300 shrink-0">🛡️ What You Should Do:</span>
+                <span className="text-slate-300 font-normal leading-relaxed">
+                  {gapDynamics.exhaustionTrapTracker.plainEnglishBriefing.actionPlan}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
