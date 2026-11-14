@@ -21,11 +21,29 @@ import {
   Minus
 } from 'lucide-react';
 import { ExecutiveMasterSynthesis } from '@/lib/types';
+import {
+  MicrostructureVisualModal,
+  MicrostructureTopicId
+} from './MicrostructureVisualModal';
 
 interface ExecutiveMasterCockpitProps {
   synthesis?: ExecutiveMasterSynthesis;
   indexName?: string;
   spotPrice?: number;
+}
+
+function getGapTopicId(classification?: string): MicrostructureTopicId {
+  switch (classification) {
+    case 'BREAKAWAY':
+      return 'gap-breakaway';
+    case 'RUNAWAY':
+      return 'gap-runaway';
+    case 'EXHAUSTION':
+      return 'gap-exhaustion';
+    case 'COMMON':
+    default:
+      return 'gap-common';
+  }
 }
 
 export function ExecutiveMasterCockpit({
@@ -34,6 +52,7 @@ export function ExecutiveMasterCockpit({
   spotPrice
 }: ExecutiveMasterCockpitProps) {
   const [showTechDetails, setShowTechDetails] = useState(false);
+  const [activeVisualTopic, setActiveVisualTopic] = useState<MicrostructureTopicId | null>(null);
 
   if (!synthesis) return null;
 
@@ -112,9 +131,20 @@ export function ExecutiveMasterCockpit({
               ? 'bg-amber-950/40 border-amber-700/60 text-amber-200'
               : 'bg-rose-950/60 border-rose-600 text-rose-100 font-semibold'
           }`}>
-            <div className="flex items-center gap-1.5 font-bold mb-1">
-              <Crosshair className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Retail Stop-Loss Alert</span>
+            <div className="flex items-center justify-between font-bold mb-1">
+              <div className="flex items-center gap-1.5">
+                <Crosshair className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Retail Stop-Loss Alert</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveVisualTopic('stop-hunt')}
+                className="inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-900/90 hover:bg-slate-800 border border-slate-700 hover:border-amber-500 text-cyan-300 transition-colors cursor-pointer"
+                title="View visual candle example of stop hunt"
+              >
+                <span>Example</span>
+                <span className="w-3 h-3 rounded-full bg-cyan-900/80 text-[8px] flex items-center justify-center font-bold">i</span>
+              </button>
             </div>
             <p className="leading-relaxed opacity-90">{liquidityPool.explanation}</p>
           </div>
@@ -178,6 +208,14 @@ export function ExecutiveMasterCockpit({
           <div className="bg-slate-900/90 border border-amber-900/50 rounded-lg p-3">
             <div className="text-[10px] font-bold text-amber-400 uppercase tracking-tight flex items-center justify-between">
               <span>🎯 Retail Stop-Loss Trap Zone</span>
+              <button
+                type="button"
+                onClick={() => setActiveVisualTopic('stop-hunt')}
+                className="w-4 h-4 rounded-full bg-amber-950 hover:bg-amber-900 border border-amber-700/80 hover:border-amber-400 flex items-center justify-center text-[9px] font-mono font-bold text-amber-300 transition-colors cursor-pointer"
+                title="Click to view visual candle example of Stop-Loss Sweeps"
+              >
+                i
+              </button>
             </div>
             <div className="text-xl font-black font-mono text-amber-300 mt-1">
               {keyLevels.stopHuntZone.range}
@@ -213,6 +251,15 @@ export function ExecutiveMasterCockpit({
               </span>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveVisualTopic(getGapTopicId(gapDynamics.gapFillDynamics?.gapClassification))}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold text-cyan-300 bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-800/80 hover:border-cyan-500 transition-colors cursor-pointer"
+                title="View visual candle examples for opening gaps"
+              >
+                <Sparkles className="w-3 h-3 text-cyan-400" />
+                <span>Visual Guide</span>
+              </button>
               <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase border ${
                 gapDynamics.streakAnalysis?.exhaustionState === 'OVERBOUGHT_DIGESTION'
                   ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
@@ -276,9 +323,17 @@ export function ExecutiveMasterCockpit({
             <div className="bg-slate-900/80 border border-slate-800/90 rounded-lg p-3 space-y-1">
               <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tight flex items-center justify-between">
                 <span>🔄 Fill vs Continuation Odds</span>
-                <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-950 border border-cyan-800 text-cyan-300">
-                  {(gapDynamics.gapFillDynamics?.gapClassification || 'COMMON').replaceAll('_', ' ')}
-                </span>
+                <button
+                  type="button"
+                  onClick={() => setActiveVisualTopic(getGapTopicId(gapDynamics.gapFillDynamics?.gapClassification))}
+                  className="group inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded bg-cyan-950/90 hover:bg-cyan-900 border border-cyan-800/80 hover:border-cyan-500 text-cyan-300 transition-all cursor-pointer font-bold shadow-sm"
+                  title="Click to view visual candle example for this gap regime"
+                >
+                  <span>{(gapDynamics.gapFillDynamics?.gapClassification || 'COMMON').replaceAll('_', ' ')}</span>
+                  <span className="w-3.5 h-3.5 rounded-full bg-cyan-900/90 group-hover:bg-cyan-700 flex items-center justify-center text-[9px] font-mono font-bold text-cyan-200">
+                    i
+                  </span>
+                </button>
               </div>
               <div className="text-xs font-mono font-bold text-slate-200 pt-0.5 space-y-1">
                 <div className="flex justify-between">
@@ -307,7 +362,18 @@ export function ExecutiveMasterCockpit({
                   : 'Balanced Equilibrium'}
               </div>
               <div className="text-[11px] text-slate-400 leading-tight">
-                Close Location Value (CLV): <strong className="text-cyan-300">{((gapDynamics.streakAnalysis?.clv ?? 0) * 100).toFixed(0)}%</strong>
+                <span className="inline-flex items-center gap-1">
+                  <span>Close Location Value (CLV):</span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveVisualTopic('clv')}
+                    className="w-3.5 h-3.5 rounded-full bg-slate-800 hover:bg-cyan-950 border border-slate-700 hover:border-cyan-600 inline-flex items-center justify-center text-[9px] font-mono text-cyan-400 transition-colors cursor-pointer"
+                    title="Click to see candle example of Close Location Value"
+                  >
+                    i
+                  </button>
+                </span>{' '}
+                <strong className="text-cyan-300">{((gapDynamics.streakAnalysis?.clv ?? 0) * 100).toFixed(0)}%</strong>
                 {gapDynamics.streakAnalysis?.atrCompression ? ' • Daily ATR Compressing' : ' • Normal Range Expansion'}
               </div>
             </div>
@@ -381,8 +447,18 @@ export function ExecutiveMasterCockpit({
 
                 {/* 3. The Air Pocket (Vacuum) */}
                 <div className="p-2.5 rounded-lg bg-slate-900/90 border border-slate-800 space-y-1">
-                  <div className="font-bold text-amber-300 flex items-center gap-1.5">
-                    <span>🕳️ The Air Pocket (Vacuum Zone)</span>
+                  <div className="font-bold text-amber-300 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <span>🕳️ The Air Pocket (Vacuum Zone)</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setActiveVisualTopic('air-pocket')}
+                      className="w-3.5 h-3.5 rounded-full bg-slate-800 hover:bg-amber-950 border border-slate-700 hover:border-amber-600 flex items-center justify-center text-[9px] font-mono text-amber-300 transition-colors cursor-pointer"
+                      title="Click to view visual diagram of Air Pocket & Institutional Floor"
+                    >
+                      i
+                    </button>
                   </div>
                   <p className="text-[11px] text-slate-300 leading-relaxed font-normal">
                     {gapDynamics.exhaustionTrapTracker.plainEnglishBriefing?.airPocket}
@@ -448,14 +524,34 @@ export function ExecutiveMasterCockpit({
         {showTechDetails && techSpecs && (
           <div className="mt-3 p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-[11px] font-mono grid grid-cols-2 sm:grid-cols-4 gap-3 text-slate-300 animate-in fade-in duration-200">
             <div>
-              <span className="text-slate-500 block">Trend Danger Line (Gamma Flip):</span>
+              <div className="flex items-center gap-1">
+                <span className="text-slate-500">Trend Danger Line (Gamma Flip):</span>
+                <button
+                  type="button"
+                  onClick={() => setActiveVisualTopic('gamma-flip')}
+                  className="w-3.5 h-3.5 rounded-full bg-slate-800 hover:bg-cyan-950 border border-slate-700 hover:border-cyan-600 flex items-center justify-center text-[9px] font-mono text-cyan-400 transition-colors cursor-pointer"
+                  title="Click to view visual diagram of Gamma Flip"
+                >
+                  i
+                </button>
+              </div>
               <strong className="text-cyan-300">
                 {techSpecs.gammaFlip ? `₹${techSpecs.gammaFlip.toLocaleString('en-IN')}` : 'N/A'}
               </strong>
               <span className="text-[10px] text-slate-500 block font-sans">Below = Fast trend; Above = Calm</span>
             </div>
             <div>
-              <span className="text-slate-500 block">Market Maker Regime:</span>
+              <div className="flex items-center gap-1">
+                <span className="text-slate-500">Market Maker Regime:</span>
+                <button
+                  type="button"
+                  onClick={() => setActiveVisualTopic('gamma-regime')}
+                  className="w-3.5 h-3.5 rounded-full bg-slate-800 hover:bg-cyan-950 border border-slate-700 hover:border-cyan-600 flex items-center justify-center text-[9px] font-mono text-cyan-400 transition-colors cursor-pointer"
+                  title="Click to view visual diagram of Market Maker Gamma Regimes"
+                >
+                  i
+                </button>
+              </div>
               <strong className={
                 techSpecs.dealerRegime === 'DEALER_SHORT_GAMMA_CASCADE'
                   ? 'text-rose-400'
@@ -516,6 +612,13 @@ export function ExecutiveMasterCockpit({
           </div>
         )}
       </div>
+
+      {/* Visual Market Microstructure Modal */}
+      <MicrostructureVisualModal
+        isOpen={activeVisualTopic !== null}
+        initialTopic={activeVisualTopic || 'gap-common'}
+        onClose={() => setActiveVisualTopic(null)}
+      />
     </div>
   );
 }
