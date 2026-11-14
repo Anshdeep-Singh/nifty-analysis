@@ -7,7 +7,6 @@ import {
   TrendingUp,
   TrendingDown,
   AlertTriangle,
-  HelpCircle,
   ChevronDown,
   ChevronUp,
   Crosshair,
@@ -311,20 +310,6 @@ export function ExecutiveMasterCockpit({
                 Close Location Value (CLV): <strong className="text-cyan-300">{((gapDynamics.streakAnalysis?.clv ?? 0) * 100).toFixed(0)}%</strong>
                 {gapDynamics.streakAnalysis?.atrCompression ? ' • Daily ATR Compressing' : ' • Normal Range Expansion'}
               </div>
-            </div>
-          </div>
-
-          {/* Educational Myth-Buster Callout Box */}
-          <div className="p-3 rounded-lg bg-cyan-950/25 border border-cyan-800/40 text-cyan-200 text-xs space-y-1.5">
-            <div className="flex items-center gap-1.5 font-bold text-cyan-300">
-              <HelpCircle className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-              <span>Quantitative Reality: Do All Gaps Get Covered?</span>
-            </div>
-            <p className="text-[11px] text-slate-300 leading-relaxed font-normal">
-              {gapDynamics.gapFillDynamics?.gapMythVerdict}
-            </p>
-            <div className="text-[11px] text-cyan-300/90 font-mono pt-1 border-t border-cyan-900/40 leading-relaxed">
-              {gapDynamics.gapFillDynamics?.structuralVerbiage}
             </div>
           </div>
 
