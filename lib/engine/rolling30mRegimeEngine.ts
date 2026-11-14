@@ -334,13 +334,13 @@ export function evaluate30mRollingRegime({
     if (Math.abs(compositeScore) < 40) {
       finalScore = Number((compositeScore * 0.60).toFixed(1));
       finalConfidence = Math.min(65, Math.max(45, finalConfidence));
-      primaryDriver = `Dealer Long Gamma Pin (+₹${greeks.netGexCr.toFixed(0)} Cr) absorbing volatility between ${greeks.putWall} Put Wall and ${greeks.callWall} Call Wall`;
+      primaryDriver = `Dealer Shock Absorber (+₹${greeks.netGexCr.toFixed(0)} Cr): Dampening swings between ₹${greeks.putWall} Put Wall and ₹${greeks.callWall} Call Wall`;
       verdictHeadline = `⚖️ FORTRESS PIN: Range Containment (Confidence ${finalConfidence}%)`;
       actionablePlaybook = `Market makers actively re-hedging to absorb moves. Sell premium via Credit Spreads / Iron Condors; expect pinning.`;
     }
   } else if (greeks.gexRegime === 'DEALER_SHORT_GAMMA_CASCADE') {
     reconciliationState = 'VOLATILITY_EXPANSION';
-    primaryDriver = `Negative Dealer Gamma (-₹${Math.abs(greeks.netGexCr).toFixed(0)} Cr): Re-hedging will accelerate move`;
+    primaryDriver = `Dealer Accelerator Mode (-₹${Math.abs(greeks.netGexCr).toFixed(0)} Cr): Forced hedging accelerates drops`;
   } else if (hasRotationChop) {
     reconciliationState = 'FORTRESS_PIN';
     finalScore = Number((compositeScore * 0.75).toFixed(1));

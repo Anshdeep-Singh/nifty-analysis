@@ -463,24 +463,54 @@ export function ExecutiveMasterCockpit({
         {showTechDetails && techSpecs && (
           <div className="mt-3 p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-[11px] font-mono grid grid-cols-2 sm:grid-cols-4 gap-3 text-slate-300 animate-in fade-in duration-200">
             <div>
-              <span className="text-slate-500 block">Gamma Flip:</span>
+              <span className="text-slate-500 block">Trend Danger Line (Gamma Flip):</span>
               <strong className="text-cyan-300">
                 {techSpecs.gammaFlip ? `₹${techSpecs.gammaFlip.toLocaleString('en-IN')}` : 'N/A'}
               </strong>
+              <span className="text-[10px] text-slate-500 block font-sans">Below = Fast trend; Above = Calm</span>
             </div>
             <div>
-              <span className="text-slate-500 block">Dealer Regime:</span>
-              <strong className="text-white">{(techSpecs.dealerRegime || 'TRANSITIONAL_BORDER').replaceAll('_', ' ')}</strong>
+              <span className="text-slate-500 block">Market Maker Regime:</span>
+              <strong className={
+                techSpecs.dealerRegime === 'DEALER_SHORT_GAMMA_CASCADE'
+                  ? 'text-rose-400'
+                  : techSpecs.dealerRegime === 'DEALER_LONG_GAMMA_PIN'
+                  ? 'text-emerald-400'
+                  : 'text-amber-400'
+              }>
+                {techSpecs.dealerRegime === 'DEALER_SHORT_GAMMA_CASCADE'
+                  ? '🌪️ Accelerator Mode (Short Gamma)'
+                  : techSpecs.dealerRegime === 'DEALER_LONG_GAMMA_PIN'
+                  ? '🛡️ Shock Absorber (Long Gamma)'
+                  : '⚖️ Border / Neutral Zone'}
+              </strong>
+              <span className="text-[10px] text-slate-500 block font-sans">
+                {techSpecs.dealerRegime === 'DEALER_SHORT_GAMMA_CASCADE'
+                  ? 'Hedging amplifies drops/rallies'
+                  : techSpecs.dealerRegime === 'DEALER_LONG_GAMMA_PIN'
+                  ? 'Hedging dampens volatility'
+                  : 'Hovering at balance point'}
+              </span>
             </div>
             <div>
               <span className="text-slate-500 block">Put Wall / Call Wall:</span>
               <strong className="text-white">
                 ₹{(techSpecs.putWall ?? 0).toLocaleString('en-IN')} / ₹{(techSpecs.callWall ?? 0).toLocaleString('en-IN')}
               </strong>
+              <span className="text-[10px] text-slate-500 block font-sans">Institutional Floor / Ceiling</span>
             </div>
             <div>
               <span className="text-slate-500 block">OI Velocity Flow:</span>
-              <strong className="text-emerald-300">{(techSpecs.oiVelocityRegime || 'BALANCED_FLOW').replaceAll('_', ' ')}</strong>
+              <strong className="text-emerald-300">
+                {techSpecs.oiVelocityRegime === 'CALL_ADDITION_RESISTANCE'
+                  ? 'Call Writing (Ceiling Solidifying)'
+                  : techSpecs.oiVelocityRegime === 'PUT_ADDITION_SUPPORT'
+                  ? 'Put Writing (Floor Defended)'
+                  : techSpecs.oiVelocityRegime === 'BULLISH_SHORT_COVERING'
+                  ? 'Short Covering (Squeeze Up)'
+                  : 'Balanced Flow'}
+              </strong>
+              <span className="text-[10px] text-slate-500 block font-sans">Institutional contract velocity</span>
             </div>
             {techSpecs.culpritSymbol && (
               <div className="col-span-2">
@@ -488,6 +518,7 @@ export function ExecutiveMasterCockpit({
                 <strong className="text-amber-300">
                   {techSpecs.culpritSymbol} ({typeof techSpecs.culpritContributionPct === 'number' ? `${techSpecs.culpritContributionPct.toFixed(0)}% of move` : 'Dominant'})
                 </strong>
+                <span className="text-[10px] text-slate-500 block font-sans">Single stock skewing the index</span>
               </div>
             )}
             <div className="col-span-2">
@@ -495,6 +526,7 @@ export function ExecutiveMasterCockpit({
               <strong className="text-emerald-400">{(techSpecs.advancingTurnoverPct ?? 0).toFixed(0)}% Inflow</strong>
               <span className="text-slate-500"> vs </span>
               <strong className="text-rose-400">{(techSpecs.decliningTurnoverPct ?? 0).toFixed(0)}% Outflow</strong>
+              <span className="text-[10px] text-slate-500 block font-sans">Actual money flow across all 50 stocks</span>
             </div>
           </div>
         )}

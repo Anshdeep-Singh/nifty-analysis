@@ -238,15 +238,24 @@ export function synthesizeExecutiveMasterCockpit(inputs: MasterSynthesisInputs):
 
   const pcr = greeks?.pcrRatio ? greeks.pcrRatio.toFixed(2) : '1.0';
 
+  let dealerExplanation = '';
+  if (isDealerShortGamma) {
+    dealerExplanation = ` Market makers are in "Accelerator / Snowball Mode" (Short Gamma): forced to sell futures as prices drop, speeding up downward momentum and killing bounces.`;
+  } else if (isDealerLongGamma) {
+    dealerExplanation = ` Market makers are in "Shock Absorber Mode" (Long Gamma): buying dips and selling rallies, cushioning moves and keeping the index trapped in a range.`;
+  } else if (greeks?.gexRegime === 'TRANSITIONAL_BORDER') {
+    dealerExplanation = ` Market makers are in "Neutral / Transition Mode" hovering near the ₹${(greeks?.gammaFlip || 0).toLocaleString('en-IN')} boundary line.`;
+  }
+
   let bigPlayerPosition = '';
   if (greeks?.oiVelocityRegime === 'CALL_ADDITION_RESISTANCE') {
-    bigPlayerPosition = `Big institutional option writers are actively adding Call positions at ₹${callWall.toLocaleString('en-IN')}, capping upside rallies. However, Put sellers are holding firm at ₹${putWall.toLocaleString('en-IN')} (PCR: ${pcr}).`;
+    bigPlayerPosition = `Big institutional option writers are actively adding Call positions at ₹${callWall.toLocaleString('en-IN')}, capping upside rallies. Put sellers are defending ₹${putWall.toLocaleString('en-IN')} (PCR: ${pcr}).${dealerExplanation}`;
   } else if (greeks?.oiVelocityRegime === 'PUT_ADDITION_SUPPORT') {
-    bigPlayerPosition = `Option sellers are actively building a safety floor with heavy Put additions at ₹${putWall.toLocaleString('en-IN')}. Downside dips are likely to get absorbed quickly (PCR: ${pcr}).`;
+    bigPlayerPosition = `Option sellers are actively building a safety floor with heavy Put additions at ₹${putWall.toLocaleString('en-IN')}. Downside dips are likely to get absorbed quickly (PCR: ${pcr}).${dealerExplanation}`;
   } else if (greeks?.oiVelocityRegime === 'BULLISH_SHORT_COVERING') {
-    bigPlayerPosition = `Bearish traders are getting squeezed and covering short positions, providing an underlying bid to the market.`;
+    bigPlayerPosition = `Bearish traders are getting squeezed and covering short positions, providing an underlying bid to the market.${dealerExplanation}`;
   } else {
-    bigPlayerPosition = `Institutional option sellers have built a hard support floor at ₹${putWall.toLocaleString('en-IN')} (Put Wall) and a ceiling at ₹${callWall.toLocaleString('en-IN')} (Call Wall). Current market PCR is ${pcr}.`;
+    bigPlayerPosition = `Institutional option sellers have built a hard support floor at ₹${putWall.toLocaleString('en-IN')} (Put Wall) and a ceiling at ₹${callWall.toLocaleString('en-IN')} (Call Wall). Current market PCR is ${pcr}.${dealerExplanation}`;
   }
 
   // 4. Key Numbers to Watch
