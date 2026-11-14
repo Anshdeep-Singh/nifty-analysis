@@ -308,8 +308,16 @@ export function ExecutiveMasterCockpit({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {/* Column 1: Expected Opening Range */}
             <div className="bg-slate-900/80 border border-slate-800/90 rounded-lg p-3 space-y-1">
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
-                🎯 Expected Opening Corridor
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tight flex items-center justify-between">
+                <span>🎯 Expected Opening Corridor</span>
+                <button
+                  type="button"
+                  onClick={() => setActiveVisualTopic('expected-move')}
+                  className="w-3.5 h-3.5 rounded-full bg-slate-800 hover:bg-cyan-950 border border-slate-700 hover:border-cyan-600 inline-flex items-center justify-center text-[9px] font-mono text-cyan-400 transition-colors cursor-pointer"
+                  title="Click to view visual guide on 1-Sigma Expected Move Corridor"
+                >
+                  i
+                </button>
               </div>
               <div className="text-lg font-black font-mono text-cyan-300">
                 ₹{(gapDynamics.expectedOpeningRange?.low ?? 0).toLocaleString('en-IN')} – ₹{(gapDynamics.expectedOpeningRange?.high ?? 0).toLocaleString('en-IN')}
@@ -574,14 +582,34 @@ export function ExecutiveMasterCockpit({
               </span>
             </div>
             <div>
-              <span className="text-slate-500 block">Put Wall / Call Wall:</span>
+              <div className="flex items-center gap-1">
+                <span className="text-slate-500">Put Wall / Call Wall:</span>
+                <button
+                  type="button"
+                  onClick={() => setActiveVisualTopic('put-call-walls')}
+                  className="w-3.5 h-3.5 rounded-full bg-slate-800 hover:bg-cyan-950 border border-slate-700 hover:border-cyan-600 flex items-center justify-center text-[9px] font-mono text-cyan-400 transition-colors cursor-pointer"
+                  title="Click to view visual guide on Put Wall & Call Wall"
+                >
+                  i
+                </button>
+              </div>
               <strong className="text-white">
                 ₹{(techSpecs.putWall ?? 0).toLocaleString('en-IN')} / ₹{(techSpecs.callWall ?? 0).toLocaleString('en-IN')}
               </strong>
               <span className="text-[10px] text-slate-500 block font-sans">Institutional Floor / Ceiling</span>
             </div>
             <div>
-              <span className="text-slate-500 block">OI Velocity Flow:</span>
+              <div className="flex items-center gap-1">
+                <span className="text-slate-500">OI Velocity Flow:</span>
+                <button
+                  type="button"
+                  onClick={() => setActiveVisualTopic('oi-velocity')}
+                  className="w-3.5 h-3.5 rounded-full bg-slate-800 hover:bg-cyan-950 border border-slate-700 hover:border-cyan-600 flex items-center justify-center text-[9px] font-mono text-cyan-400 transition-colors cursor-pointer"
+                  title="Click to view visual guide on Open Interest Velocity & Flow"
+                >
+                  i
+                </button>
+              </div>
               <strong className="text-emerald-300">
                 {techSpecs.oiVelocityRegime === 'CALL_ADDITION_RESISTANCE'
                   ? 'Call Writing (Ceiling Solidifying)'
@@ -595,7 +623,17 @@ export function ExecutiveMasterCockpit({
             </div>
             {techSpecs.culpritSymbol && (
               <div className="col-span-2">
-                <span className="text-slate-500 block">Primary Culprit Concentration:</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-500">Primary Culprit Concentration:</span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveVisualTopic('culprit-divergence')}
+                    className="w-3.5 h-3.5 rounded-full bg-slate-800 hover:bg-cyan-950 border border-slate-700 hover:border-cyan-600 flex items-center justify-center text-[9px] font-mono text-cyan-400 transition-colors cursor-pointer"
+                    title="Click to view visual guide on Single-Stock Skew & Breadth Divergence"
+                  >
+                    i
+                  </button>
+                </div>
                 <strong className="text-amber-300">
                   {techSpecs.culpritSymbol} ({typeof techSpecs.culpritContributionPct === 'number' ? `${techSpecs.culpritContributionPct.toFixed(0)}% of move` : 'Dominant'})
                 </strong>
@@ -603,7 +641,17 @@ export function ExecutiveMasterCockpit({
               </div>
             )}
             <div className="col-span-2">
-              <span className="text-slate-500 block">Rupee Volume Split:</span>
+              <div className="flex items-center gap-1">
+                <span className="text-slate-500">Rupee Volume Split:</span>
+                <button
+                  type="button"
+                  onClick={() => setActiveVisualTopic('culprit-divergence')}
+                  className="w-3.5 h-3.5 rounded-full bg-slate-800 hover:bg-cyan-950 border border-slate-700 hover:border-cyan-600 flex items-center justify-center text-[9px] font-mono text-cyan-400 transition-colors cursor-pointer"
+                  title="Click to view visual guide on Market Breadth & Turnover Flow"
+                >
+                  i
+                </button>
+              </div>
               <strong className="text-emerald-400">{(techSpecs.advancingTurnoverPct ?? 0).toFixed(0)}% Inflow</strong>
               <span className="text-slate-500"> vs </span>
               <strong className="text-rose-400">{(techSpecs.decliningTurnoverPct ?? 0).toFixed(0)}% Outflow</strong>

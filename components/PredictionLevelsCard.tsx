@@ -18,6 +18,10 @@ import {
   Maximize2
 } from 'lucide-react';
 import { PredictionLevels } from '@/lib/types';
+import {
+  MicrostructureVisualModal,
+  MicrostructureTopicId
+} from './MicrostructureVisualModal';
 
 interface PredictionLevelsCardProps {
   prediction: PredictionLevels;
@@ -25,6 +29,7 @@ interface PredictionLevelsCardProps {
 
 export function PredictionLevelsCard({ prediction }: PredictionLevelsCardProps) {
   const [showMacroExplainer, setShowMacroExplainer] = useState(false);
+  const [activeVisualTopic, setActiveVisualTopic] = useState<MicrostructureTopicId | null>(null);
   const isBull = prediction.trendScore > 0;
   const isNeutral = Math.abs(prediction.trendScore) < 15;
   const roadmap = prediction.smartRoadmap;
@@ -157,6 +162,15 @@ export function PredictionLevelsCard({ prediction }: PredictionLevelsCardProps) 
                   }`}>
                     {safety.riskLevel} RISK
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveVisualTopic(safety.culpritSymbol ? 'culprit-divergence' : 'stop-hunt')}
+                    className="inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-900/90 hover:bg-slate-800 border border-slate-700 hover:border-cyan-500 text-cyan-300 transition-colors cursor-pointer"
+                    title="View visual example for microstructure safety"
+                  >
+                    <span>Guide</span>
+                    <span className="w-3 h-3 rounded-full bg-cyan-900/80 text-[8px] flex items-center justify-center font-bold">i</span>
+                  </button>
                 </div>
                 <p className="text-[11px] text-slate-400 mt-0.5">
                   Real-time cross-examination between macro confirmation signals and single-stock/liquidity microstructure.
@@ -330,9 +344,10 @@ export function PredictionLevelsCard({ prediction }: PredictionLevelsCardProps) 
               Macro 1-Day Volatility Envelope (Continuous 1σ / 2σ Bands)
             </span>
             <button
-              onClick={() => setShowMacroExplainer(!showMacroExplainer)}
-              className="text-slate-500 hover:text-cyan-400 transition-colors"
-              title="Why this is NOT an intraday stop loss"
+              type="button"
+              onClick={() => setActiveVisualTopic('expected-move')}
+              className="text-slate-500 hover:text-cyan-400 transition-colors cursor-pointer"
+              title="Click to view visual guide on 1-Sigma Expected Move Corridor"
             >
               <HelpCircle className="w-3.5 h-3.5" />
             </button>
@@ -512,6 +527,13 @@ export function PredictionLevelsCard({ prediction }: PredictionLevelsCardProps) 
           </div>
         </div>
       </div>
+
+      {/* Visual Market Microstructure Modal */}
+      <MicrostructureVisualModal
+        isOpen={activeVisualTopic !== null}
+        initialTopic={activeVisualTopic || 'expected-move'}
+        onClose={() => setActiveVisualTopic(null)}
+      />
     </div>
   );
 }
