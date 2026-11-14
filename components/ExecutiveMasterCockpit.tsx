@@ -666,6 +666,9 @@ export function ExecutiveMasterCockpit({
         isOpen={activeVisualTopic !== null}
         initialTopic={activeVisualTopic || 'gap-common'}
         onClose={() => setActiveVisualTopic(null)}
+        synthesis={synthesis}
+        spotPrice={spotPrice}
+        indexName={indexName}
       />
     </div>
   );

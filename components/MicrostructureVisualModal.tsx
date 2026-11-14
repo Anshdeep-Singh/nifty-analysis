@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   X,
+  Info,
   TrendingUp,
   TrendingDown,
   ShieldAlert,
@@ -18,8 +19,15 @@ import {
   Gauge,
   BarChart2,
   Lock,
-  Compass
+  Compass,
+  Scale,
+  Sliders,
+  ArrowUpRight,
+  ArrowDownRight,
+  Minus,
+  RefreshCw
 } from 'lucide-react';
+import { ExecutiveMasterSynthesis } from '@/lib/types';
 
 export type MicrostructureTopicId =
   | 'gap-common'
@@ -40,6 +48,9 @@ interface MicrostructureVisualModalProps {
   isOpen: boolean;
   initialTopic?: MicrostructureTopicId;
   onClose: () => void;
+  synthesis?: ExecutiveMasterSynthesis;
+  spotPrice?: number;
+  indexName?: string;
 }
 
 interface TopicMeta {
@@ -70,9 +81,13 @@ const TOPICS: TopicMeta[] = [
 export function MicrostructureVisualModal({
   isOpen,
   initialTopic = 'gap-common',
-  onClose
+  onClose,
+  synthesis,
+  spotPrice,
+  indexName = 'NIFTY 50'
 }: MicrostructureVisualModalProps) {
   const [selectedTopic, setSelectedTopic] = useState<MicrostructureTopicId>(initialTopic);
+  const [viewMode, setViewMode] = useState<'benchmark' | 'live-match'>('benchmark');
 
   useEffect(() => {
     if (initialTopic) {
@@ -91,6 +106,9 @@ export function MicrostructureVisualModal({
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
+
+  const gapDynamics = synthesis?.gapDynamics;
+  const liveClassification = gapDynamics?.gapFillDynamics?.gapClassification || 'COMMON';
 
   return (
     <div
@@ -114,11 +132,11 @@ export function MicrostructureVisualModal({
               <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
                 Visual Market Microstructure &amp; Greeks Guide
                 <span className="text-[10px] font-mono font-normal uppercase px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800/60">
-                  Candle &amp; Flow Examples
+                  Candle &amp; Flow Analysis
                 </span>
               </h3>
               <p className="text-xs text-slate-400 mt-0.5">
-                Authentic price-action patterns, institutional order flow &amp; mathematical volatility boundaries
+                Authentic price-action patterns, institutional order flow &amp; live chart correlation
               </p>
             </div>
           </div>
@@ -129,6 +147,63 @@ export function MicrostructureVisualModal({
           >
             <X className="w-5 h-5" />
           </button>
+        </div>
+
+        {/* Mode Toggle Bar: Benchmark vs Live Market Match */}
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-2.5 bg-slate-950/90 border-b border-slate-800">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-400 font-medium hidden sm:inline">Analysis Mode:</span>
+            <div className="inline-flex items-center p-0.5 rounded-lg bg-slate-900 border border-slate-800">
+              <button
+                type="button"
+                onClick={() => setViewMode('benchmark')}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  viewMode === 'benchmark'
+                    ? 'bg-cyan-500 text-slate-950 font-bold shadow-md shadow-cyan-500/20'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Compass className="w-3.5 h-3.5" />
+                <span>Educational Benchmark</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('live-match')}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  viewMode === 'live-match'
+                    ? 'bg-emerald-500 text-slate-950 font-bold shadow-md shadow-emerald-500/20'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Activity className="w-3.5 h-3.5" />
+                <span>Today&apos;s Live Market Match ({indexName})</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse" />
+              </button>
+            </div>
+          </div>
+
+          {/* Quick Real-Time Pill */}
+          <div className="flex items-center gap-2 text-[11px] font-mono">
+            {typeof spotPrice === 'number' && spotPrice > 0 && (
+              <>
+                <span className="text-slate-400">Live Spot:</span>
+                <strong className="text-white">₹{spotPrice.toLocaleString('en-IN', { minimumFractionDigits: 1 })}</strong>
+                <span className="text-slate-600">•</span>
+              </>
+            )}
+            <span className="text-slate-400">Current Session:</span>
+            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${
+              liveClassification === 'BREAKAWAY'
+                ? 'bg-emerald-950 border-emerald-700 text-emerald-300'
+                : liveClassification === 'EXHAUSTION'
+                ? 'bg-rose-950 border-rose-700 text-rose-300'
+                : liveClassification === 'RUNAWAY'
+                ? 'bg-emerald-950/80 border-emerald-800 text-emerald-300'
+                : 'bg-cyan-950 border-cyan-800 text-cyan-300'
+            }`}>
+              {liveClassification} GAP
+            </span>
+          </div>
         </div>
 
         {/* Topic Selector Tabs */}
@@ -183,74 +258,160 @@ export function MicrostructureVisualModal({
 
         {/* Modal Content Body */}
         <div className="p-5 overflow-y-auto space-y-4">
-          {selectedTopic === 'gap-common' && <CommonGapVisual />}
-          {selectedTopic === 'gap-breakaway' && <BreakawayGapVisual />}
-          {selectedTopic === 'gap-runaway' && <RunawayGapVisual />}
-          {selectedTopic === 'gap-exhaustion' && <ExhaustionGapVisual />}
-          {selectedTopic === 'clv' && <ClvVisual />}
-          {selectedTopic === 'stop-hunt' && <StopHuntVisual />}
-          {selectedTopic === 'culprit-divergence' && <CulpritDivergenceVisual />}
-          {selectedTopic === 'put-call-walls' && <PutCallWallsVisual />}
-          {selectedTopic === 'oi-velocity' && <OiVelocityVisual />}
-          {selectedTopic === 'air-pocket' && <AirPocketVisual />}
-          {selectedTopic === 'gamma-regime' && <GammaRegimeVisual />}
-          {selectedTopic === 'gamma-flip' && <GammaFlipVisual />}
-          {selectedTopic === 'expected-move' && <ExpectedMoveVisual />}
+          {selectedTopic === 'gap-common' && (
+            <CommonGapVisual viewMode={viewMode} synthesis={synthesis} spotPrice={spotPrice} />
+          )}
+          {selectedTopic === 'gap-breakaway' && (
+            <BreakawayGapVisual viewMode={viewMode} synthesis={synthesis} spotPrice={spotPrice} />
+          )}
+          {selectedTopic === 'gap-runaway' && (
+            <RunawayGapVisual viewMode={viewMode} synthesis={synthesis} spotPrice={spotPrice} />
+          )}
+          {selectedTopic === 'gap-exhaustion' && (
+            <ExhaustionGapVisual viewMode={viewMode} synthesis={synthesis} spotPrice={spotPrice} />
+          )}
+          {selectedTopic === 'clv' && (
+            <ClvVisual viewMode={viewMode} synthesis={synthesis} spotPrice={spotPrice} />
+          )}
+          {selectedTopic === 'stop-hunt' && (
+            <StopHuntVisual viewMode={viewMode} synthesis={synthesis} spotPrice={spotPrice} />
+          )}
+          {selectedTopic === 'culprit-divergence' && (
+            <CulpritDivergenceVisual viewMode={viewMode} synthesis={synthesis} spotPrice={spotPrice} />
+          )}
+          {selectedTopic === 'put-call-walls' && (
+            <PutCallWallsVisual viewMode={viewMode} synthesis={synthesis} spotPrice={spotPrice} />
+          )}
+          {selectedTopic === 'oi-velocity' && (
+            <OiVelocityVisual viewMode={viewMode} synthesis={synthesis} spotPrice={spotPrice} />
+          )}
+          {selectedTopic === 'air-pocket' && (
+            <AirPocketVisual viewMode={viewMode} synthesis={synthesis} spotPrice={spotPrice} />
+          )}
+          {selectedTopic === 'gamma-regime' && (
+            <GammaRegimeVisual viewMode={viewMode} synthesis={synthesis} spotPrice={spotPrice} />
+          )}
+          {selectedTopic === 'gamma-flip' && (
+            <GammaFlipVisual viewMode={viewMode} synthesis={synthesis} spotPrice={spotPrice} />
+          )}
+          {selectedTopic === 'expected-move' && (
+            <ExpectedMoveVisual viewMode={viewMode} synthesis={synthesis} spotPrice={spotPrice} />
+          )}
         </div>
       </div>
     </div>
   );
 }
 
+interface VisualBaseProps {
+  viewMode: 'benchmark' | 'live-match';
+  synthesis?: ExecutiveMasterSynthesis;
+  spotPrice?: number;
+}
+
 // ==========================================
 // 1. COMMON GAP VISUAL
 // ==========================================
-function CommonGapVisual() {
+function CommonGapVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps) {
+  const gapDynamics = synthesis?.gapDynamics;
+  const isLiveMatch = gapDynamics?.gapFillDynamics?.gapClassification === 'COMMON';
+  const liveFillOdds = gapDynamics?.gapFillDynamics?.sameDayFillProbabilityPct ?? 64;
+  const liveContOdds = gapDynamics?.gapFillDynamics?.continuationProbabilityPct ?? 24;
+  const corridorLow = gapDynamics?.expectedOpeningRange?.low ?? 24900;
+  const corridorHigh = gapDynamics?.expectedOpeningRange?.high ?? 25100;
+  const currentSpot = spotPrice ?? gapDynamics?.expectedOpeningRange?.centralPoint ?? 25000;
+
   return (
     <div className="space-y-4">
+      {/* Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="flex items-center gap-2">
             <span className="text-lg font-bold text-white">Common Gap (Range-Bound / Balance Area)</span>
-            <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-cyan-950 border border-cyan-800 text-cyan-300">
-              High Fill Odds: 64%
+            <span className={`text-[11px] font-mono px-2 py-0.5 rounded border ${
+              viewMode === 'live-match'
+                ? isLiveMatch
+                  ? 'bg-emerald-950 border-emerald-700 text-emerald-300 font-bold'
+                  : 'bg-amber-950 border-amber-700 text-amber-300 font-bold'
+                : 'bg-cyan-950 border-cyan-800 text-cyan-300'
+            }`}>
+              {viewMode === 'live-match'
+                ? isLiveMatch ? '🟢 Live Match Confirmed' : '⚠️ Live Regime Mismatch'
+                : 'High Fill Odds: 64%'}
             </span>
           </div>
           <p className="text-xs text-slate-400 mt-0.5">
-            Price opens slightly outside yesterday’s close but remains trapped inside the standard range.
+            {viewMode === 'live-match'
+              ? isLiveMatch
+                ? 'Today’s market is trading inside a confirmed Common Gap regime. High odds of same-day fill.'
+                : `Today’s session is actively classified as a ${gapDynamics?.gapFillDynamics?.gapClassification || 'BREAKOUT'} (not a Common Gap).`
+              : 'Price opens slightly outside yesterday’s close but remains trapped inside the standard range.'}
           </p>
         </div>
+
         <div className="flex items-center gap-2 text-xs font-mono">
           <span className="px-2 py-1 rounded bg-amber-950/60 border border-amber-800/60 text-amber-300">
-            Fill Probability: <strong>64%</strong>
+            {viewMode === 'live-match' ? `Today's Fill Odds: ${liveFillOdds}%` : 'Fill Probability: 64%'}
           </span>
           <span className="px-2 py-1 rounded bg-slate-800 text-slate-300">
-            Continuation: <strong>24%</strong>
+            {viewMode === 'live-match' ? `Continuation: ${liveContOdds}%` : 'Continuation: 24%'}
           </span>
         </div>
       </div>
 
+      {/* Live Match Comparison Banner (when in Live Match mode) */}
+      {viewMode === 'live-match' && (
+        <div className={`p-3 rounded-xl border text-xs space-y-1.5 ${
+          isLiveMatch
+            ? 'bg-emerald-950/30 border-emerald-800/60 text-emerald-200'
+            : 'bg-amber-950/30 border-amber-800/60 text-amber-200'
+        }`}>
+          <div className="flex items-center justify-between font-bold">
+            <span className="flex items-center gap-1.5">
+              {isLiveMatch ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <AlertTriangle className="w-4 h-4 text-amber-400" />}
+              <span>{isLiveMatch ? 'Correlating with Live Market' : 'How Today Differs from a Common Gap'}</span>
+            </span>
+            <span className="font-mono text-[11px] bg-slate-900/80 px-2 py-0.5 rounded border border-slate-700 text-white">
+              Spot: ₹{currentSpot.toLocaleString('en-IN')}
+            </span>
+          </div>
+          <p className="text-[11px] leading-relaxed opacity-90 font-normal">
+            {isLiveMatch
+              ? `Today’s session exhibits characteristic low relative volume and opens within the expected volatility corridor (₹${corridorLow.toLocaleString('en-IN')} – ₹${corridorHigh.toLocaleString('en-IN')}). Our engine predicts a ${liveFillOdds}% probability of filling the opening gap back toward the previous close.`
+              : `Caution: The active engine classified today as a ${gapDynamics?.gapFillDynamics?.gapClassification || 'BREAKOUT'} with ${liveContOdds}% continuation odds. Fading today’s open expecting a routine common gap fill carries elevated risk because institutional volume is driving directional momentum.`}
+          </p>
+        </div>
+      )}
+
       {/* SVG Candlestick Chart */}
       <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 sm:p-4 overflow-x-auto">
         <svg viewBox="0 0 760 220" className="w-full h-auto min-w-[550px] select-none">
-          {/* Background grid lines */}
           <line x1="40" y1="40" x2="560" y2="40" stroke="#1e293b" strokeDasharray="3 3" />
           <line x1="40" y1="90" x2="560" y2="90" stroke="#1e293b" strokeDasharray="3 3" />
           <line x1="40" y1="140" x2="560" y2="140" stroke="#1e293b" strokeDasharray="3 3" />
           <line x1="40" y1="180" x2="560" y2="180" stroke="#1e293b" strokeDasharray="3 3" />
 
-          {/* Price Labels on Right (Clearance past 560 line) */}
-          <text x="575" y="44" fill="#64748b" fontSize="10" fontFamily="monospace">25,050</text>
-          <text x="575" y="94" fill="#64748b" fontSize="10" fontFamily="monospace">25,000</text>
-          <text x="575" y="144" fill="#38bdf8" fontSize="10" fontFamily="monospace" fontWeight="bold">24,950 (Prev Close)</text>
-          <text x="575" y="184" fill="#64748b" fontSize="10" fontFamily="monospace">24,900</text>
+          {/* Price Labels on Right */}
+          <text x="575" y="44" fill="#64748b" fontSize="10" fontFamily="monospace">
+            {viewMode === 'live-match' ? `₹${Math.round(currentSpot + 50).toLocaleString('en-IN')}` : '25,050'}
+          </text>
+          <text x="575" y="94" fill="#64748b" fontSize="10" fontFamily="monospace">
+            {viewMode === 'live-match' ? `₹${Math.round(currentSpot).toLocaleString('en-IN')} (Spot)` : '25,000'}
+          </text>
+          <text x="575" y="144" fill="#38bdf8" fontSize="10" fontFamily="monospace" fontWeight="bold">
+            {viewMode === 'live-match' ? `₹${Math.round(corridorLow).toLocaleString('en-IN')} (Floor)` : '24,950 (Prev Close)'}
+          </text>
+          <text x="575" y="184" fill="#64748b" fontSize="10" fontFamily="monospace">
+            {viewMode === 'live-match' ? `₹${Math.round(corridorLow - 50).toLocaleString('en-IN')}` : '24,900'}
+          </text>
 
           {/* Session Divider */}
           <line x1="260" y1="20" x2="260" y2="200" stroke="#334155" strokeDasharray="4 4" />
           <text x="130" y="25" fill="#94a3b8" fontSize="11" fontWeight="bold" textAnchor="middle">YESTERDAY SESSION</text>
-          <text x="420" y="25" fill="#38bdf8" fontSize="11" fontWeight="bold" textAnchor="middle">TODAY SESSION (OPEN &amp; FILL)</text>
+          <text x="420" y="25" fill="#38bdf8" fontSize="11" fontWeight="bold" textAnchor="middle">
+            {viewMode === 'live-match' ? 'TODAY LIVE CORRIDOR & FILL' : 'TODAY SESSION (OPEN & FILL)'}
+          </text>
 
-          {/* Yesterday Range Highlight Box */}
           <rect x="50" y="55" width="200" height="130" fill="#334155" fillOpacity="0.12" rx="4" />
           <text x="55" y="70" fill="#64748b" fontSize="9" fontFamily="monospace">Consolidation Range</text>
 
@@ -267,7 +428,9 @@ function CommonGapVisual() {
 
           {/* Gap Zone Bracket */}
           <rect x="290" y="92" width="60" height="48" fill="#f59e0b" fillOpacity="0.15" stroke="#f59e0b" strokeWidth="1" strokeDasharray="3 3" rx="2" />
-          <text x="320" y="118" fill="#fbbf24" fontSize="9" fontWeight="bold" textAnchor="middle">GAP (+45 pts)</text>
+          <text x="320" y="118" fill="#fbbf24" fontSize="9" fontWeight="bold" textAnchor="middle">
+            {viewMode === 'live-match' ? 'LIVE GAP' : 'GAP (+45 pts)'}
+          </text>
 
           {/* Today Candles */}
           <line x1="320" y1="65" x2="320" y2="115" stroke="#f43f5e" strokeWidth="1.5" />
@@ -277,9 +440,8 @@ function CommonGapVisual() {
           <line x1="375" y1="85" x2="375" y2="155" stroke="#f43f5e" strokeWidth="1.5" />
           <rect x="367" y="105" width="16" height="42" fill="#e11d48" rx="1" />
 
-          {/* Fill Point Touch */}
           <circle cx="375" cy="140" r="4" fill="#38bdf8" />
-          <text x="385" y="152" fill="#38bdf8" fontSize="10" fontWeight="bold">GAP FILLED (Touches 24,950)</text>
+          <text x="385" y="152" fill="#38bdf8" fontSize="10" fontWeight="bold">GAP FILLED (Target Reached)</text>
 
           <line x1="430" y1="125" x2="430" y2="160" stroke="#94a3b8" strokeWidth="1.5" />
           <rect x="422" y="138" width="16" height="6" fill="#64748b" rx="1" />
@@ -291,10 +453,15 @@ function CommonGapVisual() {
           {/* Low RVOL Subtitle */}
           <rect x="312" y="185" width="16" height="15" fill="#475569" rx="1" />
           <rect x="367" y="185" width="16" height="18" fill="#475569" rx="1" />
-          <text x="400" y="198" fill="#64748b" fontSize="9">Low / Normal Opening Volume (No institutional urgency)</text>
+          <text x="400" y="198" fill="#64748b" fontSize="9">
+            {viewMode === 'live-match'
+              ? `Live Engine: ${liveFillOdds}% Fill vs ${liveContOdds}% Continuation`
+              : 'Low / Normal Opening Volume (No institutional urgency)'}
+          </text>
         </svg>
       </div>
 
+      {/* Explanatory Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
         <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3 space-y-1">
           <span className="font-bold text-cyan-300 block">1. Microstructure Dynamic</span>
@@ -322,38 +489,80 @@ function CommonGapVisual() {
 // ==========================================
 // 2. BREAKAWAY GAP VISUAL
 // ==========================================
-function BreakawayGapVisual() {
+function BreakawayGapVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps) {
+  const gapDynamics = synthesis?.gapDynamics;
+  const isLiveMatch = gapDynamics?.gapFillDynamics?.gapClassification === 'BREAKAWAY';
+  const liveContOdds = gapDynamics?.gapFillDynamics?.continuationProbabilityPct ?? 54;
+  const liveFillOdds = gapDynamics?.gapFillDynamics?.sameDayFillProbabilityPct ?? 32;
+  const ceilingPrice = synthesis?.keyLevels?.hardCeiling?.price ?? synthesis?.techSpecs?.callWall ?? 25000;
+  const currentSpot = spotPrice ?? 25000;
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="flex items-center gap-2">
             <span className="text-lg font-bold text-white">Breakaway Gap (Structural Breakout)</span>
-            <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-950 border border-emerald-800 text-emerald-300">
-              Continuation Odds: 54%
+            <span className={`text-[11px] font-mono px-2 py-0.5 rounded border ${
+              viewMode === 'live-match'
+                ? isLiveMatch
+                  ? 'bg-emerald-950 border-emerald-700 text-emerald-300 font-bold'
+                  : 'bg-slate-800 border-slate-700 text-slate-300'
+                : 'bg-emerald-950 border-emerald-800 text-emerald-300'
+            }`}>
+              {viewMode === 'live-match'
+                ? isLiveMatch ? '🟢 Live Breakaway Active' : 'ℹ️ Not Active Today'
+                : 'Continuation Odds: 54%'}
             </span>
           </div>
           <p className="text-xs text-slate-400 mt-0.5">
-            Price gaps clean over multi-day consolidation or a heavy Call Wall with massive institutional volume.
+            {viewMode === 'live-match'
+              ? isLiveMatch
+                ? 'Institutional breakout detected! Price has cleared key overhead barriers on aggressive volume.'
+                : `Today’s session is not classified as a Breakaway Gap (Active regime: ${gapDynamics?.gapFillDynamics?.gapClassification || 'COMMON'}).`
+              : 'Price gaps clean over multi-day consolidation or a heavy Call Wall with massive institutional volume.'}
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs font-mono">
           <span className="px-2 py-1 rounded bg-emerald-950/60 border border-emerald-800/60 text-emerald-300">
-            Continuation: <strong>54%</strong>
+            {viewMode === 'live-match' ? `Live Continuation: ${liveContOdds}%` : 'Continuation: 54%'}
           </span>
           <span className="px-2 py-1 rounded bg-slate-800 text-slate-300">
-            Same-Day Fill: <strong>32% (Low)</strong>
+            {viewMode === 'live-match' ? `Same-Day Fill: ${liveFillOdds}%` : 'Same-Day Fill: 32% (Low)'}
           </span>
         </div>
       </div>
 
+      {viewMode === 'live-match' && (
+        <div className={`p-3 rounded-xl border text-xs space-y-1.5 ${
+          isLiveMatch
+            ? 'bg-emerald-950/30 border-emerald-800/60 text-emerald-200'
+            : 'bg-slate-900 border-slate-800 text-slate-300'
+        }`}>
+          <div className="flex items-center justify-between font-bold">
+            <span className="flex items-center gap-1.5">
+              {isLiveMatch ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Info className="w-4 h-4 text-cyan-400" />}
+              <span>{isLiveMatch ? 'Confirmed Structural Breakaway Regime' : 'How Today Relates to Breakaway Thresholds'}</span>
+            </span>
+            <span className="font-mono text-[11px] bg-slate-950 px-2 py-0.5 rounded border border-slate-700 text-white">
+              Resistance: ₹{ceilingPrice.toLocaleString('en-IN')}
+            </span>
+          </div>
+          <p className="text-[11px] leading-relaxed opacity-90 font-normal">
+            {isLiveMatch
+              ? `Spot price (₹${currentSpot.toLocaleString('en-IN')}) has gapped decisively over the structural ceiling (₹${ceilingPrice.toLocaleString('en-IN')}). Delta-hedging mechanics force option market makers to buy index futures, creating a protected floor on intraday pullbacks.`
+              : `Spot (₹${currentSpot.toLocaleString('en-IN')}) remains contained below structural resistance (₹${ceilingPrice.toLocaleString('en-IN')}). Without a high-volume gap clearing this ceiling, do not anticipate runaway breakaway continuation.`}
+          </p>
+        </div>
+      )}
+
       <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 sm:p-4 overflow-x-auto">
         <svg viewBox="0 0 760 220" className="w-full h-auto min-w-[550px] select-none">
-          {/* Resistance Barrier Line */}
           <line x1="40" y1="120" x2="560" y2="120" stroke="#f43f5e" strokeWidth="2" strokeDasharray="5 3" />
-          <text x="575" y="124" fill="#f43f5e" fontSize="10" fontFamily="monospace" fontWeight="bold">Key Resistance (25,000)</text>
+          <text x="575" y="124" fill="#f43f5e" fontSize="10" fontFamily="monospace" fontWeight="bold">
+            {viewMode === 'live-match' ? `Key Barrier: ₹${ceilingPrice.toLocaleString('en-IN')}` : 'Key Resistance (25,000)'}
+          </text>
 
-          {/* Consolidation Box */}
           <rect x="50" y="122" width="190" height="75" fill="#334155" fillOpacity="0.15" stroke="#475569" strokeWidth="1" strokeDasharray="3 3" rx="4" />
           <text x="60" y="137" fill="#94a3b8" fontSize="9" fontFamily="monospace">Multi-Day Accumulation Base</text>
 
@@ -366,34 +575,27 @@ function BreakawayGapVisual() {
           <line x1="170" y1="122" x2="170" y2="170" stroke="#10b981" strokeWidth="1.5" />
           <rect x="163" y="135" width="14" height="25" fill="#059669" rx="1" />
 
-          {/* Session Divider */}
           <line x1="235" y1="20" x2="235" y2="200" stroke="#334155" strokeDasharray="4 4" />
 
-          {/* Gap Zone (Above Resistance) */}
           <rect x="250" y="75" width="55" height="45" fill="#10b981" fillOpacity="0.15" stroke="#10b981" strokeWidth="1" strokeDasharray="3 3" rx="2" />
           <text x="278" y="100" fill="#34d399" fontSize="9" fontWeight="bold" textAnchor="middle">CLEAN GAP</text>
 
-          {/* Today Open Candle */}
           <line x1="280" y1="40" x2="280" y2="80" stroke="#10b981" strokeWidth="2" />
           <rect x="270" y="45" width="20" height="30" fill="#10b981" rx="2" />
           <text x="280" y="32" fill="#34d399" fontSize="9" fontWeight="bold" textAnchor="middle">09:15 Breakout Open</text>
 
-          {/* Retest wick defending new floor */}
           <line x1="350" y1="25" x2="350" y2="115" stroke="#10b981" strokeWidth="2" />
           <rect x="340" y="35" width="20" height="45" fill="#059669" rx="2" />
           <circle cx="350" cy="115" r="4" fill="#34d399" />
-          <text x="360" y="114" fill="#34d399" fontSize="9" fontWeight="bold">Dip Defended Above 25,000</text>
+          <text x="360" y="114" fill="#34d399" fontSize="9" fontWeight="bold">Dip Defended Above Ceiling</text>
 
-          {/* Follow-through expansion candle */}
           <line x1="420" y1="15" x2="420" y2="50" stroke="#10b981" strokeWidth="2" />
           <rect x="410" y="20" width="20" height="25" fill="#10b981" rx="2" />
 
-          {/* RVOL Spike */}
           <rect x="268" y="165" width="24" height="35" fill="#10b981" rx="1" />
           <rect x="338" y="172" width="24" height="28" fill="#10b981" rx="1" />
           <text x="350" y="160" fill="#34d399" fontSize="9" fontWeight="bold" textAnchor="middle">3x Institutional RVOL Spike</text>
 
-          {/* Trend Continuation Arrow */}
           <path d="M 440 25 L 530 15" stroke="#10b981" strokeWidth="2.5" markerEnd="url(#arrow)" fill="none" />
           <text x="545" y="20" fill="#34d399" fontSize="10" fontWeight="bold">Trend Continuation</text>
         </svg>
@@ -409,7 +611,7 @@ function BreakawayGapVisual() {
         <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3 space-y-1">
           <span className="font-bold text-emerald-300 block">2. The Defense Zone</span>
           <p className="text-slate-400 leading-relaxed font-normal">
-            The prior resistance barrier (25,000) instantly flips into an institutional floor. Intraday dips into the gap zone are aggressively bought by institutions.
+            The prior resistance barrier flips into an institutional floor. Intraday dips into the gap zone are aggressively bought by institutions.
           </p>
         </div>
         <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3 space-y-1">
@@ -426,19 +628,36 @@ function BreakawayGapVisual() {
 // ==========================================
 // 3. RUNAWAY GAP VISUAL
 // ==========================================
-function RunawayGapVisual() {
+function RunawayGapVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps) {
+  const gapDynamics = synthesis?.gapDynamics;
+  const isLiveMatch = gapDynamics?.gapFillDynamics?.gapClassification === 'RUNAWAY';
+  const consecutiveGaps = gapDynamics?.streakAnalysis?.consecutiveGaps ?? 0;
+  const streakType = gapDynamics?.streakAnalysis?.streakType ?? 'ALTERNATING_CHOP';
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-lg font-bold text-white">Runaway Gap (Mid-Trend Acceleration / Measuring Gap)</span>
-            <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-950 border border-emerald-800 text-emerald-300">
-              Continuation Odds: 62%
+            <span className="text-lg font-bold text-white">Runaway Gap (Mid-Trend Carry)</span>
+            <span className={`text-[11px] font-mono px-2 py-0.5 rounded border ${
+              viewMode === 'live-match'
+                ? isLiveMatch
+                  ? 'bg-emerald-950 border-emerald-700 text-emerald-300 font-bold'
+                  : 'bg-slate-800 border-slate-700 text-slate-300'
+                : 'bg-emerald-950 border-emerald-800 text-emerald-300'
+            }`}>
+              {viewMode === 'live-match'
+                ? isLiveMatch ? '🟢 Live Runaway Active' : 'ℹ️ Not Active Today'
+                : 'Continuation Odds: 62%'}
             </span>
           </div>
           <p className="text-xs text-slate-400 mt-0.5">
-            Occurs in the middle of an established, fast-moving trend. Panic buyers jump in without waiting for pullbacks.
+            {viewMode === 'live-match'
+              ? isLiveMatch
+                ? `Mid-trend acceleration confirmed with ${consecutiveGaps} consecutive gaps in ${streakType.replaceAll('_', ' ')}.`
+                : `Current streak analysis shows ${consecutiveGaps} consecutive gaps (${streakType.replaceAll('_', ' ')}). Not currently in runaway mode.`
+              : 'Occurs in the middle of an established, fast-moving trend. Panic buyers jump in without waiting for pullbacks.'}
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs font-mono">
@@ -510,19 +729,37 @@ function RunawayGapVisual() {
 // ==========================================
 // 4. EXHAUSTION GAP VISUAL
 // ==========================================
-function ExhaustionGapVisual() {
+function ExhaustionGapVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps) {
+  const gapDynamics = synthesis?.gapDynamics;
+  const trapTracker = gapDynamics?.exhaustionTrapTracker;
+  const isTrapActive = trapTracker?.trapStatus === 'ACTIVE_EXHAUSTION_TRAP' || trapTracker?.trapStatus === 'EXHAUSTION_CONFIRMED_GAP_FILLED';
+  const score = trapTracker?.exhaustionScorePct ?? 0;
+  const floorPrice = trapTracker?.institutionalFloorPrice ?? synthesis?.keyLevels?.hardFloor?.price ?? 25000;
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="flex items-center gap-2">
             <span className="text-lg font-bold text-white">Exhaustion Gap (Late Trap / Climax Reversal)</span>
-            <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-rose-950 border border-rose-800 text-rose-300">
-              Fill &amp; Reverse Odds: 78%
+            <span className={`text-[11px] font-mono px-2 py-0.5 rounded border ${
+              viewMode === 'live-match'
+                ? isTrapActive
+                  ? 'bg-rose-950 border-rose-700 text-rose-300 font-bold animate-pulse'
+                  : 'bg-emerald-950 border-emerald-800 text-emerald-300'
+                : 'bg-rose-950 border-rose-800 text-rose-300'
+            }`}>
+              {viewMode === 'live-match'
+                ? isTrapActive ? `🚨 Live Trap Active (${score}%)` : '✅ Momentum Healthy'
+                : 'Fill & Reverse Odds: 78%'}
             </span>
           </div>
           <p className="text-xs text-slate-400 mt-0.5">
-            Price gaps aggressively after an extended multi-day rally straight into an institutional ceiling, then collapses.
+            {viewMode === 'live-match'
+              ? isTrapActive
+                ? trapTracker?.plainEnglishBriefing?.headline || 'Exhaustion trap detected! Retail trapped at highs.'
+                : 'No active exhaustion trap detected today. Current trend exhibits healthy momentum or standard digestion.'
+              : 'Price gaps aggressively after an extended multi-day rally straight into an institutional ceiling, then collapses.'}
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs font-mono">
@@ -534,6 +771,23 @@ function ExhaustionGapVisual() {
           </span>
         </div>
       </div>
+
+      {viewMode === 'live-match' && isTrapActive && (
+        <div className="p-3 bg-rose-950/30 border border-rose-800/60 rounded-xl text-xs space-y-1.5 text-rose-200">
+          <div className="font-bold flex items-center justify-between">
+            <span className="flex items-center gap-1.5">
+              <ShieldAlert className="w-4 h-4 text-rose-400" />
+              <span>Real-Time Exhaustion Warning Active</span>
+            </span>
+            <span className="font-mono text-[11px] bg-rose-900/60 px-2 py-0.5 rounded text-white border border-rose-700">
+              Score: {score}%
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-300 leading-relaxed">
+            {trapTracker?.plainEnglishBriefing?.actionPlan || `Retail bought the climax open. Price is falling through an air pocket toward the institutional floor at ₹${floorPrice.toLocaleString('en-IN')}.`}
+          </p>
+        </div>
+      )}
 
       <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 sm:p-4 overflow-x-auto">
         <svg viewBox="0 0 760 220" className="w-full h-auto min-w-[550px] select-none">
@@ -597,19 +851,35 @@ function ExhaustionGapVisual() {
 // ==========================================
 // 5. CLOSE LOCATION VALUE (CLV) VISUAL
 // ==========================================
-function ClvVisual() {
+function ClvVisual({ viewMode, synthesis }: VisualBaseProps) {
+  const liveClv = synthesis?.gapDynamics?.streakAnalysis?.clv ?? 0.5;
+  const liveClvPct = Math.round(liveClv * 100);
+  const clvTier = liveClv >= 0.7 ? 'BULLISH' : liveClv < 0.3 ? 'BEARISH' : 'NEUTRAL';
+
   return (
     <div className="space-y-4">
-      <div>
-        <div className="flex items-center gap-2">
-          <span className="text-lg font-bold text-white">Close Location Value (CLV)</span>
-          <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-cyan-950 border border-cyan-800 text-cyan-300">
-            Institutional Closing Auction Metric
-          </span>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-lg font-bold text-white">Close Location Value (CLV)</span>
+            <span className={`text-[11px] font-mono px-2 py-0.5 rounded border ${
+              viewMode === 'live-match'
+                ? clvTier === 'BULLISH'
+                  ? 'bg-emerald-950 border-emerald-700 text-emerald-300 font-bold'
+                  : clvTier === 'BEARISH'
+                  ? 'bg-rose-950 border-rose-700 text-rose-300 font-bold'
+                  : 'bg-cyan-950 border-cyan-700 text-cyan-300 font-bold'
+                : 'bg-cyan-950 border-cyan-800 text-cyan-300'
+            }`}>
+              {viewMode === 'live-match' ? `Today's CLV: ${liveClvPct}% (${clvTier})` : 'Institutional Closing Auction'}
+            </span>
+          </div>
+          <p className="text-xs text-slate-400 mt-0.5">
+            {viewMode === 'live-match'
+              ? `Today's calculated Close Location Value is ${liveClvPct}%, indicating ${clvTier === 'BULLISH' ? 'institutional accumulation into the close' : clvTier === 'BEARISH' ? 'institutional liquidation down to the lows' : 'balanced equilibrium chop'}.`
+              : 'CLV measures exactly where the day’s closing print landed relative to the session’s high and low.'}
+          </p>
         </div>
-        <p className="text-xs text-slate-400 mt-0.5">
-          CLV measures exactly where the day’s closing print landed relative to the session’s high and low.
-        </p>
       </div>
 
       <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-4">
@@ -619,9 +889,16 @@ function ClvVisual() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-slate-900 border border-emerald-900/60 rounded-xl p-3 flex flex-col items-center text-center">
-            <span className="text-xs font-bold text-emerald-400">Bullish CLV (&gt; 70%)</span>
-            <span className="text-[10px] text-slate-400">Institutional Accumulation into 15:30</span>
+          <div className={`bg-slate-900 border rounded-xl p-3 flex flex-col items-center text-center transition-all ${
+            viewMode === 'live-match' && clvTier === 'BULLISH'
+              ? 'border-emerald-500 ring-2 ring-emerald-500/30 bg-emerald-950/20'
+              : 'border-emerald-900/60'
+          }`}>
+            <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
+              Bullish CLV (&gt; 70%)
+              {viewMode === 'live-match' && clvTier === 'BULLISH' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
+            </span>
+            <span className="text-[10px] text-slate-400">Institutional Accumulation</span>
             <svg viewBox="0 0 100 130" className="w-24 h-32 my-2 select-none">
               <line x1="50" y1="20" x2="50" y2="110" stroke="#10b981" strokeWidth="2" />
               <rect x="40" y="25" width="20" height="60" fill="#10b981" rx="2" />
@@ -631,12 +908,19 @@ function ClvVisual() {
               <text x="50" y="122" fill="#94a3b8" fontSize="8" textAnchor="middle">Low</text>
             </svg>
             <p className="text-[11px] text-slate-300 leading-tight">
-              Buyers absorbed all intraday supply and held prices at highs right into the closing bell.
+              Buyers absorbed intraday supply and closed near session highs.
             </p>
           </div>
 
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-col items-center text-center">
-            <span className="text-xs font-bold text-slate-300">Neutral CLV (30% - 70%)</span>
+          <div className={`bg-slate-900 border rounded-xl p-3 flex flex-col items-center text-center transition-all ${
+            viewMode === 'live-match' && clvTier === 'NEUTRAL'
+              ? 'border-cyan-500 ring-2 ring-cyan-500/30 bg-cyan-950/20'
+              : 'border-slate-800'
+          }`}>
+            <span className="text-xs font-bold text-slate-300 flex items-center gap-1">
+              Neutral CLV (30% - 70%)
+              {viewMode === 'live-match' && clvTier === 'NEUTRAL' && <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400" />}
+            </span>
             <span className="text-[10px] text-slate-400">Equilibrium / Indecision</span>
             <svg viewBox="0 0 100 130" className="w-24 h-32 my-2 select-none">
               <line x1="50" y1="15" x2="50" y2="115" stroke="#94a3b8" strokeWidth="2" />
@@ -647,13 +931,20 @@ function ClvVisual() {
               <text x="50" y="124" fill="#94a3b8" fontSize="8" textAnchor="middle">Low</text>
             </svg>
             <p className="text-[11px] text-slate-300 leading-tight">
-              Price closed in the middle of the range. Both bulls and bears settled into balance.
+              Price closed in the middle of the range. Indecision balance.
             </p>
           </div>
 
-          <div className="bg-slate-900 border border-rose-900/60 rounded-xl p-3 flex flex-col items-center text-center">
-            <span className="text-xs font-bold text-rose-400">Bearish CLV (&lt; 30%)</span>
-            <span className="text-[10px] text-slate-400">Institutional Distribution / Dump</span>
+          <div className={`bg-slate-900 border rounded-xl p-3 flex flex-col items-center text-center transition-all ${
+            viewMode === 'live-match' && clvTier === 'BEARISH'
+              ? 'border-rose-500 ring-2 ring-rose-500/30 bg-rose-950/20'
+              : 'border-rose-900/60'
+          }`}>
+            <span className="text-xs font-bold text-rose-400 flex items-center gap-1">
+              Bearish CLV (&lt; 30%)
+              {viewMode === 'live-match' && clvTier === 'BEARISH' && <CheckCircle2 className="w-3.5 h-3.5 text-rose-400" />}
+            </span>
+            <span className="text-[10px] text-slate-400">Institutional Distribution</span>
             <svg viewBox="0 0 100 130" className="w-24 h-32 my-2 select-none">
               <line x1="50" y1="20" x2="50" y2="110" stroke="#f43f5e" strokeWidth="2" />
               <rect x="40" y="45" width="20" height="60" fill="#e11d48" rx="2" />
@@ -663,7 +954,7 @@ function ClvVisual() {
               <text x="50" y="122" fill="#94a3b8" fontSize="8" textAnchor="middle">Low</text>
             </svg>
             <p className="text-[11px] text-slate-300 leading-tight">
-              Sellers controlled the 15:00-15:30 closing auction, flushing the market down to session lows.
+              Sellers controlled the closing auction, flushing down to lows.
             </p>
           </div>
         </div>
@@ -675,50 +966,62 @@ function ClvVisual() {
 // ==========================================
 // 6. STOP HUNT / LIQUIDITY SWEEP VISUAL
 // ==========================================
-function StopHuntVisual() {
+function StopHuntVisual({ viewMode, synthesis }: VisualBaseProps) {
+  const trapState = synthesis?.liquidityPool?.trapState ?? 'NO_TRAP';
+  const isSweepActive = trapState === 'LONG_STOP_HUNT_SWEEP' || trapState === 'SHORT_SQUEEZE_SWEEP';
+  const stopZone = synthesis?.keyLevels?.stopHuntZone?.range ?? '24,960 – 25,000';
+
   return (
     <div className="space-y-4">
-      <div>
-        <div className="flex items-center gap-2">
-          <span className="text-lg font-bold text-white">Retail Stop-Loss Hunt / Liquidity Sweep</span>
-          <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-amber-950 border border-amber-800 text-amber-300">
-            Institutional Absorption
-          </span>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-lg font-bold text-white">Retail Stop-Loss Hunt / Liquidity Sweep</span>
+            <span className={`text-[11px] font-mono px-2 py-0.5 rounded border ${
+              viewMode === 'live-match'
+                ? isSweepActive
+                  ? 'bg-rose-950 border-rose-700 text-rose-300 font-bold animate-pulse'
+                  : 'bg-emerald-950 border-emerald-800 text-emerald-300'
+                : 'bg-amber-950 border-amber-800 text-amber-300'
+            }`}>
+              {viewMode === 'live-match'
+                ? isSweepActive ? `🎯 Active Stop Sweep: ${trapState.replaceAll('_', ' ')}` : '✅ Order Book Clean'
+                : 'Institutional Absorption'}
+            </span>
+          </div>
+          <p className="text-xs text-slate-400 mt-0.5">
+            {viewMode === 'live-match'
+              ? isSweepActive
+                ? synthesis?.liquidityPool?.explanation || 'Market makers have swept retail stops below key support!'
+                : `Monitored retail stop-loss cluster: ${stopZone}. No active sweep in progress.`
+              : 'How smart money pierces obvious retail support levels to trigger stops before reversing.'}
+          </p>
         </div>
-        <p className="text-xs text-slate-400 mt-0.5">
-          How smart money pierces obvious retail support levels to trigger stops before reversing.
-        </p>
       </div>
 
       <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 sm:p-4 overflow-x-auto">
         <svg viewBox="0 0 760 220" className="w-full h-auto min-w-[550px] select-none">
-          {/* Obvious Support Line - With 190 coordinate units of clearance to 760 */}
           <line x1="40" y1="120" x2="560" y2="120" stroke="#38bdf8" strokeWidth="2" strokeDasharray="5 3" />
           <text x="570" y="124" fill="#38bdf8" fontSize="10" fontFamily="monospace" fontWeight="bold">Obvious Support (25,000)</text>
 
-          {/* Clustered Stop-Loss Zone below Support */}
           <rect x="220" y="122" width="220" height="40" fill="#ef4444" fillOpacity="0.15" stroke="#ef4444" strokeWidth="1" strokeDasharray="3 3" rx="4" />
           <text x="330" y="145" fill="#fda4af" fontSize="9" fontWeight="bold" textAnchor="middle">
-            Retail Stop-Loss Cluster (Sell Orders)
+            {viewMode === 'live-match' ? `Stop Trap: ${stopZone}` : 'Retail Stop-Loss Cluster (Sell Orders)'}
           </text>
 
-          {/* Candle 1 & 2 forming the support level */}
           <line x1="100" y1="70" x2="100" y2="120" stroke="#10b981" strokeWidth="1.5" />
           <rect x="92" y="80" width="16" height="38" fill="#059669" rx="1" />
 
           <line x1="160" y1="80" x2="160" y2="120" stroke="#f43f5e" strokeWidth="1.5" />
           <rect x="152" y="85" width="16" height="33" fill="#e11d48" rx="1" />
 
-          {/* THE STOP HUNT CANDLE (Long lower wick piercing support) */}
           <line x1="280" y1="75" x2="280" y2="175" stroke="#10b981" strokeWidth="2.5" />
           <rect x="270" y="85" width="20" height="30" fill="#10b981" rx="2" />
           <circle cx="280" cy="175" r="4" fill="#ef4444" />
-          <text x="295" y="180" fill="#fca5a5" fontSize="9" fontWeight="bold">Stop Sweep Low (24,960)</text>
+          <text x="295" y="180" fill="#fca5a5" fontSize="9" fontWeight="bold">Stop Sweep Low (Pierces Support)</text>
 
-          {/* Violent Reversal Green Hammer */}
           <text x="280" y="65" fill="#34d399" fontSize="9" fontWeight="bold" textAnchor="middle">Rejection Hammer</text>
 
-          {/* Follow-up Institutional Surge */}
           <line x1="360" y1="40" x2="360" y2="90" stroke="#10b981" strokeWidth="2" />
           <rect x="350" y="45" width="20" height="40" fill="#10b981" rx="2" />
 
@@ -726,7 +1029,6 @@ function StopHuntVisual() {
           <rect x="420" y="25" width="20" height="35" fill="#10b981" rx="2" />
           <text x="450" y="45" fill="#34d399" fontSize="10" fontWeight="bold">Sharp Squeeze Higher</text>
 
-          {/* Huge Volume Bar on the sweep */}
           <rect x="270" y="185" width="20" height="30" fill="#10b981" rx="1" />
           <text x="360" y="202" fill="#38bdf8" fontSize="9">Institutions buy the panic into limit orders</text>
         </svg>
@@ -736,7 +1038,7 @@ function StopHuntVisual() {
         <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3 space-y-1">
           <span className="font-bold text-rose-300 block">1. The Retail Trap</span>
           <p className="text-slate-400 leading-relaxed font-normal">
-            Retail puts stop losses 5-15 points below round numbers (e.g. 24,990). Market makers push spot down to trigger these market sell orders.
+            Retail puts stop losses 5-15 points below round numbers. Market makers push spot down to trigger these market sell orders.
           </p>
         </div>
         <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3 space-y-1">
@@ -759,25 +1061,38 @@ function StopHuntVisual() {
 // ==========================================
 // 7. SINGLE-STOCK SKEW & BREADTH TRAP VISUAL
 // ==========================================
-function CulpritDivergenceVisual() {
+function CulpritDivergenceVisual({ viewMode, synthesis }: VisualBaseProps) {
+  const culprit = synthesis?.techSpecs?.culpritSymbol;
+  const culpritPct = synthesis?.techSpecs?.culpritContributionPct ?? 0;
+  const advanceTurnover = synthesis?.techSpecs?.advancingTurnoverPct ?? 50;
+  const declineTurnover = synthesis?.techSpecs?.decliningTurnoverPct ?? 50;
+  const isSkewed = Boolean(culprit && culpritPct > 35);
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="flex items-center gap-2">
             <span className="text-lg font-bold text-white">Single-Stock Skew &amp; Breadth Divergence Trap</span>
-            <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-amber-950 border border-amber-800 text-amber-300">
-              The Heavyweight Illusion
+            <span className={`text-[11px] font-mono px-2 py-0.5 rounded border ${
+              viewMode === 'live-match'
+                ? isSkewed
+                  ? 'bg-rose-950 border-rose-700 text-rose-300 font-bold animate-pulse'
+                  : 'bg-emerald-950 border-emerald-800 text-emerald-300 font-bold'
+                : 'bg-amber-950 border-amber-800 text-amber-300'
+            }`}>
+              {viewMode === 'live-match'
+                ? isSkewed ? `⚠️ Culprit Skew Active: ${culprit} (${culpritPct.toFixed(0)}%)` : '✅ Balanced Breadth'
+                : 'The Heavyweight Illusion'}
             </span>
           </div>
           <p className="text-xs text-slate-400 mt-0.5">
-            When Nifty appears green and bullish solely due to 1 pumped heavyweight while 80% of stocks fall.
+            {viewMode === 'live-match'
+              ? isSkewed
+                ? `${culprit} is single-handedly driving ${culpritPct.toFixed(0)}% of today's net index move. Breadth shows ${advanceTurnover.toFixed(0)}% inflow vs ${declineTurnover.toFixed(0)}% outflow.`
+                : `Today’s market turnover is balanced (${advanceTurnover.toFixed(0)}% advancing vs ${declineTurnover.toFixed(0)}% declining) with no single heavyweight distorting the index.`
+              : 'When Nifty appears green and bullish solely due to 1 pumped heavyweight while 80% of stocks fall.'}
           </p>
-        </div>
-        <div className="flex items-center gap-2 text-xs font-mono">
-          <span className="px-2 py-1 rounded bg-rose-950/60 border border-rose-800/60 text-rose-300">
-            Fake Breakout Trap Odds: <strong>81%</strong>
-          </span>
         </div>
       </div>
 
@@ -794,7 +1109,7 @@ function CulpritDivergenceVisual() {
           <line x1="190" y1="65" x2="190" y2="155" stroke="#10b981" strokeWidth="2.5" />
           <rect x="175" y="75" width="30" height="65" fill="#10b981" rx="2" />
           <text x="190" y="170" fill="#34d399" fontSize="11" fontWeight="bold" textAnchor="middle">
-            Nifty 50: +65 pts (+0.26%) 🚀
+            {viewMode === 'live-match' ? `Index: ₹${(synthesis?.techSpecs?.gammaFlip ?? 25000).toLocaleString('en-IN')}` : 'Nifty 50: +65 pts (+0.26%) 🚀'}
           </text>
           <text x="190" y="185" fill="#94a3b8" fontSize="9" textAnchor="middle">
             Retail sees green and FOMO buys calls
@@ -802,13 +1117,15 @@ function CulpritDivergenceVisual() {
 
           {/* RIGHT: The Microstructure Reality */}
           <text x="570" y="32" fill="#f43f5e" fontSize="12" fontWeight="bold" textAnchor="middle">
-            THE REALITY (Market Breadth &amp; Volume)
+            THE REALITY (Market Breadth &amp; Turnover)
           </text>
           <rect x="430" y="45" width="280" height="150" fill="#1e1015" stroke="#881337" strokeWidth="1" rx="4" />
 
           <rect x="445" y="60" width="250" height="32" fill="#059669" fillOpacity="0.2" stroke="#10b981" strokeWidth="1" rx="3" />
           <text x="455" y="76" fill="#34d399" fontSize="10" fontWeight="bold">
-            1 Culprit (RELIANCE): +3.4% (+68 pts!)
+            {viewMode === 'live-match' && culprit
+              ? `Culprit (${culprit}): ~${culpritPct.toFixed(0)}% of move`
+              : '1 Culprit (RELIANCE): +3.4% (+68 pts!)'}
           </text>
           <text x="455" y="88" fill="#a7f3d0" fontSize="8">
             Single-handedly holding up the entire index
@@ -816,14 +1133,16 @@ function CulpritDivergenceVisual() {
 
           <rect x="445" y="98" width="250" height="42" fill="#ef4444" fillOpacity="0.2" stroke="#ef4444" strokeWidth="1" rx="3" />
           <text x="455" y="114" fill="#f87171" fontSize="10" fontWeight="bold">
-            Remaining 49 Stocks: 11 Up vs 39 Down
+            {viewMode === 'live-match'
+              ? `Rupee Split: ${advanceTurnover.toFixed(0)}% Inflow vs ${declineTurnover.toFixed(0)}% Outflow`
+              : 'Remaining 49 Stocks: 11 Up vs 39 Down'}
           </text>
           <text x="455" y="128" fill="#fda4af" fontSize="8">
-            Rupee Volume: 74% Outflow / Severe Selling Across Banks &amp; IT
+            Rupee Volume Outflow across broader constituent basket
           </text>
 
           <text x="570" y="165" fill="#f43f5e" fontSize="10" fontWeight="bold" textAnchor="middle">
-            ⚠️ Breadth Divergence: Fake Breakout
+            ⚠️ Breadth Divergence: Fake Breakout Risk
           </text>
           <text x="570" y="180" fill="#fda4af" fontSize="9" textAnchor="middle">
             When the single pillar tires, the index plunges
@@ -858,7 +1177,11 @@ function CulpritDivergenceVisual() {
 // ==========================================
 // 8. PUT WALL & CALL WALL VISUAL
 // ==========================================
-function PutCallWallsVisual() {
+function PutCallWallsVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps) {
+  const putWall = synthesis?.techSpecs?.putWall ?? 24800;
+  const callWall = synthesis?.techSpecs?.callWall ?? 25300;
+  const currentSpot = spotPrice ?? 25050;
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -870,32 +1193,28 @@ function PutCallWallsVisual() {
             </span>
           </div>
           <p className="text-xs text-slate-400 mt-0.5">
-            The strikes with the absolute highest Open Interest on Puts and Calls where smart money has massive capital at stake.
+            {viewMode === 'live-match'
+              ? `Live Institutional Boundaries: Put Wall at ₹${putWall.toLocaleString('en-IN')} | Call Wall at ₹${callWall.toLocaleString('en-IN')}.`
+              : 'The strikes with the absolute highest Open Interest on Puts and Calls where smart money has massive capital at stake.'}
           </p>
-        </div>
-        <div className="flex items-center gap-2 text-xs font-mono">
-          <span className="px-2 py-1 rounded bg-slate-800 text-slate-300">
-            Pin Corridor Probability: <strong>72%</strong>
-          </span>
         </div>
       </div>
 
       <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 sm:p-4 overflow-x-auto">
         <svg viewBox="0 0 760 220" className="w-full h-auto min-w-[550px] select-none">
-          {/* Top: Call Wall (Resistance Ceiling) */}
+          {/* Top: Call Wall */}
           <rect x="40" y="25" width="670" height="40" fill="#ef4444" fillOpacity="0.15" stroke="#ef4444" strokeWidth="1.5" strokeDasharray="4 2" rx="4" />
           <text x="55" y="47" fill="#f87171" fontSize="11" fontWeight="bold">
-            🏰 INSTITUTIONAL CALL WALL: 25,300 CE (Peak Call Open Interest: 1.8 Cr Contracts)
+            🏰 INSTITUTIONAL CALL WALL: ₹{callWall.toLocaleString('en-IN')} CE (Heavy Call Writing Ceiling)
           </text>
           <text x="55" y="59" fill="#fda4af" fontSize="9">
-            Heavy Call Writing Ceiling • Option sellers defend this strike; market makers sell futures on approach
+            Option sellers defend this strike; market makers sell futures into upward tests
           </text>
 
           {/* Middle: Live Spot Trading Corridor */}
           <rect x="40" y="75" width="670" height="65" fill="#0f172a" stroke="#334155" strokeWidth="1" strokeDasharray="2 2" rx="4" />
           <line x1="60" y1="108" x2="690" y2="108" stroke="#38bdf8" strokeWidth="1" strokeDasharray="4 4" />
 
-          {/* Oscillating Range Candles */}
           <line x1="140" y1="85" x2="140" y2="125" stroke="#10b981" strokeWidth="1.5" />
           <rect x="134" y="92" width="12" height="25" fill="#059669" rx="1" />
 
@@ -908,16 +1227,16 @@ function PutCallWallsVisual() {
           {/* Spot Tracker Pill */}
           <circle cx="410" cy="108" r="5" fill="#38bdf8" />
           <text x="425" y="112" fill="#38bdf8" fontSize="11" fontWeight="bold">
-            Current Spot (25,050) • Range-Bound Oscillation Inside Corridor
+            Current Spot (₹{currentSpot.toLocaleString('en-IN')}) • Oscillating in {callWall - putWall} pt Corridor
           </text>
 
-          {/* Bottom: Put Wall (Support Floor) */}
+          {/* Bottom: Put Wall */}
           <rect x="40" y="150" width="670" height="40" fill="#10b981" fillOpacity="0.15" stroke="#10b981" strokeWidth="1.5" strokeDasharray="4 2" rx="4" />
           <text x="55" y="172" fill="#34d399" fontSize="11" fontWeight="bold">
-            🛡️ INSTITUTIONAL PUT WALL: 24,800 PE (Peak Put Open Interest: 2.1 Cr Contracts)
+            🛡️ INSTITUTIONAL PUT WALL: ₹{putWall.toLocaleString('en-IN')} PE (Primary Demand Floor)
           </text>
           <text x="55" y="184" fill="#6ee7b7" fontSize="9">
-            Primary Demand Floor • Put sellers absorb dips and buy futures to protect collected premiums
+            Put sellers absorb dips and buy futures to protect collected premiums
           </text>
         </svg>
       </div>
@@ -949,23 +1268,31 @@ function PutCallWallsVisual() {
 // ==========================================
 // 9. OPEN INTEREST VELOCITY FLOW VISUAL
 // ==========================================
-function OiVelocityVisual() {
+function OiVelocityVisual({ viewMode, synthesis }: VisualBaseProps) {
+  const liveFlow = synthesis?.techSpecs?.oiVelocityRegime ?? 'BALANCED_FLOW';
+
   return (
     <div className="space-y-4">
       <div>
         <div className="flex items-center gap-2">
           <span className="text-lg font-bold text-white">Open Interest Velocity &amp; Real Money Flow</span>
           <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-cyan-950 border border-cyan-800 text-cyan-300">
-            Order Flow Decoding
+            {viewMode === 'live-match' ? `Live Flow: ${liveFlow.replaceAll('_', ' ')}` : 'Order Flow Decoding'}
           </span>
         </div>
         <p className="text-xs text-slate-400 mt-0.5">
-          How to tell whether a rally is genuine smart-money accumulation or a fragile mechanical short-covering bounce.
+          {viewMode === 'live-match'
+            ? `Current live order flow regime: ${liveFlow.replaceAll('_', ' ')}.`
+            : 'How to tell whether a rally is genuine smart-money accumulation or a fragile mechanical short-covering bounce.'}
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-        <div className="bg-slate-950 border border-emerald-900/60 rounded-xl p-3.5 space-y-2">
+        <div className={`bg-slate-950 border rounded-xl p-3.5 space-y-2 transition-all ${
+          viewMode === 'live-match' && liveFlow === 'PUT_ADDITION_SUPPORT'
+            ? 'border-emerald-500 ring-2 ring-emerald-500/30 bg-emerald-950/20'
+            : 'border-emerald-900/60'
+        }`}>
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
               <CheckCircle2 className="w-3.5 h-3.5" />
@@ -980,7 +1307,11 @@ function OiVelocityVisual() {
           </p>
         </div>
 
-        <div className="bg-slate-950 border border-amber-900/60 rounded-xl p-3.5 space-y-2">
+        <div className={`bg-slate-950 border rounded-xl p-3.5 space-y-2 transition-all ${
+          viewMode === 'live-match' && liveFlow === 'BULLISH_SHORT_COVERING'
+            ? 'border-amber-500 ring-2 ring-amber-500/30 bg-amber-950/20'
+            : 'border-amber-900/60'
+        }`}>
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
               <AlertTriangle className="w-3.5 h-3.5" />
@@ -995,7 +1326,11 @@ function OiVelocityVisual() {
           </p>
         </div>
 
-        <div className="bg-slate-950 border border-rose-900/60 rounded-xl p-3.5 space-y-2">
+        <div className={`bg-slate-950 border rounded-xl p-3.5 space-y-2 transition-all ${
+          viewMode === 'live-match' && liveFlow === 'CALL_ADDITION_RESISTANCE'
+            ? 'border-rose-500 ring-2 ring-rose-500/30 bg-rose-950/20'
+            : 'border-rose-900/60'
+        }`}>
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-rose-400 flex items-center gap-1.5">
               <ShieldAlert className="w-3.5 h-3.5" />
@@ -1036,14 +1371,17 @@ function OiVelocityVisual() {
 // ==========================================
 // 10. AIR POCKET & INSTITUTIONAL FLOOR VISUAL
 // ==========================================
-function AirPocketVisual() {
+function AirPocketVisual({ viewMode, synthesis }: VisualBaseProps) {
+  const pocFloor = synthesis?.gapDynamics?.exhaustionTrapTracker?.institutionalFloorPrice ?? synthesis?.keyLevels?.hardFloor?.price ?? 25000;
+  const dangerHigh = synthesis?.keyLevels?.hardCeiling?.price ?? 25250;
+
   return (
     <div className="space-y-4">
       <div>
         <div className="flex items-center gap-2">
           <span className="text-lg font-bold text-white">The Air Pocket &amp; Real Institutional Floor (POC)</span>
           <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-cyan-950 border border-cyan-800 text-cyan-300">
-            Volume Profile Microstructure
+            {viewMode === 'live-match' ? `Live POC Floor: ₹${pocFloor.toLocaleString('en-IN')}` : 'Volume Profile Microstructure'}
           </span>
         </div>
         <p className="text-xs text-slate-400 mt-0.5">
@@ -1055,12 +1393,12 @@ function AirPocketVisual() {
         <svg viewBox="0 0 760 220" className="w-full h-auto min-w-[550px] select-none">
           <rect x="40" y="30" width="670" height="35" fill="#ef4444" fillOpacity="0.15" stroke="#ef4444" strokeWidth="1" rx="4" />
           <text x="50" y="52" fill="#fca5a5" fontSize="10" fontWeight="bold">
-            ⚠️ DANGER ZONE: Trapped Buyers at Climax Highs (25,200 – 25,280)
+            ⚠️ DANGER ZONE: Trapped Buyers at Climax Highs (₹{dangerHigh.toLocaleString('en-IN')})
           </text>
 
           <rect x="40" y="75" width="670" height="65" fill="#3b82f6" fillOpacity="0.08" stroke="#38bdf8" strokeWidth="1" strokeDasharray="4 2" rx="4" />
           <text x="50" y="105" fill="#38bdf8" fontSize="11" fontWeight="bold">
-            🕳️ THE AIR POCKET (Thin Volume Profile Vacuum Zone: 25,050 – 25,180)
+            🕳️ THE AIR POCKET (Thin Volume Profile Vacuum Zone)
           </text>
           <text x="50" y="122" fill="#94a3b8" fontSize="9">
             Zero resting institutional bids. Price falls like a rock through this pocket without friction.
@@ -1071,7 +1409,7 @@ function AirPocketVisual() {
 
           <rect x="40" y="150" width="670" height="45" fill="#10b981" fillOpacity="0.18" stroke="#10b981" strokeWidth="1.5" rx="4" />
           <text x="50" y="172" fill="#34d399" fontSize="11" fontWeight="bold">
-            🎯 REAL INSTITUTIONAL FLOOR (Point of Control / POC: 25,000)
+            🎯 REAL INSTITUTIONAL FLOOR (Point of Control / POC: ₹{pocFloor.toLocaleString('en-IN')})
           </text>
           <text x="50" y="187" fill="#6ee7b7" fontSize="9">
             Heavy institutional limit bids resting here. The genuine bounce anchor.
@@ -1106,14 +1444,25 @@ function AirPocketVisual() {
 // ==========================================
 // 11. MARKET MAKER GAMMA REGIMES VISUAL
 // ==========================================
-function GammaRegimeVisual() {
+function GammaRegimeVisual({ viewMode, synthesis }: VisualBaseProps) {
+  const liveDealerRegime = synthesis?.techSpecs?.dealerRegime ?? 'DEALER_LONG_GAMMA_PIN';
+  const isShortGamma = liveDealerRegime === 'DEALER_SHORT_GAMMA_CASCADE';
+
   return (
     <div className="space-y-4">
       <div>
         <div className="flex items-center gap-2">
           <span className="text-lg font-bold text-white">Market Maker Gamma Regimes</span>
-          <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-cyan-950 border border-cyan-800 text-cyan-300">
-            Institutional Hedging Physics
+          <span className={`text-[11px] font-mono px-2 py-0.5 rounded border ${
+            viewMode === 'live-match'
+              ? isShortGamma
+                ? 'bg-rose-950 border-rose-700 text-rose-300 font-bold'
+                : 'bg-emerald-950 border-emerald-700 text-emerald-300 font-bold'
+              : 'bg-cyan-950 border-cyan-800 text-cyan-300'
+          }`}>
+            {viewMode === 'live-match'
+              ? isShortGamma ? '🌪️ Active: Short Gamma Accelerator' : '🛡️ Active: Long Gamma Pin'
+              : 'Institutional Hedging Physics'}
           </span>
         </div>
         <p className="text-xs text-slate-400 mt-0.5">
@@ -1122,9 +1471,16 @@ function GammaRegimeVisual() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-slate-950 border border-rose-900/60 rounded-xl p-4 space-y-2">
+        <div className={`bg-slate-950 border rounded-xl p-4 space-y-2 transition-all ${
+          viewMode === 'live-match' && isShortGamma
+            ? 'border-rose-500 ring-2 ring-rose-500/30 bg-rose-950/20'
+            : 'border-rose-900/60'
+        }`}>
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-rose-400">🌪️ Accelerator Mode (Short Gamma)</span>
+            <span className="text-xs font-bold text-rose-400 flex items-center gap-1">
+              🌪️ Accelerator Mode (Short Gamma)
+              {viewMode === 'live-match' && isShortGamma && <CheckCircle2 className="w-3.5 h-3.5 text-rose-400" />}
+            </span>
             <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-950 text-rose-300">Below Flip Line</span>
           </div>
 
@@ -1147,9 +1503,16 @@ function GammaRegimeVisual() {
           </p>
         </div>
 
-        <div className="bg-slate-950 border border-emerald-900/60 rounded-xl p-4 space-y-2">
+        <div className={`bg-slate-950 border rounded-xl p-4 space-y-2 transition-all ${
+          viewMode === 'live-match' && !isShortGamma
+            ? 'border-emerald-500 ring-2 ring-emerald-500/30 bg-emerald-950/20'
+            : 'border-emerald-900/60'
+        }`}>
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-emerald-400">🛡️ Shock Absorber (Long Gamma)</span>
+            <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
+              🛡️ Shock Absorber (Long Gamma)
+              {viewMode === 'live-match' && !isShortGamma && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
+            </span>
             <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-300">Above Flip Line</span>
           </div>
 
@@ -1177,40 +1540,54 @@ function GammaRegimeVisual() {
 // ==========================================
 // 12. GAMMA FLIP LINE VISUAL
 // ==========================================
-function GammaFlipVisual() {
+function GammaFlipVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps) {
+  const gammaFlip = synthesis?.techSpecs?.gammaFlip ?? 24950;
+  const currentSpot = spotPrice ?? 25050;
+  const isAbove = currentSpot >= gammaFlip;
+
   return (
     <div className="space-y-4">
       <div>
         <div className="flex items-center gap-2">
           <span className="text-lg font-bold text-white">Trend Danger Line (Gamma Flip)</span>
-          <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-cyan-950 border border-cyan-800 text-cyan-300">
-            Regime Inflection Point
+          <span className={`text-[11px] font-mono px-2 py-0.5 rounded border ${
+            viewMode === 'live-match'
+              ? isAbove
+                ? 'bg-emerald-950 border-emerald-700 text-emerald-300 font-bold'
+                : 'bg-rose-950 border-rose-700 text-rose-300 font-bold'
+              : 'bg-cyan-950 border-cyan-800 text-cyan-300'
+          }`}>
+            {viewMode === 'live-match'
+              ? isAbove ? `Spot ₹${Math.round(currentSpot - gammaFlip)} pts ABOVE Flip Line (Calm)` : `Spot ₹${Math.round(gammaFlip - currentSpot)} pts BELOW Flip Line (Danger)`
+              : 'Regime Inflection Point'}
           </span>
         </div>
         <p className="text-xs text-slate-400 mt-0.5">
-          The critical boundary price where market behavior shifts from calm mean-reversion to explosive trending.
+          {viewMode === 'live-match'
+            ? `Live Gamma Flip inflection line: ₹${gammaFlip.toLocaleString('en-IN')}. Spot is trading at ₹${currentSpot.toLocaleString('en-IN')}.`
+            : 'The critical boundary price where market behavior shifts from calm mean-reversion to explosive trending.'}
         </p>
       </div>
 
       <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
         <svg viewBox="0 0 680 180" className="w-full h-auto min-w-[500px] select-none">
-          <rect x="30" y="20" width="620" height="65" fill="#10b981" fillOpacity="0.1" stroke="#10b981" strokeWidth="1" strokeDasharray="3 3" rx="4" />
+          <rect x="30" y="20" width="620" height="65" fill="#10b981" fillOpacity={isAbove && viewMode === 'live-match' ? 0.2 : 0.1} stroke="#10b981" strokeWidth={isAbove && viewMode === 'live-match' ? 2 : 1} strokeDasharray="3 3" rx="4" />
           <text x="45" y="42" fill="#34d399" fontSize="11" fontWeight="bold">
-            CALM ZONE (Above Gamma Flip) • Volatility Suppressed
+            CALM ZONE (Above Gamma Flip: &gt; ₹{gammaFlip.toLocaleString('en-IN')}) {isAbove && viewMode === 'live-match' ? '• SPOT TRADING HERE ✓' : ''}
           </text>
           <text x="45" y="58" fill="#94a3b8" fontSize="9">
             Mean-reverting candles. High probability of chop and option premium decay.
           </text>
 
           <line x1="20" y1="90" x2="660" y2="90" stroke="#38bdf8" strokeWidth="3" />
-          <rect x="240" y="80" width="200" height="20" fill="#0f172a" stroke="#38bdf8" strokeWidth="1" rx="4" />
+          <rect x="220" y="80" width="240" height="20" fill="#0f172a" stroke="#38bdf8" strokeWidth="1" rx="4" />
           <text x="340" y="94" fill="#38bdf8" fontSize="10" fontWeight="bold" textAnchor="middle">
-            GAMMA FLIP INFLECTION LINE
+            GAMMA FLIP LINE: ₹{gammaFlip.toLocaleString('en-IN')}
           </text>
 
-          <rect x="30" y="95" width="620" height="65" fill="#ef4444" fillOpacity="0.1" stroke="#ef4444" strokeWidth="1" strokeDasharray="3 3" rx="4" />
+          <rect x="30" y="95" width="620" height="65" fill="#ef4444" fillOpacity={!isAbove && viewMode === 'live-match' ? 0.2 : 0.1} stroke="#ef4444" strokeWidth={!isAbove && viewMode === 'live-match' ? 2 : 1} strokeDasharray="3 3" rx="4" />
           <text x="45" y="120" fill="#f87171" fontSize="11" fontWeight="bold">
-            FAST TREND DANGER ZONE (Below Gamma Flip) • Volatility Expansion
+            FAST TREND DANGER ZONE (Below Gamma Flip: &lt; ₹{gammaFlip.toLocaleString('en-IN')}) {!isAbove && viewMode === 'live-match' ? '• SPOT TRADING HERE ⚠️' : ''}
           </text>
           <text x="45" y="136" fill="#94a3b8" fontSize="9">
             Dealers sell into drops. High risk of multi-strike waterfall moves and stop cascades.
@@ -1228,19 +1605,37 @@ function GammaFlipVisual() {
 // ==========================================
 // 13. 1-SIGMA EXPECTED MOVE CORRIDOR VISUAL
 // ==========================================
-function ExpectedMoveVisual() {
+function ExpectedMoveVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps) {
+  const corridor = synthesis?.gapDynamics?.expectedOpeningRange;
+  const central = corridor?.centralPoint ?? spotPrice ?? 25000;
+  const low = corridor?.low ?? central - 120;
+  const high = corridor?.high ?? central + 120;
+  const movePts = corridor?.dailyExpectedMovePts ?? 120;
+  const currentSpot = spotPrice ?? central;
+  const isInside = currentSpot >= low && currentSpot <= high;
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="flex items-center gap-2">
             <span className="text-lg font-bold text-white">1-Sigma Expected Move Corridor (Daily Volatility Envelope)</span>
-            <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-cyan-950 border border-cyan-800 text-cyan-300">
-              Black-Scholes Volatility Math
+            <span className={`text-[11px] font-mono px-2 py-0.5 rounded border ${
+              viewMode === 'live-match'
+                ? isInside
+                  ? 'bg-emerald-950 border-emerald-700 text-emerald-300 font-bold'
+                  : 'bg-rose-950 border-rose-700 text-rose-300 font-bold animate-pulse'
+                : 'bg-cyan-950 border-cyan-800 text-cyan-300'
+            }`}>
+              {viewMode === 'live-match'
+                ? isInside ? '🟢 Spot Inside 68% Noise Band' : '⚠️ Volatility Expansion Breakout (> 1σ)'
+                : 'Black-Scholes Volatility Math'}
             </span>
           </div>
           <p className="text-xs text-slate-400 mt-0.5">
-            The mathematical boundary where 68.2% of all daily price closes land, derived continuously from India VIX.
+            {viewMode === 'live-match'
+              ? `Live 1-Day Expected Move: ±${movePts} pts (Corridor: ₹${low.toLocaleString('en-IN')} – ₹${high.toLocaleString('en-IN')}). Current Spot: ₹${currentSpot.toLocaleString('en-IN')}.`
+              : 'The mathematical boundary where 68.2% of all daily price closes land, derived continuously from India VIX.'}
           </p>
         </div>
         <div className="p-2 bg-slate-900 border border-cyan-800/60 rounded-lg text-xs font-mono text-cyan-300">
@@ -1252,8 +1647,8 @@ function ExpectedMoveVisual() {
         <svg viewBox="0 0 760 220" className="w-full h-auto min-w-[550px] select-none">
           <rect x="50" y="25" width="660" height="170" fill="#0f172a" stroke="#334155" strokeWidth="1" rx="4" />
 
-          {/* 1-Sigma Band (Central 68% Zone) */}
-          <rect x="220" y="35" width="320" height="150" fill="#0284c7" fillOpacity="0.12" stroke="#0284c7" strokeWidth="1.5" strokeDasharray="3 3" rx="4" />
+          {/* 1-Sigma Band */}
+          <rect x="220" y="35" width="320" height="150" fill="#0284c7" fillOpacity={isInside && viewMode === 'live-match' ? 0.2 : 0.12} stroke="#0284c7" strokeWidth="1.5" strokeDasharray="3 3" rx="4" />
           <text x="380" y="52" fill="#38bdf8" fontSize="11" fontWeight="bold" textAnchor="middle">
             NORMAL 68.2% NOISE CORRIDOR (±1-SIGMA)
           </text>
@@ -1264,20 +1659,19 @@ function ExpectedMoveVisual() {
           <line x1="380" y1="35" x2="380" y2="185" stroke="#38bdf8" strokeWidth="2" strokeDasharray="4 2" />
           <circle cx="380" cy="110" r="5" fill="#38bdf8" />
           <text x="380" y="130" fill="#ffffff" fontSize="10" fontWeight="bold" textAnchor="middle">
-            Anchor Spot (25,000)
+            Central Pivot (₹{central.toLocaleString('en-IN')})
           </text>
 
           {/* Upper +1 Sigma Line */}
           <line x1="540" y1="35" x2="540" y2="185" stroke="#10b981" strokeWidth="2" />
-          <text x="545" y="100" fill="#34d399" fontSize="10" fontWeight="bold">+1σ (25,120)</text>
-          <text x="545" y="115" fill="#6ee7b7" fontSize="8">+120 pts expected</text>
+          <text x="545" y="100" fill="#34d399" fontSize="10" fontWeight="bold">+1σ (₹{high.toLocaleString('en-IN')})</text>
+          <text x="545" y="115" fill="#6ee7b7" fontSize="8">+{movePts} pts expected</text>
 
           {/* Lower -1 Sigma Line */}
           <line x1="220" y1="35" x2="220" y2="185" stroke="#f43f5e" strokeWidth="2" />
-          <text x="145" y="100" fill="#f87171" fontSize="10" fontWeight="bold">-1σ (24,880)</text>
-          <text x="145" y="115" fill="#fda4af" fontSize="8">-120 pts expected</text>
+          <text x="135" y="100" fill="#f87171" fontSize="10" fontWeight="bold">-1σ (₹{low.toLocaleString('en-IN')})</text>
+          <text x="135" y="115" fill="#fda4af" fontSize="8">-{movePts} pts expected</text>
 
-          {/* Extreme Tail Zones */}
           <text x="630" y="150" fill="#f59e0b" fontSize="9" textAnchor="middle">Tail Volatility (&gt; +1σ)</text>
           <text x="130" y="150" fill="#f59e0b" fontSize="9" textAnchor="middle">Tail Volatility (&lt; -1σ)</text>
         </svg>

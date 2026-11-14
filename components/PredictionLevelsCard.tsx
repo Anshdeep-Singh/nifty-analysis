@@ -533,6 +533,8 @@ export function PredictionLevelsCard({ prediction }: PredictionLevelsCardProps) 
         isOpen={activeVisualTopic !== null}
         initialTopic={activeVisualTopic || 'expected-move'}
         onClose={() => setActiveVisualTopic(null)}
+        spotPrice={prediction.spotPrice}
+        indexName="NIFTY 50"
       />
     </div>
   );
