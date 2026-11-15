@@ -253,7 +253,12 @@ export async function GET(request: Request) {
         const d = String(istNow.getDate()).padStart(2, '0');
         const todayStr = `${y}-${m}-${d}`;
 
-        const fromStr = `${todayStr} 09:00:00`;
+        // Look back 5 calendar days to span across weekends and market holidays
+        const pastDate = new Date(istNow.getTime() - 5 * 86400000);
+        const py = pastDate.getFullYear();
+        const pm = String(pastDate.getMonth() + 1).padStart(2, '0');
+        const pd = String(pastDate.getDate()).padStart(2, '0');
+        const fromStr = `${py}-${pm}-${pd} 09:00:00`;
         const toStr = `${todayStr} 15:30:00`;
 
         // Resolve front-month futures contract dynamically to obtain authentic candle volume
@@ -290,7 +295,26 @@ export async function GET(request: Request) {
         }
 
         if (Array.isArray(kCandles5m) && kCandles5m.length > 0) {
-          fiveMinCandles = kCandles5m.map(c => {
+          // Identify the most recent active trading date in the dataset
+          const lastCandle = kCandles5m[kCandles5m.length - 1];
+          const { dateStr: targetDate } = getISTDateParts(lastCandle.timestamp);
+
+          const sessionCandles = kCandles5m.filter(c => {
+            const { dateStr, hours, minutes } = getISTDateParts(c.timestamp);
+            const totalMins = hours * 60 + minutes;
+            return dateStr === targetDate && totalMins >= 555 && totalMins <= 930;
+          });
+
+          // Prior session close if multi-day lookback returned previous days
+          const priorCandles = kCandles5m.filter(c => {
+            const { dateStr } = getISTDateParts(c.timestamp);
+            return dateStr < targetDate;
+          });
+          if (priorCandles.length > 0) {
+            prevClose = priorCandles[priorCandles.length - 1].close;
+          }
+
+          fiveMinCandles = sessionCandles.map(c => {
             const { timeStr, dateStr } = getISTDateParts(c.timestamp);
             const futVol = futVolMap.get(c.timestamp);
             return {
@@ -305,7 +329,10 @@ export async function GET(request: Request) {
             };
           });
           fiveMinCandles = attachIndicators(fiveMinCandles);
-          if (!dayOpen && fiveMinCandles.length > 0) dayOpen = fiveMinCandles[0].open;
+          if (fiveMinCandles.length > 0) {
+            dayOpen = fiveMinCandles[0].open;
+            spotPrice = fiveMinCandles[fiveMinCandles.length - 1].close;
+          }
         }
       } catch (kiteErr) {
         console.warn('[MarketChart API] Live Kite fetch failed, falling back:', kiteErr);
