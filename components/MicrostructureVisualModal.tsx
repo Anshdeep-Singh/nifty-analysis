@@ -1734,7 +1734,7 @@ function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
         </div>
 
         {/* Master VSA Tags & Colors Reference Table */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+        <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
           <div className="p-3 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <BarChart2 className="w-4 h-4 text-cyan-400" />
@@ -1749,151 +1749,172 @@ function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
             <table className="w-full text-left text-xs font-mono">
               <thead>
                 <tr className="border-b border-slate-800 text-slate-400 bg-slate-950/50 text-[11px]">
-                  <th className="py-2.5 px-3">Volume Bar Color</th>
-                  <th className="py-2.5 px-3">Hover Tag Label</th>
-                  <th className="py-2.5 px-3">Formula Condition</th>
-                  <th className="py-2.5 px-3">Directional Bias</th>
-                  <th className="py-2.5 px-3">Institutional Microstructure Meaning</th>
+                  <th className="py-2.5 px-3.5 whitespace-nowrap min-w-[150px]">Volume Bar Color</th>
+                  <th className="py-2.5 px-3.5 whitespace-nowrap min-w-[210px]">Hover Tag Label</th>
+                  <th className="py-2.5 px-3.5 whitespace-nowrap min-w-[200px]">Formula Condition</th>
+                  <th className="py-2.5 px-3.5 whitespace-nowrap min-w-[170px]">Directional Bias</th>
+                  <th className="py-2.5 px-3.5 min-w-[300px]">Institutional Microstructure Meaning</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 text-[11px]">
                 <tr className="hover:bg-slate-800/40 transition-colors">
-                  <td className="py-2.5 px-3 font-bold text-amber-400 flex items-center gap-1.5">
-                    <span className="w-3 h-3 rounded bg-amber-400 inline-block" />
-                    Yellow / Amber
+                  <td className="py-2.5 px-3.5 font-bold text-amber-400 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0" />
+                      <span>Yellow / Amber</span>
+                    </div>
                   </td>
-                  <td className="py-2.5 px-3 font-bold text-emerald-400">
+                  <td className="py-2.5 px-3.5 font-bold text-emerald-400 whitespace-nowrap">
                     Selling Capitulation Wick
                   </td>
-                  <td className="py-2.5 px-3 text-slate-300">
+                  <td className="py-2.5 px-3.5 text-slate-300 whitespace-nowrap font-sans">
                     Vol &ge; 1.5x &amp; Lower Wick &ge; 50%
                   </td>
-                  <td className="py-2.5 px-3">
-                    <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 font-bold border border-emerald-800">
-                      BULLISH (UP 🟢)
+                  <td className="py-2.5 px-3.5 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-950 text-emerald-300 font-bold border border-emerald-800 shadow-sm whitespace-nowrap">
+                      <span>BULLISH (UP)</span>
+                      <span>🟢</span>
                     </span>
                   </td>
-                  <td className="py-2.5 px-3 font-sans text-slate-300">
+                  <td className="py-2.5 px-3.5 font-sans text-slate-300 leading-relaxed">
                     Panic selling absorbed by institutional buy orders. Seller exhaustion; bottoming reversal likely.
                   </td>
                 </tr>
                 <tr className="hover:bg-slate-800/40 transition-colors">
-                  <td className="py-2.5 px-3 font-bold text-amber-400 flex items-center gap-1.5">
-                    <span className="w-3 h-3 rounded bg-amber-400 inline-block" />
-                    Yellow / Amber
+                  <td className="py-2.5 px-3.5 font-bold text-amber-400 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0" />
+                      <span>Yellow / Amber</span>
+                    </div>
                   </td>
-                  <td className="py-2.5 px-3 font-bold text-rose-400">
+                  <td className="py-2.5 px-3.5 font-bold text-rose-400 whitespace-nowrap">
                     Buying Climax Rejection
                   </td>
-                  <td className="py-2.5 px-3 text-slate-300">
+                  <td className="py-2.5 px-3.5 text-slate-300 whitespace-nowrap font-sans">
                     Vol &ge; 1.5x &amp; Upper Wick &ge; 50%
                   </td>
-                  <td className="py-2.5 px-3">
-                    <span className="px-2 py-0.5 rounded bg-rose-950 text-rose-300 font-bold border border-rose-800">
-                      BEARISH (DOWN 🔴)
+                  <td className="py-2.5 px-3.5 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-rose-950 text-rose-300 font-bold border border-rose-800 shadow-sm whitespace-nowrap">
+                      <span>BEARISH (DOWN)</span>
+                      <span>🔴</span>
                     </span>
                   </td>
-                  <td className="py-2.5 px-3 font-sans text-slate-300">
+                  <td className="py-2.5 px-3.5 font-sans text-slate-300 leading-relaxed">
                     Breakout buying dumped into institutional sell orders. Buyer exhaustion; topping reversal likely.
                   </td>
                 </tr>
                 <tr className="hover:bg-slate-800/40 transition-colors">
-                  <td className="py-2.5 px-3 font-bold text-cyan-400 flex items-center gap-1.5">
-                    <span className="w-3 h-3 rounded bg-cyan-400 inline-block" />
-                    Vibrant Cyan
+                  <td className="py-2.5 px-3.5 font-bold text-cyan-400 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 shrink-0" />
+                      <span>Vibrant Cyan</span>
+                    </div>
                   </td>
-                  <td className="py-2.5 px-3 font-bold text-cyan-300">
+                  <td className="py-2.5 px-3.5 font-bold text-cyan-300 whitespace-nowrap">
                     Institutional Absorption (Pin)
                   </td>
-                  <td className="py-2.5 px-3 text-slate-300">
+                  <td className="py-2.5 px-3.5 text-slate-300 whitespace-nowrap font-sans">
                     Vol &ge; 1.7x &amp; Spread &le; 0.7x ATR
                   </td>
-                  <td className="py-2.5 px-3">
-                    <span className="px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 font-bold border border-cyan-800">
-                      PIVOT / PIN ⚡
+                  <td className="py-2.5 px-3.5 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-cyan-950 text-cyan-300 font-bold border border-cyan-800 shadow-sm whitespace-nowrap">
+                      <span>PIVOT / PIN</span>
+                      <span>⚡</span>
                     </span>
                   </td>
-                  <td className="py-2.5 px-3 font-sans text-slate-300">
+                  <td className="py-2.5 px-3.5 font-sans text-slate-300 leading-relaxed">
                     Passive limit orders absorb heavy market flow without price moving. Trend brake; preceding sharp reversal.
                   </td>
                 </tr>
                 <tr className="hover:bg-slate-800/40 transition-colors">
-                  <td className="py-2.5 px-3 font-bold text-emerald-400 flex items-center gap-1.5">
-                    <span className="w-3 h-3 rounded bg-emerald-500 inline-block" />
-                    Solid Bright Green
+                  <td className="py-2.5 px-3.5 font-bold text-emerald-400 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+                      <span>Solid Bright Green</span>
+                    </div>
                   </td>
-                  <td className="py-2.5 px-3 font-bold text-emerald-300">
+                  <td className="py-2.5 px-3.5 font-bold text-emerald-300 whitespace-nowrap">
                     Confirmed Bullish Impulse
                   </td>
-                  <td className="py-2.5 px-3 text-slate-300">
+                  <td className="py-2.5 px-3.5 text-slate-300 whitespace-nowrap font-sans">
                     Vol &ge; 1.45x &amp; Spread &ge; 1.25x &amp; CLV &ge; +0.35
                   </td>
-                  <td className="py-2.5 px-3">
-                    <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 font-bold border border-emerald-800">
-                      BULLISH EXP (UP 🟢)
+                  <td className="py-2.5 px-3.5 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-950 text-emerald-300 font-bold border border-emerald-800 shadow-sm whitespace-nowrap">
+                      <span>BULLISH EXP (UP)</span>
+                      <span>🟢</span>
                     </span>
                   </td>
-                  <td className="py-2.5 px-3 font-sans text-slate-300">
+                  <td className="py-2.5 px-3.5 font-sans text-slate-300 leading-relaxed">
                     Effort matches result. Genuine institutional buying power drives expansion. Safe to ride continuation.
                   </td>
                 </tr>
                 <tr className="hover:bg-slate-800/40 transition-colors">
-                  <td className="py-2.5 px-3 font-bold text-rose-400 flex items-center gap-1.5">
-                    <span className="w-3 h-3 rounded bg-rose-500 inline-block" />
-                    Solid Bright Red
+                  <td className="py-2.5 px-3.5 font-bold text-rose-400 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
+                      <span>Solid Bright Red</span>
+                    </div>
                   </td>
-                  <td className="py-2.5 px-3 font-bold text-rose-300">
+                  <td className="py-2.5 px-3.5 font-bold text-rose-300 whitespace-nowrap">
                     Confirmed Bearish Impulse
                   </td>
-                  <td className="py-2.5 px-3 text-slate-300">
+                  <td className="py-2.5 px-3.5 text-slate-300 whitespace-nowrap font-sans">
                     Vol &ge; 1.45x &amp; Spread &ge; 1.25x &amp; CLV &le; -0.35
                   </td>
-                  <td className="py-2.5 px-3">
-                    <span className="px-2 py-0.5 rounded bg-rose-950 text-rose-300 font-bold border border-rose-800">
-                      BEARISH EXP (DOWN 🔴)
+                  <td className="py-2.5 px-3.5 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-rose-950 text-rose-300 font-bold border border-rose-800 shadow-sm whitespace-nowrap">
+                      <span>BEARISH EXP (DOWN)</span>
+                      <span>🔴</span>
                     </span>
                   </td>
-                  <td className="py-2.5 px-3 font-sans text-slate-300">
+                  <td className="py-2.5 px-3.5 font-sans text-slate-300 leading-relaxed">
                     Effort matches result. Aggressive institutional selling breaks support. Safe to ride continuation.
                   </td>
                 </tr>
                 <tr className="hover:bg-slate-800/40 transition-colors">
-                  <td className="py-2.5 px-3 font-bold text-rose-300/60 flex items-center gap-1.5">
-                    <span className="w-3 h-3 rounded bg-rose-500/30 border border-rose-500/50 inline-block" />
-                    Faded / Dim Red
+                  <td className="py-2.5 px-3.5 font-bold text-rose-300/80 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500/40 border border-rose-500/60 shrink-0" />
+                      <span>Faded / Dim Red</span>
+                    </div>
                   </td>
-                  <td className="py-2.5 px-3 font-bold text-rose-400">
+                  <td className="py-2.5 px-3.5 font-bold text-rose-400 whitespace-nowrap">
                     Air Pocket Spike / Drop
                   </td>
-                  <td className="py-2.5 px-3 text-slate-300">
+                  <td className="py-2.5 px-3.5 text-slate-300 whitespace-nowrap font-sans">
                     Vol &le; 0.75x &amp; Spread &ge; 1.35x ATR
                   </td>
-                  <td className="py-2.5 px-3">
-                    <span className="px-2 py-0.5 rounded bg-amber-950 text-amber-300 font-bold border border-amber-800">
-                      TRAP WARNING ⚠️
+                  <td className="py-2.5 px-3.5 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-amber-950 text-amber-300 font-bold border border-amber-800 shadow-sm whitespace-nowrap">
+                      <span>TRAP WARNING</span>
+                      <span>⚠️</span>
                     </span>
                   </td>
-                  <td className="py-2.5 px-3 font-sans text-slate-300">
+                  <td className="py-2.5 px-3.5 font-sans text-slate-300 leading-relaxed">
                     Result without effort. Price swept retail stops through thin liquidity. High odds of false breakout snapback.
                   </td>
                 </tr>
                 <tr className="hover:bg-slate-800/40 transition-colors">
-                  <td className="py-2.5 px-3 text-slate-400 flex items-center gap-1.5">
-                    <span className="w-3 h-3 rounded bg-slate-700 inline-block" />
-                    Muted Green / Red
+                  <td className="py-2.5 px-3.5 text-slate-400 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-slate-700 shrink-0" />
+                      <span>Muted Green / Red</span>
+                    </div>
                   </td>
-                  <td className="py-2.5 px-3 text-slate-300">
+                  <td className="py-2.5 px-3.5 text-slate-300 whitespace-nowrap">
                     Normal Auction
                   </td>
-                  <td className="py-2.5 px-3 text-slate-400">
+                  <td className="py-2.5 px-3.5 text-slate-400 whitespace-nowrap font-sans">
                     Within normal ATR &amp; SMA bounds
                   </td>
-                  <td className="py-2.5 px-3">
-                    <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-bold">
-                      NEUTRAL ⚪
+                  <td className="py-2.5 px-3.5 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 text-slate-400 font-bold whitespace-nowrap">
+                      <span>NEUTRAL</span>
+                      <span>⚪</span>
                     </span>
                   </td>
-                  <td className="py-2.5 px-3 font-sans text-slate-400">
+                  <td className="py-2.5 px-3.5 font-sans text-slate-400 leading-relaxed">
                     Standard two-way continuous auction. Normal liquidity flow.
                   </td>
                 </tr>
