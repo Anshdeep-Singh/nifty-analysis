@@ -4,6 +4,8 @@ import path from 'path';
 import { getKiteSessionFromRequest, fetchKiteHistoricalCandles, fetchKiteQuotes, KiteQuoteItem } from '@/lib/kite/session';
 import { CandleBar, MultiTfChartData, MultiTfPayload } from '@/lib/types';
 import { buildSmartMoneyRoadmap } from '@/lib/engine/smartMoneyRoadmap';
+import { calculateTrueVwap, classifyCandleVsa } from '@/lib/engine/vsaEngine';
+import { getActiveFuturesContract } from '@/lib/kite/futuresResolver';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -36,33 +38,22 @@ function calculateEma(values: number[], period: number): number[] {
   return ema;
 }
 
-function calculateSessionVwap(candles: { high: number; low: number; close: number; volume: number }[]): number[] {
-  let cumVol = 0;
-  let cumPv = 0;
-  const vwapList: number[] = [];
-  for (const c of candles) {
-    const tp = (c.high + c.low + c.close) / 3;
-    const vol = c.volume > 0 ? c.volume : 1000;
-    cumPv += tp * vol;
-    cumVol += vol;
-    vwapList.push(Number((cumPv / cumVol).toFixed(2)));
-  }
-  return vwapList;
-}
-
 function attachIndicators(candles: CandleBar[]): CandleBar[] {
   if (candles.length === 0) return [];
   const closes = candles.map(c => c.close);
   const ema20 = calculateEma(closes, 20);
   const ema50 = calculateEma(closes, 50);
-  const vwap = calculateSessionVwap(candles);
+  const vwap = calculateTrueVwap(candles);
 
-  return candles.map((c, idx) => ({
+  const baseCandles = candles.map((c, idx) => ({
     ...c,
     ema20: ema20[idx],
     ema50: ema50[idx],
     vwap: vwap[idx]
   }));
+
+  // Run Volume Spread Analysis (VSA) only if authentic volume is present (no artificial fallback)
+  return classifyCandleVsa(baseCandles);
 }
 
 function aggregateCandles(baseCandles: CandleBar[], groupCount: number, tf: '15min' | '1hr'): CandleBar[] {
@@ -80,7 +71,7 @@ function aggregateCandles(baseCandles: CandleBar[], groupCount: number, tf: '15m
       high: Number(Math.max(...slice.map(s => s.high)).toFixed(2)),
       low: Number(Math.min(...slice.map(s => s.low)).toFixed(2)),
       close: last.close,
-      volume: slice.reduce((sum, s) => sum + s.volume, 0)
+      volume: slice.reduce((sum, s) => sum + (s.volume || 0), 0)
     });
   }
   return attachIndicators(aggregated);
@@ -265,10 +256,26 @@ export async function GET(request: Request) {
         const fromStr = `${todayStr} 09:00:00`;
         const toStr = `${todayStr} 15:30:00`;
 
-        const [kCandles5m, quotes] = await Promise.all([
+        // Resolve front-month futures contract dynamically to obtain authentic candle volume
+        const futContract = await getActiveFuturesContract(targetSymbol).catch(() => null);
+        const futPromise = futContract
+          ? fetchKiteHistoricalCandles(futContract.instrumentToken, '5minute', fromStr, toStr, session).catch(() => [])
+          : Promise.resolve([]);
+
+        const [kCandles5m, quotes, kFutCandles] = await Promise.all([
           fetchKiteHistoricalCandles(indexToken, '5minute', fromStr, toStr, session),
-          fetchKiteQuotes([kiteIndexKey, 'NSE:INDIA VIX'], session).catch((): Record<string, KiteQuoteItem> => ({}))
+          fetchKiteQuotes([kiteIndexKey, 'NSE:INDIA VIX'], session).catch((): Record<string, KiteQuoteItem> => ({})),
+          futPromise
         ]);
+
+        const futVolMap = new Map<number, number>();
+        if (Array.isArray(kFutCandles)) {
+          for (const fc of kFutCandles) {
+            if (fc && fc.timestamp && fc.volume > 0) {
+              futVolMap.set(fc.timestamp, fc.volume);
+            }
+          }
+        }
 
         const vixQuote = quotes['NSE:INDIA VIX'];
         if (vixQuote?.last_price) {
@@ -285,6 +292,7 @@ export async function GET(request: Request) {
         if (Array.isArray(kCandles5m) && kCandles5m.length > 0) {
           fiveMinCandles = kCandles5m.map(c => {
             const { timeStr, dateStr } = getISTDateParts(c.timestamp);
+            const futVol = futVolMap.get(c.timestamp);
             return {
               timestamp: c.timestamp,
               time: timeStr,
@@ -293,7 +301,7 @@ export async function GET(request: Request) {
               high: c.high,
               low: c.low,
               close: c.close,
-              volume: c.volume || 1000
+              volume: typeof futVol === 'number' && futVol > 0 ? futVol : (c.volume || 0)
             };
           });
           fiveMinCandles = attachIndicators(fiveMinCandles);
@@ -308,7 +316,7 @@ export async function GET(request: Request) {
     if (fiveMinCandles.length === 0) {
       const publicCandles = await fetchYahooIntradayCandles(yahooSymbol);
       if (publicCandles && publicCandles.candles.length > 0) {
-        fiveMinCandles = publicCandles.candles;
+        fiveMinCandles = attachIndicators(publicCandles.candles);
         prevClose = publicCandles.prevClose;
         spotPrice = publicCandles.spot;
         dayOpen = publicCandles.dayOpen;
@@ -319,14 +327,14 @@ export async function GET(request: Request) {
     if (fiveMinCandles.length === 0 && !isBankNifty) {
       const diskData = loadFallbackAuthenticCandles();
       if (diskData && diskData.fiveMin.length > 0) {
-        fiveMinCandles = diskData.fiveMin;
+        fiveMinCandles = attachIndicators(diskData.fiveMin);
         prevClose = diskData.prevClose;
         spotPrice = diskData.spot;
         dayOpen = fiveMinCandles[0]?.open || prevClose;
       }
     }
 
-    // Guard: Clean base session fallback if still empty
+    // Guard: Clean base session fallback if still empty (strictly 0 volume if unavailable, no artificial calculation)
     if (fiveMinCandles.length === 0) {
       const baseTime = Math.floor(Date.now() / 1000) - 3600;
       const buffer = isBankNifty ? 35 : 10;
@@ -339,7 +347,7 @@ export async function GET(request: Request) {
           high: Math.max(spotPrice, prevClose) + buffer,
           low: Math.min(spotPrice, prevClose) - buffer,
           close: spotPrice,
-          volume: 50000
+          volume: 0
         }
       ];
       fiveMinCandles = attachIndicators(fiveMinCandles);
@@ -352,6 +360,12 @@ export async function GET(request: Request) {
     const dayHigh = Math.max(...fiveMinCandles.map(c => c.high));
     const dayLow = Math.min(...fiveMinCandles.map(c => c.low));
     const latestClose = fiveMinCandles[fiveMinCandles.length - 1]?.close || spotPrice;
+
+    // Check if authentic volume is available
+    const hasVolume = fiveMinCandles.some(c => typeof c.volume === 'number' && c.volume > 0);
+    const volumeMessage = hasVolume
+      ? undefined
+      : 'Volume data not available for cash index spot (Connect Zerodha Kite to stream authentic front-month Futures volume)';
 
     // Generate Smart Money Roadmap & Tactical Levels
     const smartRoadmap = buildSmartMoneyRoadmap({
@@ -372,6 +386,8 @@ export async function GET(request: Request) {
       dayOpen,
       vix,
       smartRoadmap,
+      volumeAvailable: hasVolume,
+      volumeMessage,
       charts: {
         fiveMin: {
           timeframe: '5min',
@@ -380,7 +396,9 @@ export async function GET(request: Request) {
           dayOpen,
           dayHigh,
           dayLow,
-          prevClose
+          prevClose,
+          volumeAvailable: hasVolume,
+          volumeMessage
         },
         fifteenMin: {
           timeframe: '15min',
@@ -389,7 +407,9 @@ export async function GET(request: Request) {
           dayOpen,
           dayHigh,
           dayLow,
-          prevClose
+          prevClose,
+          volumeAvailable: hasVolume,
+          volumeMessage
         },
         oneHour: {
           timeframe: '1hr',
@@ -398,7 +418,9 @@ export async function GET(request: Request) {
           dayOpen,
           dayHigh,
           dayLow,
-          prevClose
+          prevClose,
+          volumeAvailable: hasVolume,
+          volumeMessage
         }
       },
       timestamp: new Date().toISOString()

@@ -205,6 +205,25 @@ export interface SmartMoneyRoadmapState {
   dailyExpectedMovePts: number;
 }
 
+export type VsaPatternType =
+  | 'AIR_POCKET_SPIKE'          // Wide spread + dry volume (< 0.75x SMA) -> False Spike / Liquidity Sweep Trap
+  | 'INSTITUTIONAL_ABSORPTION'  // Narrow spread + heavy volume (> 1.75x SMA) -> Passive limit absorbing aggressive orders
+  | 'INSTITUTIONAL_IMPULSE'     // Wide spread + heavy volume (> 1.50x SMA) -> Genuine trend acceleration
+  | 'CLIMAX_EXHAUSTION'         // Outsized wick (> 50% range) on heavy volume -> Rejection / Climax
+  | 'NORMAL_AUCTION';           // Continuous balanced flow within baseline expectations
+
+export interface VsaClassification {
+  pattern: VsaPatternType;
+  label: string;
+  bias: 'BULLISH' | 'BEARISH' | 'TRAP_WARNING' | 'ABSORPTION' | 'NEUTRAL';
+  volumeRatio: number;          // Volume / 20-SMA Volume
+  spreadRatio: number;          // (High - Low) / 20-ATR
+  clv: number;                  // Close Location Value: -1.0 (at low) to +1.0 (at high)
+  isAnomaly: boolean;           // High-priority microstructure alert
+  badgeColor: string;           // Tailwind badge color token
+  narrative: string;            // Crisp institutional description
+}
+
 export interface CandleBar {
   timestamp: number;
   time: string;
@@ -217,6 +236,7 @@ export interface CandleBar {
   vwap?: number;
   ema20?: number;
   ema50?: number;
+  vsa?: VsaClassification;
 }
 
 export interface MultiTfChartData {
@@ -227,6 +247,8 @@ export interface MultiTfChartData {
   dayHigh: number;
   dayLow: number;
   prevClose: number;
+  volumeAvailable?: boolean;
+  volumeMessage?: string;
 }
 
 export interface MultiTfPayload {
@@ -236,6 +258,8 @@ export interface MultiTfPayload {
   dayOpen: number;
   vix: number;
   smartRoadmap: SmartMoneyRoadmapState;
+  volumeAvailable?: boolean;
+  volumeMessage?: string;
   charts: {
     fiveMin: MultiTfChartData;
     fifteenMin: MultiTfChartData;
@@ -354,6 +378,9 @@ export interface Rolling30mPrediction {
     anomalyDetected: boolean;
     anomalyType?: string;
     anomalySymbol?: string;
+    latestCandleVsa?: VsaClassification;
+    volumeAvailable?: boolean;
+    volumeMessage?: string;
   };
   reconciliationState: 'CONFLUENT_TREND' | 'VOLATILITY_EXPANSION' | 'FORTRESS_PIN' | 'FAKEOUT_EXHAUSTION' | 'AIR_POCKET_SLIPPAGE';
 }

@@ -163,16 +163,20 @@ export function Rolling30mPredictionCard({
           <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
           <div className="text-xs">
             <span className="font-bold text-rose-300 uppercase tracking-wide">
-              {volumeMetrics.anomalyType === 'SINGLE_STOCK_SKEW'
-                ? `Microstructure Anomaly: Single-Stock Skew (${volumeMetrics.anomalySymbol ?? 'Leading Heavyweight'})`
-                : 'Microstructure Anomaly: Thin Air Pocket Slippage'}
+              {volumeMetrics.anomalyType === 'AIR_POCKET_SPIKE'
+                ? 'Microstructure Anomaly: 5m Candle Air Pocket Spike (Dry Volume Trap)'
+                : (volumeMetrics.anomalyType === 'SINGLE_STOCK_SKEW'
+                    ? `Microstructure Anomaly: Single-Stock Skew (${volumeMetrics.anomalySymbol ?? 'Leading Heavyweight'})`
+                    : 'Microstructure Anomaly: Thin Air Pocket Slippage')}
             </span>
             <p className="text-slate-300 mt-0.5">
-              {reconciliationState === 'FAKEOUT_EXHAUSTION'
-                ? (netPointImpact < 0 || isBear
-                    ? `${volumeMetrics.anomalySymbol ?? 'Leading constituent'} is dragging the index down alone without broad multi-sector capitulation. Trend confidence has been penalized and clamped to ${confidencePct}% to guard against breakdown traps.`
-                    : `${volumeMetrics.anomalySymbol ?? 'Leading constituent'} is lifting the index up alone without broad constituent confirmation. Trend confidence has been penalized and clamped to ${confidencePct}% to guard against breakout traps.`)
-                : `Move occurred in low constituent volume depth (${volumeMetrics.top5HeavyweightRvol}x RVOL). Risk of rapid mean-reversion is elevated.`}
+              {volumeMetrics.anomalyType === 'AIR_POCKET_SPIKE'
+                ? `Latest candle pushed aggressively (${volumeMetrics.latestCandleVsa?.spreadRatio ?? 1.4}x ATR) but institutional volume was dry (${volumeMetrics.latestCandleVsa?.volumeRatio ?? 0.6}x 20-SMA). High statistical probability of a false breakout / liquidity sweep trap.`
+                : (reconciliationState === 'FAKEOUT_EXHAUSTION'
+                    ? (netPointImpact < 0 || isBear
+                        ? `${volumeMetrics.anomalySymbol ?? 'Leading constituent'} is dragging the index down alone without broad multi-sector capitulation. Trend confidence has been penalized and clamped to ${confidencePct}% to guard against breakdown traps.`
+                        : `${volumeMetrics.anomalySymbol ?? 'Leading constituent'} is lifting the index up alone without broad constituent confirmation. Trend confidence has been penalized and clamped to ${confidencePct}% to guard against breakout traps.`)
+                    : `Move occurred in low constituent volume depth (${volumeMetrics.top5HeavyweightRvol}x RVOL). Risk of rapid mean-reversion is elevated.`)}
             </p>
           </div>
         </div>
@@ -290,6 +294,28 @@ export function Rolling30mPredictionCard({
                 {volumeMetrics.top5HeavyweightRvol}x
               </span>
             </div>
+            {volumeMetrics.latestCandleVsa ? (
+              <div className="pt-1.5 border-t border-slate-800/80 flex items-center justify-between">
+                <span className="text-[10px] text-slate-400">5m Candle VSA:</span>
+                <span
+                  className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border ${volumeMetrics.latestCandleVsa.badgeColor}`}
+                  title={volumeMetrics.latestCandleVsa.narrative}
+                >
+                  {volumeMetrics.latestCandleVsa.pattern === 'AIR_POCKET_SPIKE' && '⚠️ '}
+                  {volumeMetrics.latestCandleVsa.pattern === 'INSTITUTIONAL_ABSORPTION' && '⚡ '}
+                  {volumeMetrics.latestCandleVsa.pattern === 'INSTITUTIONAL_IMPULSE' && '✅ '}
+                  {volumeMetrics.latestCandleVsa.pattern === 'CLIMAX_EXHAUSTION' && '🔄 '}
+                  {volumeMetrics.latestCandleVsa.label.split(' ')[0]} ({volumeMetrics.latestCandleVsa.volumeRatio}x)
+                </span>
+              </div>
+            ) : (
+              <div className="pt-1.5 border-t border-slate-800/80 flex items-center justify-between">
+                <span className="text-[10px] text-slate-400">5m Candle VSA:</span>
+                <span className="text-[9px] font-mono text-slate-500 italic">
+                  Volume Unavailable (Cash Spot)
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Pillar 3: Dealer GEX & OI Velocity */}

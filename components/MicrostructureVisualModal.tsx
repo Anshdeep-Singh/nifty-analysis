@@ -35,6 +35,7 @@ export type MicrostructureTopicId =
   | 'gap-runaway'
   | 'gap-exhaustion'
   | 'clv'
+  | 'vsa-microstructure'
   | 'stop-hunt'
   | 'culprit-divergence'
   | 'put-call-walls'
@@ -68,6 +69,7 @@ const TOPICS: TopicMeta[] = [
   { id: 'gap-runaway', title: 'Runaway Gap', badge: 'Mid-Trend Carry', category: 'Gaps', fillOdds: '28%', contOdds: '62%' },
   { id: 'gap-exhaustion', title: 'Exhaustion Gap', badge: 'Late Trap / Reversal', category: 'Gaps', fillOdds: '78%', contOdds: '12%' },
   { id: 'clv', title: 'Close Location Value (CLV)', badge: 'Closing Auction Control', category: 'Price Action' },
+  { id: 'vsa-microstructure', title: 'Volume Spread Analysis (VSA)', badge: 'False Spikes vs Absorption', category: 'Price Action' },
   { id: 'stop-hunt', title: 'Stop-Loss Hunt / Sweep', badge: 'Liquidity Grab', category: 'Price Action' },
   { id: 'culprit-divergence', title: 'Single-Stock Skew & Breadth Trap', badge: 'Heavyweight Divergence', category: 'Price Action' },
   { id: 'put-call-walls', title: 'Put Wall & Call Wall', badge: 'Open Interest Concentration', category: 'Microstructure' },
@@ -272,6 +274,9 @@ export function MicrostructureVisualModal({
           )}
           {selectedTopic === 'clv' && (
             <ClvVisual viewMode={viewMode} synthesis={synthesis} spotPrice={spotPrice} />
+          )}
+          {selectedTopic === 'vsa-microstructure' && (
+            <VsaVisual viewMode={viewMode} synthesis={synthesis} spotPrice={spotPrice} />
           )}
           {selectedTopic === 'stop-hunt' && (
             <StopHuntVisual viewMode={viewMode} synthesis={synthesis} spotPrice={spotPrice} />
@@ -956,6 +961,119 @@ function ClvVisual({ viewMode, synthesis }: VisualBaseProps) {
             <p className="text-[11px] text-slate-300 leading-tight">
               Sellers controlled the closing auction, flushing down to lows.
             </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// 5.5 VOLUME SPREAD ANALYSIS (VSA) VISUAL
+// ==========================================
+function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-lg font-bold text-white">Volume Spread Analysis (VSA)</span>
+            <span className="text-[11px] font-mono px-2 py-0.5 rounded border bg-cyan-950 border-cyan-800 text-cyan-300">
+              Effort vs Result Microstructure
+            </span>
+          </div>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Evaluates whether candle spread expansion is verified by genuine institutional volume or represents an empty liquidity sweep.
+          </p>
+        </div>
+      </div>
+
+      <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-4">
+        <div className="p-3 bg-slate-900/90 border border-slate-800 rounded-lg text-xs font-mono text-cyan-300 flex items-center justify-between flex-wrap gap-2">
+          <span>VSA Principle = Big Candle Spread + Dry Volume = Liquidity Sweep / False Spike</span>
+          <span className="text-slate-400">Baseline: 20-ATR Spread & 20-SMA Volume</span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Card 1: Air Pocket Spike */}
+          <div className="bg-slate-900 border border-rose-900/60 rounded-xl p-3 flex flex-col items-center text-center">
+            <span className="text-xs font-bold text-rose-400 flex items-center gap-1">
+              ⚠️ Air Pocket Spike
+            </span>
+            <span className="text-[10px] text-slate-400">Wide Spread + Dry Volume (&lt; 0.75x)</span>
+            <svg viewBox="0 0 100 150" className="w-24 h-36 my-2 select-none">
+              {/* Large Candle */}
+              <line x1="50" y1="15" x2="50" y2="95" stroke="#10b981" strokeWidth="2" />
+              <rect x="40" y="25" width="20" height="60" fill="#10b981" rx="2" />
+              <text x="66" y="55" fill="#34d399" fontSize="8" fontWeight="bold">+35 pts</text>
+              {/* Tiny Volume Bar */}
+              <line x1="15" y1="108" x2="85" y2="108" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
+              <rect x="42" y="125" width="16" height="15" fill="#f43f5e" opacity="0.4" rx="1" />
+              <text x="50" y="148" fill="#fda4af" fontSize="8" textAnchor="middle">0.5x Vol</text>
+            </svg>
+            <p className="text-[11px] text-slate-300 leading-tight">
+              Result without effort. Price swept retail stops through thin limit orders. High odds of false breakout snapback.
+            </p>
+          </div>
+
+          {/* Card 2: Institutional Absorption */}
+          <div className="bg-slate-900 border border-cyan-900/60 rounded-xl p-3 flex flex-col items-center text-center">
+            <span className="text-xs font-bold text-cyan-400 flex items-center gap-1">
+              ⚡ Institutional Absorption
+            </span>
+            <span className="text-[10px] text-slate-400">Tight Spread + Heavy Volume (&gt; 1.7x)</span>
+            <svg viewBox="0 0 100 150" className="w-24 h-36 my-2 select-none">
+              {/* Tiny Candle with Rejection Wick */}
+              <line x1="50" y1="35" x2="50" y2="90" stroke="#06b6d4" strokeWidth="2" />
+              <rect x="42" y="40" width="16" height="18" fill="#06b6d4" rx="2" />
+              <text x="65" y="52" fill="#67e8f9" fontSize="8" fontWeight="bold">8 pts</text>
+              {/* Massive Volume Bar */}
+              <line x1="15" y1="108" x2="85" y2="108" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
+              <rect x="40" y="112" width="20" height="28" fill="#06b6d4" opacity="0.9" rx="1" />
+              <text x="50" y="148" fill="#67e8f9" fontSize="8" textAnchor="middle">2.2x Vol</text>
+            </svg>
+            <p className="text-[11px] text-slate-300 leading-tight">
+              Effort without result. Passive institutional limit orders absorb market orders. Precedes major directional reversals.
+            </p>
+          </div>
+
+          {/* Card 3: Confirmed Institutional Impulse */}
+          <div className="bg-slate-900 border border-emerald-900/60 rounded-xl p-3 flex flex-col items-center text-center">
+            <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
+              ✅ Institutional Impulse
+            </span>
+            <span className="text-[10px] text-slate-400">Wide Spread + High Volume (&gt; 1.5x)</span>
+            <svg viewBox="0 0 100 150" className="w-24 h-36 my-2 select-none">
+              {/* Solid Candle */}
+              <line x1="50" y1="15" x2="50" y2="95" stroke="#10b981" strokeWidth="2" />
+              <rect x="40" y="20" width="20" height="70" fill="#10b981" rx="2" />
+              <text x="66" y="55" fill="#34d399" fontSize="8" fontWeight="bold">+40 pts</text>
+              {/* Outsized Volume Bar */}
+              <line x1="15" y1="108" x2="85" y2="108" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
+              <rect x="40" y="114" width="20" height="26" fill="#10b981" opacity="0.9" rx="1" />
+              <text x="50" y="148" fill="#34d399" fontSize="8" textAnchor="middle">1.8x Vol</text>
+            </svg>
+            <p className="text-[11px] text-slate-300 leading-tight">
+              Effort matches result. Genuine institutional buying power drives the expansion. Continuation highly favored.
+            </p>
+          </div>
+        </div>
+
+        {/* Tactical Playbook Matrix */}
+        <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg space-y-2">
+          <div className="text-xs font-bold text-white flex items-center gap-1.5">
+            <Compass className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Tactical VSA Action Playbook</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+            <div className="p-2 rounded bg-slate-950 border border-rose-900/40 text-slate-300">
+              <strong className="text-rose-400 block mb-0.5">When Air Pocket Spike Appears:</strong>
+              Do NOT chase momentum or place breakout market orders. Look for rejection wicks back below the breakout level to initiate counter-trend mean-reversion trades.
+            </div>
+            <div className="p-2 rounded bg-slate-950 border border-cyan-900/40 text-slate-300">
+              <strong className="text-cyan-400 block mb-0.5">When Absorption Appears at Key Level:</strong>
+              Stop trying to push direction in that zone. Smart money is laying passive limits (absorbing sellers at Put Wall or buyers at Call Wall); position with the reversal.
+            </div>
           </div>
         </div>
       </div>

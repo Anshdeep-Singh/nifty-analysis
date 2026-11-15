@@ -46,6 +46,8 @@ interface ChartPanelProps {
   prevClose: number;
   tacticalLevels: SmartKeyLevel[];
   showIndicators: boolean;
+  volumeAvailable?: boolean;
+  volumeMessage?: string;
 }
 
 function SingleTfChart({
@@ -56,7 +58,9 @@ function SingleTfChart({
   dayOpen,
   prevClose,
   tacticalLevels,
-  showIndicators
+  showIndicators,
+  volumeAvailable,
+  volumeMessage
 }: ChartPanelProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -264,14 +268,41 @@ function SingleTfChart({
       close: c.close
     }));
 
-    const vData: HistogramData<Time>[] = cleanCandles.map((c) => ({
-      time: c.timestamp as UTCTimestamp,
-      value: c.volume || 1000,
-      color: c.close >= c.open ? 'rgba(16, 185, 129, 0.25)' : 'rgba(244, 63, 94, 0.25)'
-    }));
+    const hasVolume = Boolean(
+      (volumeAvailable ?? true) && cleanCandles.some((c) => typeof c.volume === 'number' && c.volume > 0)
+    );
 
     candleSeriesRef.current.setData(cData);
-    if (volumeSeriesRef.current) volumeSeriesRef.current.setData(vData);
+
+    if (volumeSeriesRef.current) {
+      if (hasVolume) {
+        const vData: HistogramData<Time>[] = cleanCandles.map((c) => {
+          const isCandleUp = c.close >= c.open;
+          const vsa = c.vsa;
+          let color = isCandleUp ? 'rgba(16, 185, 129, 0.35)' : 'rgba(244, 63, 94, 0.35)';
+
+          if (vsa?.pattern === 'AIR_POCKET_SPIKE') {
+            color = 'rgba(244, 63, 94, 0.20)'; // Dim/Faded thin volume warning
+          } else if (vsa?.pattern === 'INSTITUTIONAL_ABSORPTION') {
+            color = 'rgba(6, 182, 212, 0.90)'; // Vibrant cyan for absorption
+          } else if (vsa?.pattern === 'INSTITUTIONAL_IMPULSE') {
+            color = isCandleUp ? 'rgba(16, 185, 129, 0.85)' : 'rgba(244, 63, 94, 0.85)'; // Solid bright surge
+          } else if (vsa?.pattern === 'CLIMAX_EXHAUSTION') {
+            color = 'rgba(245, 158, 11, 0.85)'; // Amber for climax exhaustion
+          }
+
+          return {
+            time: c.timestamp as UTCTimestamp,
+            value: c.volume || 0,
+            color
+          };
+        });
+        volumeSeriesRef.current.setData(vData);
+      } else {
+        // Do not plot volume histogram if authentic volume is not available
+        volumeSeriesRef.current.setData([]);
+      }
+    }
 
     // Indicator Data
     if (showIndicators) {
@@ -308,17 +339,40 @@ function SingleTfChart({
 
   const latestCandle = activeCandle || (candles.length > 0 ? candles[candles.length - 1] : null);
   const isUp = latestCandle ? latestCandle.close >= latestCandle.open : true;
+  const isHasVolume = Boolean(
+    (volumeAvailable ?? true) && (latestCandle?.volume ? latestCandle.volume > 0 : candles.some(c => (c.volume || 0) > 0))
+  );
 
   return (
     <div className="flex flex-col bg-slate-900/90 border border-slate-800 rounded-xl overflow-hidden shadow-xl flex-1 min-w-[320px]">
       {/* Panel Sub-Header */}
       <div className="p-3 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-800/60">
               {timeframe}
             </span>
             <span className="font-bold text-xs text-white">{title}</span>
+            {isHasVolume && latestCandle?.vsa && (
+              <span
+                className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold border transition-colors ${latestCandle.vsa.badgeColor}`}
+                title={latestCandle.vsa.narrative}
+              >
+                {latestCandle.vsa.pattern === 'AIR_POCKET_SPIKE' && '⚠️ '}
+                {latestCandle.vsa.pattern === 'INSTITUTIONAL_ABSORPTION' && '⚡ '}
+                {latestCandle.vsa.pattern === 'INSTITUTIONAL_IMPULSE' && '✅ '}
+                {latestCandle.vsa.pattern === 'CLIMAX_EXHAUSTION' && '🔄 '}
+                {latestCandle.vsa.label} ({latestCandle.vsa.volumeRatio}x Vol)
+              </span>
+            )}
+            {!isHasVolume && (
+              <span
+                className="px-2 py-0.5 rounded text-[9px] font-mono text-slate-400 bg-slate-900 border border-slate-800"
+                title={volumeMessage || "Cash index spot does not record volume. Connect Kite Connect to stream NFO Futures volume."}
+              >
+                Volume Unavailable
+              </span>
+            )}
           </div>
           <div className="text-[10px] text-slate-400 mt-0.5">{subtitle}</div>
         </div>
@@ -332,6 +386,9 @@ function SingleTfChart({
               <span>O: {latestCandle.open.toFixed(0)}</span>
               <span>H: {latestCandle.high.toFixed(0)}</span>
               <span>L: {latestCandle.low.toFixed(0)}</span>
+              <span className={isHasVolume ? "text-cyan-400 font-bold" : "text-slate-500 font-mono"}>
+                Vol: {isHasVolume && latestCandle.volume ? `${(latestCandle.volume / 1000).toFixed(0)}K` : 'N/A'}
+              </span>
             </div>
           </div>
         )}
@@ -342,8 +399,8 @@ function SingleTfChart({
 
       {/* Indicator Legend Bar */}
       {showIndicators && latestCandle && (
-        <div className="px-3 py-1.5 bg-slate-950/90 border-t border-slate-800/80 flex items-center justify-between text-[10px] font-mono text-slate-400">
-          <div className="flex items-center gap-3">
+        <div className="px-3 py-1.5 bg-slate-950/90 border-t border-slate-800/80 flex items-center justify-between text-[10px] font-mono text-slate-400 flex-wrap gap-2">
+          <div className="flex items-center gap-3 flex-wrap">
             {latestCandle.vwap && (
               <span className="flex items-center gap-1 text-purple-300">
                 <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
@@ -360,6 +417,16 @@ function SingleTfChart({
               <span className="flex items-center gap-1 text-cyan-300">
                 <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
                 EMA 50: ₹{latestCandle.ema50.toFixed(1)}
+              </span>
+            )}
+            {isHasVolume && latestCandle.vsa && (
+              <span className="text-slate-400 border-l border-slate-700 pl-2 hidden sm:inline">
+                Spread: <strong className="text-white">{latestCandle.vsa.spreadRatio}x</strong> ATR | Vol: <strong className="text-cyan-300">{latestCandle.vsa.volumeRatio}x</strong> SMA | CLV: <strong className={latestCandle.vsa.clv >= 0 ? 'text-emerald-400' : 'text-rose-400'}>{latestCandle.vsa.clv > 0 ? '+' : ''}{latestCandle.vsa.clv}</strong>
+              </span>
+            )}
+            {!isHasVolume && (
+              <span className="text-slate-500 italic border-l border-slate-800 pl-2 hidden sm:inline text-[9px]">
+                Volume not available for cash index spot
               </span>
             )}
           </div>
@@ -480,6 +547,15 @@ export function MultiTfParallelCharts({ symbol = 'NIFTY' }: MultiTfParallelChart
             <span>VWAP & EMAs</span>
           </button>
 
+          <span className={`px-2 py-1 rounded-md text-[10px] font-mono border hidden md:inline-flex items-center gap-1.5 ${
+            data.volumeAvailable
+              ? 'text-cyan-300 bg-cyan-950/40 border-cyan-800/60'
+              : 'text-slate-400 bg-slate-950/60 border-slate-800'
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${data.volumeAvailable ? 'bg-cyan-400 animate-pulse' : 'bg-slate-500'}`} />
+            <span>{data.volumeAvailable ? 'Volume Feed: Front-Month Futures' : 'Volume: Unavailable (Cash Spot)'}</span>
+          </span>
+
           <button
             onClick={() => fetchChartData(true)}
             disabled={refreshing}
@@ -503,6 +579,8 @@ export function MultiTfParallelCharts({ symbol = 'NIFTY' }: MultiTfParallelChart
           prevClose={prevClose}
           tacticalLevels={smartRoadmap.tacticalLevels}
           showIndicators={showIndicators}
+          volumeAvailable={charts.fiveMin.volumeAvailable ?? data.volumeAvailable}
+          volumeMessage={charts.fiveMin.volumeMessage ?? data.volumeMessage}
         />
 
         {/* 2. 15-Minute Chart */}
@@ -515,6 +593,8 @@ export function MultiTfParallelCharts({ symbol = 'NIFTY' }: MultiTfParallelChart
           prevClose={prevClose}
           tacticalLevels={smartRoadmap.tacticalLevels}
           showIndicators={showIndicators}
+          volumeAvailable={charts.fifteenMin.volumeAvailable ?? data.volumeAvailable}
+          volumeMessage={charts.fifteenMin.volumeMessage ?? data.volumeMessage}
         />
 
         {/* 3. 1-Hour Chart */}
@@ -527,6 +607,8 @@ export function MultiTfParallelCharts({ symbol = 'NIFTY' }: MultiTfParallelChart
           prevClose={prevClose}
           tacticalLevels={smartRoadmap.tacticalLevels}
           showIndicators={showIndicators}
+          volumeAvailable={charts.oneHour.volumeAvailable ?? data.volumeAvailable}
+          volumeMessage={charts.oneHour.volumeMessage ?? data.volumeMessage}
         />
       </div>
 

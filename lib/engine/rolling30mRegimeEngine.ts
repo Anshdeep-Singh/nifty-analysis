@@ -4,7 +4,8 @@ import {
   ImpulseAttribution,
   OptionGreeksMetrics,
   Rolling30mPrediction,
-  AnomalyAlert
+  AnomalyAlert,
+  CandleBar
 } from '../types';
 
 export interface SnapshotEntry {
@@ -67,6 +68,7 @@ export interface CalculateRolling30mParams {
   greeks: OptionGreeksMetrics;
   impulseAttribution?: ImpulseAttribution;
   anomalies?: AnomalyAlert[];
+  latestCandle?: CandleBar;
 }
 
 /**
@@ -102,7 +104,8 @@ export function evaluate30mRollingRegime({
   stocks,
   greeks,
   impulseAttribution,
-  anomalies
+  anomalies,
+  latestCandle
 }: CalculateRolling30mParams): {
   prediction: Rolling30mPrediction;
   updatedGreeks: OptionGreeksMetrics;
@@ -128,13 +131,18 @@ export function evaluate30mRollingRegime({
   }
   const top5HeavyweightRvol = top5WeightSum > 0 ? Number((top5WeightedRvolSum / top5WeightSum).toFixed(2)) : 1.0;
 
-  // 2. Anomaly Flags
+  // 2. Anomaly Flags & VSA Interceptor
+  const vsa = latestCandle?.vsa;
+  const isVsaAirPocket = vsa?.pattern === 'AIR_POCKET_SPIKE';
+  const isVsaAbsorption = vsa?.pattern === 'INSTITUTIONAL_ABSORPTION';
+
   const hasSingleStockAnomaly = Boolean(
     impulseAttribution?.causeType === 'SINGLE_STOCK_CULPRIT'
   );
   const hasVacuumSlippage = Boolean(
     impulseAttribution?.liquidityState === 'THIN_AIR_POCKET' ||
-    impulseAttribution?.causeType === 'VACUUM_SLIPPAGE'
+    impulseAttribution?.causeType === 'VACUUM_SLIPPAGE' ||
+    isVsaAirPocket
   );
   const hasRotationChop = Boolean(
     impulseAttribution?.causeType === 'SECTOR_ROTATION_BALANCED'
@@ -322,13 +330,15 @@ export function evaluate30mRollingRegime({
       verdictHeadline = `⚠️ FAKEOUT WARNING: Anemic Breadth (Confidence ${finalConfidence}%)`;
       actionablePlaybook = `Do NOT chase breakout momentum. High statistical probability of mean-reversion within 30m once single-stock block buying exhausts.`;
     }
-  } else if (hasVacuumSlippage) {
+  } else if (hasVacuumSlippage || isVsaAirPocket) {
     reconciliationState = 'AIR_POCKET_SLIPPAGE';
-    finalScore = Number((compositeScore * 0.65).toFixed(1));
-    finalConfidence = Math.min(52, finalConfidence - 25);
-    primaryDriver = `Thin Air Pocket: Price sweeping thin limit order book on dry constituent volume (${top5HeavyweightRvol}x RVOL)`;
-    verdictHeadline = `⚠️ AIR POCKET SLIPPAGE: Low Depth (Confidence ${finalConfidence}%)`;
-    actionablePlaybook = `Move propelled by lack of liquidity rather than institutional buying. Tighten stops; avoid new directional entries.`;
+    finalScore = Number((compositeScore * 0.60).toFixed(1));
+    finalConfidence = Math.min(50, finalConfidence - 25);
+    primaryDriver = isVsaAirPocket
+      ? `5m Candle Air Pocket: Outsized spread (${vsa?.spreadRatio}x ATR) surged on dry volume (${vsa?.volumeRatio}x 20-SMA)`
+      : `Thin Air Pocket: Price sweeping thin limit order book on dry constituent volume (${top5HeavyweightRvol}x RVOL)`;
+    verdictHeadline = `⚠️ AIR POCKET SLIPPAGE: Fakeout Risk (Confidence ${finalConfidence}%)`;
+    actionablePlaybook = `Move propelled by lack of liquidity rather than institutional buying. Avoid chasing breakout; wait for retest.`;
   } else if (greeks.gexRegime === 'DEALER_LONG_GAMMA_PIN') {
     reconciliationState = 'FORTRESS_PIN';
     if (Math.abs(compositeScore) < 40) {
@@ -442,9 +452,12 @@ export function evaluate30mRollingRegime({
       decliningTurnoverPct: Number(advancesDeclines.decliningVolumePct.toFixed(1)),
       volumeConviction: advancesDeclines.volumeConviction,
       top5HeavyweightRvol,
-      anomalyDetected: hasSingleStockAnomaly || hasVacuumSlippage,
-      anomalyType: hasSingleStockAnomaly ? 'SINGLE_STOCK_SKEW' : (hasVacuumSlippage ? 'THIN_AIR_POCKET' : undefined),
-      anomalySymbol: impulseAttribution?.culprit?.symbol
+      anomalyDetected: hasSingleStockAnomaly || hasVacuumSlippage || isVsaAirPocket,
+      anomalyType: isVsaAirPocket ? 'AIR_POCKET_SPIKE' : (hasSingleStockAnomaly ? 'SINGLE_STOCK_SKEW' : (hasVacuumSlippage ? 'THIN_AIR_POCKET' : undefined)),
+      anomalySymbol: isVsaAirPocket ? '5M_CANDLE_VSA' : impulseAttribution?.culprit?.symbol,
+      latestCandleVsa: vsa,
+      volumeAvailable: Boolean(vsa),
+      volumeMessage: vsa ? undefined : 'Volume unavailable for cash index'
     },
     reconciliationState
   };
