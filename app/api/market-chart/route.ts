@@ -183,7 +183,7 @@ async function fetchYahooIntradayCandles(yahooSymbol: string): Promise<{ candles
       const h = quotes.high?.[i];
       const l = quotes.low?.[i];
       const c = quotes.close?.[i];
-      const v = quotes.volume?.[i] || 1000;
+      const v = quotes.volume?.[i] || 0;
       if (typeof o !== 'number' || typeof c !== 'number' || isNaN(o) || isNaN(c)) continue;
 
       const { hours, minutes, timeStr, dateStr } = getISTDateParts(ts);
