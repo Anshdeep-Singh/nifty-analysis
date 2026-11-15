@@ -972,90 +972,432 @@ function ClvVisual({ viewMode, synthesis }: VisualBaseProps) {
 // 5.5 VOLUME SPREAD ANALYSIS (VSA) VISUAL
 // ==========================================
 function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
+  const [climaxSubTab, setClimaxSubTab] = useState<'selling-capitulation' | 'buying-climax'>('selling-capitulation');
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="flex items-center gap-2">
             <span className="text-lg font-bold text-white">Volume Spread Analysis (VSA)</span>
-            <span className="text-[11px] font-mono px-2 py-0.5 rounded border bg-cyan-950 border-cyan-800 text-cyan-300">
+            <span className="text-[11px] font-mono px-2 py-0.5 rounded border bg-amber-950/80 border-amber-700/60 text-amber-300 font-bold">
               Effort vs Result Microstructure
             </span>
           </div>
           <p className="text-xs text-slate-400 mt-0.5">
-            Evaluates whether candle spread expansion is verified by genuine institutional volume or represents an empty liquidity sweep.
+            Decodes institutional intentions by comparing candle spread (price progress) against authentic volume (institutional effort).
           </p>
         </div>
       </div>
 
       <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-4">
+        {/* Core Law Banner */}
         <div className="p-3 bg-slate-900/90 border border-slate-800 rounded-lg text-xs font-mono text-cyan-300 flex items-center justify-between flex-wrap gap-2">
-          <span>VSA Principle = Big Candle Spread + Dry Volume = Liquidity Sweep / False Spike</span>
+          <span>Core VSA Law: Volume = Fuel (Effort) • Candle Spread = Distance Traveled (Result)</span>
           <span className="text-slate-400">Baseline: 20-ATR Spread & 20-SMA Volume</span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {/* Card 1: Air Pocket Spike */}
-          <div className="bg-slate-900 border border-rose-900/60 rounded-xl p-3 flex flex-col items-center text-center">
-            <span className="text-xs font-bold text-rose-400 flex items-center gap-1">
-              ⚠️ Air Pocket Spike
+        {/* 4 VSA Pattern Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          {/* Card 1: Climax Exhaustion (Amber / Yellow Bar) - HIGHLIGHTED */}
+          <div className="bg-slate-900 border-2 border-amber-500/60 rounded-xl p-3 flex flex-col items-center text-center relative overflow-hidden shadow-lg shadow-amber-950/30">
+            <div className="absolute top-0 right-0 bg-amber-500 text-slate-950 text-[9px] font-mono font-extrabold px-2 py-0.5 rounded-bl">
+              YELLOW BAR
+            </div>
+            <span className="text-xs font-bold text-amber-300 flex items-center gap-1 mt-1">
+              🔄 Climax Exhaustion Wick
             </span>
-            <span className="text-[10px] text-slate-400">Wide Spread + Dry Volume (&lt; 0.75x)</span>
+            <span className="text-[10px] text-amber-200/70 font-mono">
+              Vol ≥ 1.5x SMA + Wick ≥ 50%
+            </span>
+
+            {/* Sub-selector for Capitulation vs Buying Climax */}
+            <div className="flex items-center gap-1 my-2 bg-slate-950 p-0.5 rounded-lg border border-slate-800 w-full text-[10px] font-mono">
+              <button
+                type="button"
+                onClick={() => setClimaxSubTab('selling-capitulation')}
+                className={`flex-1 py-1 rounded transition-colors ${
+                  climaxSubTab === 'selling-capitulation'
+                    ? 'bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Capitulation
+              </button>
+              <button
+                type="button"
+                onClick={() => setClimaxSubTab('buying-climax')}
+                className={`flex-1 py-1 rounded transition-colors ${
+                  climaxSubTab === 'buying-climax'
+                    ? 'bg-rose-950 text-rose-300 border border-rose-800 font-bold'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Buying Climax
+              </button>
+            </div>
+
+            {climaxSubTab === 'selling-capitulation' ? (
+              <>
+                <svg viewBox="0 0 100 150" className="w-24 h-36 my-1 select-none">
+                  {/* Selling Capitulation: Long Lower Rejection Wick, small body at top */}
+                  <line x1="50" y1="20" x2="50" y2="100" stroke="#10b981" strokeWidth="2" />
+                  <rect x="40" y="20" width="20" height="22" fill="#10b981" rx="2" />
+                  {/* Long lower wick indicator */}
+                  <text x="65" y="70" fill="#34d399" fontSize="8" fontWeight="bold">65% Wick</text>
+                  <text x="65" y="32" fill="#94a3b8" fontSize="7">Close</text>
+                  {/* Yellow/Amber Volume Bar */}
+                  <line x1="15" y1="108" x2="85" y2="108" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
+                  <rect x="40" y="112" width="20" height="28" fill="#f59e0b" opacity="0.95" rx="1" />
+                  <text x="50" y="148" fill="#fbbf24" fontSize="8" fontWeight="bold" textAnchor="middle">1.9x Vol</text>
+                </svg>
+                <div className="w-full text-left bg-emerald-950/40 border border-emerald-800/40 rounded p-1.5 mb-1.5">
+                  <div className="text-[10px] font-bold text-emerald-300 flex items-center gap-1">
+                    <span>🟢 Bias:</span> <strong>BULLISH REVERSAL (UP)</strong>
+                  </div>
+                  <div className="text-[9px] text-slate-300">
+                    Panic selling absorbed by institutional buy limits. Sellers exhausted.
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <svg viewBox="0 0 100 150" className="w-24 h-36 my-1 select-none">
+                  {/* Buying Climax: Long Upper Rejection Wick, small body at bottom */}
+                  <line x1="50" y1="15" x2="50" y2="95" stroke="#f43f5e" strokeWidth="2" />
+                  <rect x="40" y="70" width="20" height="22" fill="#f43f5e" rx="2" />
+                  {/* Long upper wick indicator */}
+                  <text x="65" y="45" fill="#fb7185" fontSize="8" fontWeight="bold">60% Wick</text>
+                  <text x="65" y="85" fill="#94a3b8" fontSize="7">Close</text>
+                  {/* Yellow/Amber Volume Bar */}
+                  <line x1="15" y1="108" x2="85" y2="108" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
+                  <rect x="40" y="112" width="20" height="28" fill="#f59e0b" opacity="0.95" rx="1" />
+                  <text x="50" y="148" fill="#fbbf24" fontSize="8" fontWeight="bold" textAnchor="middle">1.8x Vol</text>
+                </svg>
+                <div className="w-full text-left bg-rose-950/40 border border-rose-800/40 rounded p-1.5 mb-1.5">
+                  <div className="text-[10px] font-bold text-rose-300 flex items-center gap-1">
+                    <span>🔴 Bias:</span> <strong>BEARISH REVERSAL (DOWN)</strong>
+                  </div>
+                  <div className="text-[9px] text-slate-300">
+                    Breakout buying dumped into institutional sell orders. Buyers trapped.
+                  </div>
+                </div>
+              </>
+            )}
+            <p className="text-[10px] text-slate-300 leading-tight">
+              Aggressive market orders were decisively absorbed by contrary institutional liquidity, creating an exhaustion pivot.
+            </p>
+          </div>
+
+          {/* Card 2: Institutional Absorption (Cyan Bar) */}
+          <div className="bg-slate-900 border border-cyan-800/60 rounded-xl p-3 flex flex-col items-center text-center relative overflow-hidden">
+            <div className="absolute top-0 right-0 bg-cyan-600 text-slate-950 text-[9px] font-mono font-extrabold px-2 py-0.5 rounded-bl">
+              CYAN BAR
+            </div>
+            <span className="text-xs font-bold text-cyan-300 flex items-center gap-1 mt-1">
+              ⚡ Institutional Absorption
+            </span>
+            <span className="text-[10px] text-cyan-200/70 font-mono">
+              Tight Spread (&le; 0.7x) + Vol &ge; 1.7x
+            </span>
             <svg viewBox="0 0 100 150" className="w-24 h-36 my-2 select-none">
-              {/* Large Candle */}
+              {/* Tiny Candle with Rejection Wick */}
+              <line x1="50" y1="35" x2="50" y2="90" stroke="#06b6d4" strokeWidth="2" />
+              <rect x="42" y="45" width="16" height="15" fill="#06b6d4" rx="2" />
+              <text x="65" y="55" fill="#67e8f9" fontSize="8" fontWeight="bold">8 pts</text>
+              {/* Massive Cyan Volume Bar */}
+              <line x1="15" y1="108" x2="85" y2="108" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
+              <rect x="40" y="112" width="20" height="28" fill="#06b6d4" opacity="0.95" rx="1" />
+              <text x="50" y="148" fill="#67e8f9" fontSize="8" fontWeight="bold" textAnchor="middle">2.2x Vol</text>
+            </svg>
+            <div className="w-full text-left bg-cyan-950/40 border border-cyan-800/40 rounded p-1.5 mb-1.5">
+              <div className="text-[10px] font-bold text-cyan-300">
+                <span>🔄 Bias:</span> <strong>IMMINENT PIVOT / BRAKE</strong>
+              </div>
+              <div className="text-[9px] text-slate-300">
+                Smart money passive limits absorb market orders. Trend stalls.
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-300 leading-tight">
+              Effort without result. Giant institutional order blocks pin price, stopping momentum dead in its tracks.
+            </p>
+          </div>
+
+          {/* Card 3: Confirmed Institutional Impulse (Solid Green/Red Bar) */}
+          <div className="bg-slate-900 border border-emerald-800/60 rounded-xl p-3 flex flex-col items-center text-center relative overflow-hidden">
+            <div className="absolute top-0 right-0 bg-emerald-600 text-slate-950 text-[9px] font-mono font-extrabold px-2 py-0.5 rounded-bl">
+              BRIGHT SOLID
+            </div>
+            <span className="text-xs font-bold text-emerald-300 flex items-center gap-1 mt-1">
+              ✅ Institutional Impulse
+            </span>
+            <span className="text-[10px] text-emerald-200/70 font-mono">
+              Wide Spread (&ge; 1.25x) + Vol &ge; 1.45x
+            </span>
+            <svg viewBox="0 0 100 150" className="w-24 h-36 my-2 select-none">
+              {/* Solid Long Candle */}
+              <line x1="50" y1="15" x2="50" y2="95" stroke="#10b981" strokeWidth="2" />
+              <rect x="40" y="20" width="20" height="70" fill="#10b981" rx="2" />
+              <text x="66" y="55" fill="#34d399" fontSize="8" fontWeight="bold">+40 pts</text>
+              {/* Outsized Solid Volume Bar */}
+              <line x1="15" y1="108" x2="85" y2="108" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
+              <rect x="40" y="114" width="20" height="26" fill="#10b981" opacity="0.95" rx="1" />
+              <text x="50" y="148" fill="#34d399" fontSize="8" fontWeight="bold" textAnchor="middle">1.8x Vol</text>
+            </svg>
+            <div className="w-full text-left bg-emerald-950/40 border border-emerald-800/40 rounded p-1.5 mb-1.5">
+              <div className="text-[10px] font-bold text-emerald-300">
+                <span>🚀 Bias:</span> <strong>TREND CONTINUATION</strong>
+              </div>
+              <div className="text-[9px] text-slate-300">
+                Institutional volume drives expansion. Follow direction.
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-300 leading-tight">
+              Effort matches result. Real institutional participation confirms genuine directional intent with high follow-through odds.
+            </p>
+          </div>
+
+          {/* Card 4: Air Pocket Spike / False Move (Faded Bar) */}
+          <div className="bg-slate-900 border border-rose-900/60 rounded-xl p-3 flex flex-col items-center text-center relative overflow-hidden">
+            <div className="absolute top-0 right-0 bg-slate-700 text-slate-300 text-[9px] font-mono font-extrabold px-2 py-0.5 rounded-bl">
+              FADED / DIM
+            </div>
+            <span className="text-xs font-bold text-rose-400 flex items-center gap-1 mt-1">
+              ⚠️ Air Pocket Spike / Trap
+            </span>
+            <span className="text-[10px] text-rose-300/70 font-mono">
+              Wide Spread (&ge; 1.35x) + Low Vol (&le; 0.75x)
+            </span>
+            <svg viewBox="0 0 100 150" className="w-24 h-36 my-2 select-none">
+              {/* Large Candle on Thin Air */}
               <line x1="50" y1="15" x2="50" y2="95" stroke="#10b981" strokeWidth="2" />
               <rect x="40" y="25" width="20" height="60" fill="#10b981" rx="2" />
               <text x="66" y="55" fill="#34d399" fontSize="8" fontWeight="bold">+35 pts</text>
               {/* Tiny Volume Bar */}
               <line x1="15" y1="108" x2="85" y2="108" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
-              <rect x="42" y="125" width="16" height="15" fill="#f43f5e" opacity="0.4" rx="1" />
+              <rect x="42" y="125" width="16" height="15" fill="#f43f5e" opacity="0.35" rx="1" />
               <text x="50" y="148" fill="#fda4af" fontSize="8" textAnchor="middle">0.5x Vol</text>
             </svg>
-            <p className="text-[11px] text-slate-300 leading-tight">
-              Result without effort. Price swept retail stops through thin limit orders. High odds of false breakout snapback.
+            <div className="w-full text-left bg-rose-950/40 border border-rose-800/40 rounded p-1.5 mb-1.5">
+              <div className="text-[10px] font-bold text-rose-300">
+                <span>🪤 Bias:</span> <strong>SNAPBACK TRAP (REVERSAL)</strong>
+              </div>
+              <div className="text-[9px] text-slate-300">
+                Thin liquidity sweep without buyers. Breakout will fail.
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-300 leading-tight">
+              Result without effort. Price moved because the order book was empty, not because buyers entered. High odds of rapid snapback.
             </p>
           </div>
+        </div>
 
-          {/* Card 2: Institutional Absorption */}
-          <div className="bg-slate-900 border border-cyan-900/60 rounded-xl p-3 flex flex-col items-center text-center">
-            <span className="text-xs font-bold text-cyan-400 flex items-center gap-1">
-              ⚡ Institutional Absorption
+        {/* SPECIAL DEEP-DIVE: "Selling Capitulation Wick" Explained */}
+        <div className="p-4 bg-gradient-to-r from-amber-950/40 via-slate-900 to-emerald-950/40 border border-amber-500/50 rounded-xl space-y-2.5">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-amber-400 animate-pulse" />
+              <h4 className="text-sm font-extrabold text-white">
+                Deep Dive: What Does "Selling Capitulation Wick" Mean? (Will Market Go UP or DOWN?)
+              </h4>
+            </div>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+              Expected Direction: UP / BOUNCE 🟢
             </span>
-            <span className="text-[10px] text-slate-400">Tight Spread + Heavy Volume (&gt; 1.7x)</span>
-            <svg viewBox="0 0 100 150" className="w-24 h-36 my-2 select-none">
-              {/* Tiny Candle with Rejection Wick */}
-              <line x1="50" y1="35" x2="50" y2="90" stroke="#06b6d4" strokeWidth="2" />
-              <rect x="42" y="40" width="16" height="18" fill="#06b6d4" rx="2" />
-              <text x="65" y="52" fill="#67e8f9" fontSize="8" fontWeight="bold">8 pts</text>
-              {/* Massive Volume Bar */}
-              <line x1="15" y1="108" x2="85" y2="108" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
-              <rect x="40" y="112" width="20" height="28" fill="#06b6d4" opacity="0.9" rx="1" />
-              <text x="50" y="148" fill="#67e8f9" fontSize="8" textAnchor="middle">2.2x Vol</text>
-            </svg>
-            <p className="text-[11px] text-slate-300 leading-tight">
-              Effort without result. Passive institutional limit orders absorb market orders. Precedes major directional reversals.
-            </p>
           </div>
 
-          {/* Card 3: Confirmed Institutional Impulse */}
-          <div className="bg-slate-900 border border-emerald-900/60 rounded-xl p-3 flex flex-col items-center text-center">
-            <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
-              ✅ Institutional Impulse
-            </span>
-            <span className="text-[10px] text-slate-400">Wide Spread + High Volume (&gt; 1.5x)</span>
-            <svg viewBox="0 0 100 150" className="w-24 h-36 my-2 select-none">
-              {/* Solid Candle */}
-              <line x1="50" y1="15" x2="50" y2="95" stroke="#10b981" strokeWidth="2" />
-              <rect x="40" y="20" width="20" height="70" fill="#10b981" rx="2" />
-              <text x="66" y="55" fill="#34d399" fontSize="8" fontWeight="bold">+40 pts</text>
-              {/* Outsized Volume Bar */}
-              <line x1="15" y1="108" x2="85" y2="108" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
-              <rect x="40" y="114" width="20" height="26" fill="#10b981" opacity="0.9" rx="1" />
-              <text x="50" y="148" fill="#34d399" fontSize="8" textAnchor="middle">1.8x Vol</text>
-            </svg>
-            <p className="text-[11px] text-slate-300 leading-tight">
-              Effort matches result. Genuine institutional buying power drives the expansion. Continuation highly favored.
-            </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs pt-1">
+            <div className="bg-slate-950/70 p-3 rounded-lg border border-slate-800 space-y-1">
+              <strong className="text-amber-300 block font-mono">1. What Happened In That Candle?</strong>
+              <p className="text-slate-300 leading-relaxed text-[11px]">
+                A violent panic sell-off pushed price down sharply on heavy volume (<strong className="text-white">&ge; 1.5x 20-SMA</strong>). Retail traders panicked and stop-losses were triggered. However, large institutions stepped in with massive <strong className="text-cyan-300">passive limit BUY orders</strong>, absorbing all the selling and fiercely driving price back up before the 5m bar closed.
+              </p>
+            </div>
+
+            <div className="bg-slate-950/70 p-3 rounded-lg border border-slate-800 space-y-1">
+              <strong className="text-emerald-300 block font-mono">2. Is Market Going Up or Down?</strong>
+              <p className="text-slate-300 leading-relaxed text-[11px]">
+                <strong className="text-emerald-400">The market is about to go UP (reversal or strong bounce).</strong> "Capitulation" means sellers threw in the towel and dumped all their inventory. Because institutions absorbed that supply, the market is now in a <em>seller exhaustion</em> state: there are no sellers left to push price lower, so the path of least resistance is upward.
+              </p>
+            </div>
+
+            <div className="bg-slate-950/70 p-3 rounded-lg border border-slate-800 space-y-1">
+              <strong className="text-cyan-300 block font-mono">3. How to Trade It (Action Rule)</strong>
+              <p className="text-slate-300 leading-relaxed text-[11px]">
+                • <strong className="text-rose-400">NEVER SHORT</strong> into a yellow capitulation wick.<br />
+                • The <em>low of the wick</em> is your <strong className="text-white">institutional defense floor</strong> and strict invalidation/stop-loss.<br />
+                • If the next 5m candle confirms by holding above the body, look for mean-reversion recovery targeting VWAP or the Decision Pivot.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Master VSA Tags & Colors Reference Table */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+          <div className="p-3 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <BarChart2 className="w-4 h-4 text-cyan-400" />
+              <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+                VSA Volume Bar Color & Tag Reference Master Table
+              </h4>
+            </div>
+            <span className="text-[11px] font-mono text-slate-400">NIFTY & BANK NIFTY Authentic Futures Volume</span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs font-mono">
+              <thead>
+                <tr className="border-b border-slate-800 text-slate-400 bg-slate-950/50 text-[11px]">
+                  <th className="py-2.5 px-3">Volume Bar Color</th>
+                  <th className="py-2.5 px-3">Hover Tag Label</th>
+                  <th className="py-2.5 px-3">Formula Condition</th>
+                  <th className="py-2.5 px-3">Directional Bias</th>
+                  <th className="py-2.5 px-3">Institutional Microstructure Meaning</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 text-[11px]">
+                <tr className="hover:bg-slate-800/40 transition-colors">
+                  <td className="py-2.5 px-3 font-bold text-amber-400 flex items-center gap-1.5">
+                    <span className="w-3 h-3 rounded bg-amber-400 inline-block" />
+                    Yellow / Amber
+                  </td>
+                  <td className="py-2.5 px-3 font-bold text-emerald-400">
+                    Selling Capitulation Wick
+                  </td>
+                  <td className="py-2.5 px-3 text-slate-300">
+                    Vol &ge; 1.5x &amp; Lower Wick &ge; 50%
+                  </td>
+                  <td className="py-2.5 px-3">
+                    <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 font-bold border border-emerald-800">
+                      BULLISH (UP 🟢)
+                    </span>
+                  </td>
+                  <td className="py-2.5 px-3 font-sans text-slate-300">
+                    Panic selling absorbed by institutional buy orders. Seller exhaustion; bottoming reversal likely.
+                  </td>
+                </tr>
+                <tr className="hover:bg-slate-800/40 transition-colors">
+                  <td className="py-2.5 px-3 font-bold text-amber-400 flex items-center gap-1.5">
+                    <span className="w-3 h-3 rounded bg-amber-400 inline-block" />
+                    Yellow / Amber
+                  </td>
+                  <td className="py-2.5 px-3 font-bold text-rose-400">
+                    Buying Climax Rejection
+                  </td>
+                  <td className="py-2.5 px-3 text-slate-300">
+                    Vol &ge; 1.5x &amp; Upper Wick &ge; 50%
+                  </td>
+                  <td className="py-2.5 px-3">
+                    <span className="px-2 py-0.5 rounded bg-rose-950 text-rose-300 font-bold border border-rose-800">
+                      BEARISH (DOWN 🔴)
+                    </span>
+                  </td>
+                  <td className="py-2.5 px-3 font-sans text-slate-300">
+                    Breakout buying dumped into institutional sell orders. Buyer exhaustion; topping reversal likely.
+                  </td>
+                </tr>
+                <tr className="hover:bg-slate-800/40 transition-colors">
+                  <td className="py-2.5 px-3 font-bold text-cyan-400 flex items-center gap-1.5">
+                    <span className="w-3 h-3 rounded bg-cyan-400 inline-block" />
+                    Vibrant Cyan
+                  </td>
+                  <td className="py-2.5 px-3 font-bold text-cyan-300">
+                    Institutional Absorption (Pin)
+                  </td>
+                  <td className="py-2.5 px-3 text-slate-300">
+                    Vol &ge; 1.7x &amp; Spread &le; 0.7x ATR
+                  </td>
+                  <td className="py-2.5 px-3">
+                    <span className="px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 font-bold border border-cyan-800">
+                      PIVOT / PIN ⚡
+                    </span>
+                  </td>
+                  <td className="py-2.5 px-3 font-sans text-slate-300">
+                    Passive limit orders absorb heavy market flow without price moving. Trend brake; preceding sharp reversal.
+                  </td>
+                </tr>
+                <tr className="hover:bg-slate-800/40 transition-colors">
+                  <td className="py-2.5 px-3 font-bold text-emerald-400 flex items-center gap-1.5">
+                    <span className="w-3 h-3 rounded bg-emerald-500 inline-block" />
+                    Solid Bright Green
+                  </td>
+                  <td className="py-2.5 px-3 font-bold text-emerald-300">
+                    Confirmed Bullish Impulse
+                  </td>
+                  <td className="py-2.5 px-3 text-slate-300">
+                    Vol &ge; 1.45x &amp; Spread &ge; 1.25x &amp; CLV &ge; +0.35
+                  </td>
+                  <td className="py-2.5 px-3">
+                    <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 font-bold border border-emerald-800">
+                      BULLISH EXP (UP 🟢)
+                    </span>
+                  </td>
+                  <td className="py-2.5 px-3 font-sans text-slate-300">
+                    Effort matches result. Genuine institutional buying power drives expansion. Safe to ride continuation.
+                  </td>
+                </tr>
+                <tr className="hover:bg-slate-800/40 transition-colors">
+                  <td className="py-2.5 px-3 font-bold text-rose-400 flex items-center gap-1.5">
+                    <span className="w-3 h-3 rounded bg-rose-500 inline-block" />
+                    Solid Bright Red
+                  </td>
+                  <td className="py-2.5 px-3 font-bold text-rose-300">
+                    Confirmed Bearish Impulse
+                  </td>
+                  <td className="py-2.5 px-3 text-slate-300">
+                    Vol &ge; 1.45x &amp; Spread &ge; 1.25x &amp; CLV &le; -0.35
+                  </td>
+                  <td className="py-2.5 px-3">
+                    <span className="px-2 py-0.5 rounded bg-rose-950 text-rose-300 font-bold border border-rose-800">
+                      BEARISH EXP (DOWN 🔴)
+                    </span>
+                  </td>
+                  <td className="py-2.5 px-3 font-sans text-slate-300">
+                    Effort matches result. Aggressive institutional selling breaks support. Safe to ride continuation.
+                  </td>
+                </tr>
+                <tr className="hover:bg-slate-800/40 transition-colors">
+                  <td className="py-2.5 px-3 font-bold text-rose-300/60 flex items-center gap-1.5">
+                    <span className="w-3 h-3 rounded bg-rose-500/30 border border-rose-500/50 inline-block" />
+                    Faded / Dim Red
+                  </td>
+                  <td className="py-2.5 px-3 font-bold text-rose-400">
+                    Air Pocket Spike / Drop
+                  </td>
+                  <td className="py-2.5 px-3 text-slate-300">
+                    Vol &le; 0.75x &amp; Spread &ge; 1.35x ATR
+                  </td>
+                  <td className="py-2.5 px-3">
+                    <span className="px-2 py-0.5 rounded bg-amber-950 text-amber-300 font-bold border border-amber-800">
+                      TRAP WARNING ⚠️
+                    </span>
+                  </td>
+                  <td className="py-2.5 px-3 font-sans text-slate-300">
+                    Result without effort. Price swept retail stops through thin liquidity. High odds of false breakout snapback.
+                  </td>
+                </tr>
+                <tr className="hover:bg-slate-800/40 transition-colors">
+                  <td className="py-2.5 px-3 text-slate-400 flex items-center gap-1.5">
+                    <span className="w-3 h-3 rounded bg-slate-700 inline-block" />
+                    Muted Green / Red
+                  </td>
+                  <td className="py-2.5 px-3 text-slate-300">
+                    Normal Auction
+                  </td>
+                  <td className="py-2.5 px-3 text-slate-400">
+                    Within normal ATR &amp; SMA bounds
+                  </td>
+                  <td className="py-2.5 px-3">
+                    <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-bold">
+                      NEUTRAL ⚪
+                    </span>
+                  </td>
+                  <td className="py-2.5 px-3 font-sans text-slate-400">
+                    Standard two-way continuous auction. Normal liquidity flow.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
@@ -1063,16 +1405,20 @@ function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
         <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg space-y-2">
           <div className="text-xs font-bold text-white flex items-center gap-1.5">
             <Compass className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Tactical VSA Action Playbook</span>
+            <span>Tactical Execution Playbook for VSA Signals</span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-            <div className="p-2 rounded bg-slate-950 border border-rose-900/40 text-slate-300">
-              <strong className="text-rose-400 block mb-0.5">When Air Pocket Spike Appears:</strong>
-              Do NOT chase momentum or place breakout market orders. Look for rejection wicks back below the breakout level to initiate counter-trend mean-reversion trades.
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-[11px]">
+            <div className="p-2.5 rounded bg-slate-950 border border-amber-900/40 text-slate-300">
+              <strong className="text-amber-400 block mb-0.5">🟡 Climax Exhaustion Wick:</strong>
+              Do NOT chase the direction of the spike. If lower wick &ge; 50% (Capitulation), prepare for an upward bounce. Use the wick low as your stop-loss floor. If upper wick &ge; 50% (Buying Climax), prepare for a drop.
             </div>
-            <div className="p-2 rounded bg-slate-950 border border-cyan-900/40 text-slate-300">
-              <strong className="text-cyan-400 block mb-0.5">When Absorption Appears at Key Level:</strong>
-              Stop trying to push direction in that zone. Smart money is laying passive limits (absorbing sellers at Put Wall or buyers at Call Wall); position with the reversal.
+            <div className="p-2.5 rounded bg-slate-950 border border-cyan-900/40 text-slate-300">
+              <strong className="text-cyan-400 block mb-0.5">🔵 Institutional Absorption:</strong>
+              Stop trying to push direction in that zone. Smart money has placed massive passive limits (absorbing sellers at Put Wall or buyers at Call Wall); position for a reversal.
+            </div>
+            <div className="p-2.5 rounded bg-slate-950 border border-rose-900/40 text-slate-300">
+              <strong className="text-rose-400 block mb-0.5">⚠️ Air Pocket Spikes:</strong>
+              Do NOT place breakout market orders when volume is thin. Wait for the snapback back inside the range to fade the false move.
             </div>
           </div>
         </div>

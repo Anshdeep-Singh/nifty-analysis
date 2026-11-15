@@ -16,7 +16,10 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Eye,
-  EyeOff
+  EyeOff,
+  HelpCircle,
+  Info,
+  BookOpen
 } from 'lucide-react';
 import {
   createChart,
@@ -36,6 +39,7 @@ import {
   type UTCTimestamp
 } from 'lightweight-charts';
 import { MultiTfPayload, CandleBar, SmartKeyLevel } from '@/lib/types';
+import { MicrostructureVisualModal } from './MicrostructureVisualModal';
 
 interface ChartPanelProps {
   title: string;
@@ -48,6 +52,7 @@ interface ChartPanelProps {
   showIndicators: boolean;
   volumeAvailable?: boolean;
   volumeMessage?: string;
+  onOpenVsaGuide?: () => void;
 }
 
 function SingleTfChart({
@@ -60,7 +65,8 @@ function SingleTfChart({
   tacticalLevels,
   showIndicators,
   volumeAvailable,
-  volumeMessage
+  volumeMessage,
+  onOpenVsaGuide
 }: ChartPanelProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -354,16 +360,21 @@ function SingleTfChart({
             </span>
             <span className="font-bold text-xs text-white">{title}</span>
             {isHasVolume && latestCandle?.vsa && (
-              <span
-                className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold border transition-colors ${latestCandle.vsa.badgeColor}`}
-                title={latestCandle.vsa.narrative}
+              <button
+                type="button"
+                onClick={onOpenVsaGuide}
+                className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold border transition-all cursor-pointer hover:scale-105 flex items-center gap-1 shadow-sm ${latestCandle.vsa.badgeColor}`}
+                title={`${latestCandle.vsa.narrative} — Click to view VSA Guide & meaning`}
               >
-                {latestCandle.vsa.pattern === 'AIR_POCKET_SPIKE' && '⚠️ '}
-                {latestCandle.vsa.pattern === 'INSTITUTIONAL_ABSORPTION' && '⚡ '}
-                {latestCandle.vsa.pattern === 'INSTITUTIONAL_IMPULSE' && '✅ '}
-                {latestCandle.vsa.pattern === 'CLIMAX_EXHAUSTION' && '🔄 '}
-                {latestCandle.vsa.label} ({latestCandle.vsa.volumeRatio}x Vol)
-              </span>
+                <span>
+                  {latestCandle.vsa.pattern === 'AIR_POCKET_SPIKE' && '⚠️ '}
+                  {latestCandle.vsa.pattern === 'INSTITUTIONAL_ABSORPTION' && '⚡ '}
+                  {latestCandle.vsa.pattern === 'INSTITUTIONAL_IMPULSE' && '✅ '}
+                  {latestCandle.vsa.pattern === 'CLIMAX_EXHAUSTION' && '🔄 '}
+                  {latestCandle.vsa.label} ({latestCandle.vsa.volumeRatio}x Vol)
+                </span>
+                <HelpCircle className="w-2.5 h-2.5 opacity-70" />
+              </button>
             )}
             {!isHasVolume && (
               <span
@@ -424,6 +435,47 @@ function SingleTfChart({
                 Spread: <strong className="text-white">{latestCandle.vsa.spreadRatio}x</strong> ATR | Vol: <strong className="text-cyan-300">{latestCandle.vsa.volumeRatio}x</strong> SMA | CLV: <strong className={latestCandle.vsa.clv >= 0 ? 'text-emerald-400' : 'text-rose-400'}>{latestCandle.vsa.clv > 0 ? '+' : ''}{latestCandle.vsa.clv}</strong>
               </span>
             )}
+            {isHasVolume && onOpenVsaGuide && (
+              <div className="border-l border-slate-800 pl-2 hidden lg:flex items-center gap-2 text-[9px]">
+                <span className="text-slate-500 font-bold">VSA:</span>
+                <button
+                  type="button"
+                  onClick={onOpenVsaGuide}
+                  className="flex items-center gap-1 text-amber-400 hover:text-amber-300 transition-colors"
+                  title="Amber Bar: Climax Rejection Wick (Selling Capitulation = Bounce UP | Buying Climax = Drop DOWN)"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  <span>🟡 Climax</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onOpenVsaGuide}
+                  className="flex items-center gap-1 text-cyan-400 hover:text-cyan-300 transition-colors"
+                  title="Cyan Bar: Institutional Absorption (Tight spread + heavy volume)"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                  <span>🔵 Absorption</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onOpenVsaGuide}
+                  className="flex items-center gap-1 text-emerald-400 hover:text-emerald-300 transition-colors"
+                  title="Solid Green/Red: Institutional Impulse (Trend continuation)"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  <span>🟢 Impulse</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onOpenVsaGuide}
+                  className="flex items-center gap-1 text-rose-400/80 hover:text-rose-300 transition-colors"
+                  title="Faded Bar: Air Pocket Spike (Dry volume trap)"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500/40" />
+                  <span>⚠️ Air Pocket</span>
+                </button>
+              </div>
+            )}
             {!isHasVolume && (
               <span className="text-slate-500 italic border-l border-slate-800 pl-2 hidden sm:inline text-[9px]">
                 Volume not available for cash index spot
@@ -447,6 +499,7 @@ export function MultiTfParallelCharts({ symbol = 'NIFTY' }: MultiTfParallelChart
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [showIndicators, setShowIndicators] = useState<boolean>(true);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [vsaModalOpen, setVsaModalOpen] = useState<boolean>(false);
 
   const fetchChartData = useCallback(async (isManual = false) => {
     if (isManual) setRefreshing(true);
@@ -547,6 +600,16 @@ export function MultiTfParallelCharts({ symbol = 'NIFTY' }: MultiTfParallelChart
             <span>VWAP & EMAs</span>
           </button>
 
+          <button
+            type="button"
+            onClick={() => setVsaModalOpen(true)}
+            className="px-3 py-1.5 rounded-lg border border-amber-500/50 bg-amber-950/40 text-amber-300 hover:bg-amber-900/40 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
+            title="Open VSA Volume Microstructure Guide (Selling Capitulation, Absorption, Impulses)"
+          >
+            <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
+            <span>VSA Volume Guide</span>
+          </button>
+
           <span className={`px-2 py-1 rounded-md text-[10px] font-mono border hidden md:inline-flex items-center gap-1.5 ${
             data.volumeAvailable
               ? 'text-cyan-300 bg-cyan-950/40 border-cyan-800/60'
@@ -581,6 +644,7 @@ export function MultiTfParallelCharts({ symbol = 'NIFTY' }: MultiTfParallelChart
           showIndicators={showIndicators}
           volumeAvailable={charts.fiveMin.volumeAvailable ?? data.volumeAvailable}
           volumeMessage={charts.fiveMin.volumeMessage ?? data.volumeMessage}
+          onOpenVsaGuide={() => setVsaModalOpen(true)}
         />
 
         {/* 2. 15-Minute Chart */}
@@ -595,6 +659,7 @@ export function MultiTfParallelCharts({ symbol = 'NIFTY' }: MultiTfParallelChart
           showIndicators={showIndicators}
           volumeAvailable={charts.fifteenMin.volumeAvailable ?? data.volumeAvailable}
           volumeMessage={charts.fifteenMin.volumeMessage ?? data.volumeMessage}
+          onOpenVsaGuide={() => setVsaModalOpen(true)}
         />
 
         {/* 3. 1-Hour Chart */}
@@ -609,6 +674,7 @@ export function MultiTfParallelCharts({ symbol = 'NIFTY' }: MultiTfParallelChart
           showIndicators={showIndicators}
           volumeAvailable={charts.oneHour.volumeAvailable ?? data.volumeAvailable}
           volumeMessage={charts.oneHour.volumeMessage ?? data.volumeMessage}
+          onOpenVsaGuide={() => setVsaModalOpen(true)}
         />
       </div>
 
@@ -680,6 +746,15 @@ export function MultiTfParallelCharts({ symbol = 'NIFTY' }: MultiTfParallelChart
           </table>
         </div>
       </div>
+
+      {/* VSA Microstructure Visual Guide Modal */}
+      <MicrostructureVisualModal
+        isOpen={vsaModalOpen}
+        initialTopic="vsa-microstructure"
+        onClose={() => setVsaModalOpen(false)}
+        spotPrice={spotPrice}
+        indexName={symbol === 'BANKNIFTY' ? 'BANK NIFTY' : 'NIFTY 50'}
+      />
     </div>
   );
 }
