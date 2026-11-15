@@ -121,7 +121,7 @@ export function MicrostructureVisualModal({
       onClick={onClose}
     >
       <div
-        className="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-5xl w-full max-h-[92vh] flex flex-col shadow-2xl relative overflow-hidden my-auto"
+        className="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-7xl w-full max-h-[92vh] flex flex-col shadow-2xl relative overflow-hidden my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
@@ -972,7 +972,178 @@ function ClvVisual({ viewMode, synthesis }: VisualBaseProps) {
 // 5.5 VOLUME SPREAD ANALYSIS (VSA) VISUAL
 // ==========================================
 function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
+  const [selectedCard, setSelectedCard] = useState<'climax' | 'absorption' | 'impulse' | 'trap'>('climax');
   const [climaxSubTab, setClimaxSubTab] = useState<'selling-capitulation' | 'buying-climax'>('selling-capitulation');
+  const [absorptionSubTab, setAbsorptionSubTab] = useState<'bid-support' | 'ask-ceiling'>('bid-support');
+  const [impulseSubTab, setImpulseSubTab] = useState<'bullish' | 'bearish'>('bullish');
+  const [trapSubTab, setTrapSubTab] = useState<'bull-trap' | 'bear-trap'>('bull-trap');
+
+  // Dynamic Deep Dive Content Resolution
+  let deepDiveData = {
+    title: 'Deep Dive: What Does "Selling Capitulation Wick" Mean? (Will Market Go UP or DOWN?)',
+    pulseColor: 'bg-amber-400',
+    directionBadge: 'Expected Direction: UP / BOUNCE 🟢',
+    badgeClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+    borderClass: 'border-amber-500/50',
+    bgGradient: 'from-amber-950/40 via-slate-900 to-emerald-950/40',
+    point1Title: '1. What Happened In That Candle?',
+    point1Color: 'text-amber-300',
+    point1Content: (
+      <>
+        A violent panic sell-off pushed price down sharply on heavy volume (<strong className="text-white">&ge; 1.5x 20-SMA</strong>). Retail traders panicked and stop-losses were triggered. However, large institutions stepped in with massive <strong className="text-cyan-300">passive limit BUY orders</strong>, absorbing all the selling and fiercely driving price back up before the 5m bar closed, leaving a massive lower rejection wick (&ge; 50%).
+      </>
+    ),
+    point2Title: '2. Is Market Going Up or Down?',
+    point2Color: 'text-emerald-300',
+    point2Content: (
+      <>
+        <strong className="text-emerald-400">The market is about to go UP (reversal or strong bounce).</strong> &quot;Capitulation&quot; means sellers threw in the towel and dumped all their inventory. Because institutions absorbed that supply, the market is now in a <em>seller exhaustion</em> state: there are no sellers left to push price lower, so the path of least resistance flips upward.
+      </>
+    ),
+    point3Title: '3. How to Trade It (Action Rule)',
+    point3Color: 'text-cyan-300',
+    point3Content: (
+      <>
+        • <strong className="text-rose-400">NEVER SHORT</strong> into a yellow capitulation wick.<br />
+        • The <em>low of the wick</em> is your <strong className="text-white">institutional defense floor</strong> and strict invalidation/stop-loss.<br />
+        • If the next 5m candle confirms by holding above the body, look for mean-reversion recovery targeting VWAP or the Decision Pivot.
+      </>
+    )
+  };
+
+  if (selectedCard === 'climax' && climaxSubTab === 'buying-climax') {
+    deepDiveData = {
+      title: 'Deep Dive: What Does "Buying Climax Rejection" Mean? (Will Market Go UP or DOWN?)',
+      pulseColor: 'bg-amber-400',
+      directionBadge: 'Expected Direction: DOWN / DROP 🔴',
+      badgeClass: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+      borderClass: 'border-amber-500/50',
+      bgGradient: 'from-amber-950/40 via-slate-900 to-rose-950/40',
+      point1Title: '1. What Happened In That Candle?',
+      point1Color: 'text-amber-300',
+      point1Content: (
+        <>
+          A euphoric FOMO breakout drove price up sharply on heavy volume (<strong className="text-white">&ge; 1.5x 20-SMA</strong>). Retail buyers chased new highs. However, smart money unloaded massive <strong className="text-rose-300">passive limit SELL orders</strong>, completely absorbing buying power and rejecting price down to leave a huge upper wick (&ge; 50%).
+        </>
+      ),
+      point2Title: '2. Is Market Going Up or Down?',
+      point2Color: 'text-rose-300',
+      point2Content: (
+        <>
+          <strong className="text-rose-400">The market is about to go DOWN (bearish rollover / sharp fade).</strong> &quot;Buying Climax&quot; marks complete buyer exhaustion. All eager buyers have already bought and are trapped at the top. Once aggressive buying runs out, lack of bids causes price to collapse under its own weight.
+        </>
+      ),
+      point3Title: '3. How to Trade It (Action Rule)',
+      point3Color: 'text-rose-300',
+      point3Content: (
+        <>
+          • <strong className="text-rose-400">NEVER BUY CALLS</strong> or chase breakouts into a buying climax wick.<br />
+          • The <em>high of the wick</em> is your <strong className="text-white">institutional resistance ceiling</strong> and strict invalidation/stop-loss.<br />
+          • Target mean-reversion downward toward VWAP or the nearest demand shelf.
+        </>
+      )
+    };
+  } else if (selectedCard === 'absorption') {
+    const isSupport = absorptionSubTab === 'bid-support';
+    deepDiveData = {
+      title: `Deep Dive: What Does "Institutional Absorption (${isSupport ? 'Bid Wall' : 'Ask Ceiling'})" Mean?`,
+      pulseColor: 'bg-cyan-400',
+      directionBadge: isSupport ? 'Expected Direction: IMMINENT BRAKE / UP PIVOT ⚡' : 'Expected Direction: IMMINENT BRAKE / DOWN PIVOT ⚡',
+      badgeClass: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40',
+      borderClass: 'border-cyan-500/50',
+      bgGradient: 'from-cyan-950/40 via-slate-900 to-cyan-950/40',
+      point1Title: '1. What Happened In That Candle?',
+      point1Color: 'text-cyan-300',
+      point1Content: (
+        <>
+          An extreme volume surge (<strong className="text-white">&ge; 1.7x 20-SMA</strong>) was trapped inside a very tight price spread (<strong className="text-white">&le; 0.7x ATR</strong>). In VSA theory, this is the classic <em>&quot;Effort Without Result&quot;</em>. Huge volume traded, yet price was completely unable to move.
+        </>
+      ),
+      point2Title: '2. Is Market Going Up or Down?',
+      point2Color: 'text-cyan-300',
+      point2Content: (
+        <>
+          <strong className="text-cyan-400">The existing trend is hitting an immovable institutional barrier.</strong> Smart money has stacked massive passive limit blocks (e.g., at Put Wall support or Call Wall resistance), absorbing 100% of incoming aggressive orders. Expect momentum to halt dead and stage a violent pivot.
+        </>
+      ),
+      point3Title: '3. How to Trade It (Action Rule)',
+      point3Color: 'text-cyan-300',
+      point3Content: (
+        <>
+          • <strong className="text-amber-300">DO NOT CHASE</strong> the direction entering this bar.<br />
+          • At Put Walls / support: prepare for an upward mean-reversion bounce.<br />
+          • At Call Walls / resistance: prepare for a downward rejection fade.<br />
+          • Enter once a subsequent candle closes outside the narrow absorption range.
+        </>
+      )
+    };
+  } else if (selectedCard === 'impulse') {
+    const isBull = impulseSubTab === 'bullish';
+    deepDiveData = {
+      title: `Deep Dive: What Does "Confirmed Institutional Impulse (${isBull ? 'Bullish' : 'Bearish'})" Mean?`,
+      pulseColor: isBull ? 'bg-emerald-400' : 'bg-rose-400',
+      directionBadge: isBull ? 'Expected Direction: UP / CONTINUATION 🚀' : 'Expected Direction: DOWN / CONTINUATION 🚀',
+      badgeClass: isBull ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+      borderClass: isBull ? 'border-emerald-500/50' : 'border-rose-500/50',
+      bgGradient: isBull ? 'from-emerald-950/40 via-slate-900 to-emerald-950/40' : 'from-rose-950/40 via-slate-900 to-rose-950/40',
+      point1Title: '1. What Happened In That Candle?',
+      point1Color: isBull ? 'text-emerald-300' : 'text-rose-300',
+      point1Content: (
+        <>
+          A wide price spread (<strong className="text-white">&ge; 1.25x ATR</strong>) expanded hand-in-hand with heavy authentic volume (<strong className="text-white">&ge; 1.45x 20-SMA</strong>) and decisive closing control (<strong className="text-white">|CLV| &ge; 0.35</strong>). High institutional effort directly generated large price distance (<em>&quot;Effort Matches Result&quot;</em>).
+        </>
+      ),
+      point2Title: '2. Is Market Going Up or Down?',
+      point2Color: isBull ? 'text-emerald-300' : 'text-rose-300',
+      point2Content: (
+        <>
+          <strong className={isBull ? 'text-emerald-400' : 'text-rose-400'}>High probability of continuation in the direction of the bar.</strong> Large institutional players are aggressively using market orders to push the index through structural levels, creating order-book imbalances that favor trend expansion.
+        </>
+      ),
+      point3Title: '3. How to Trade It (Action Rule)',
+      point3Color: isBull ? 'text-emerald-300' : 'text-rose-300',
+      point3Content: (
+        <>
+          • <strong className="text-white">RIDE THE MOMENTUM.</strong> Never fade or counter-trade a confirmed institutional impulse.<br />
+          • Enter on minor 1m retests toward the 5m candle&apos;s midpoint (50% level).<br />
+          • Invalidation / stop-loss sits at the opposite extreme of the impulse bar.
+        </>
+      )
+    };
+  } else if (selectedCard === 'trap') {
+    const isBullTrap = trapSubTab === 'bull-trap';
+    deepDiveData = {
+      title: `Deep Dive: What Does "Air Pocket Spike / Trap (${isBullTrap ? 'Bull Trap' : 'Bear Trap'})" Mean?`,
+      pulseColor: 'bg-rose-400',
+      directionBadge: isBullTrap ? 'Expected Direction: DOWN / SNAPBACK REVERSAL 🪤' : 'Expected Direction: UP / SNAPBACK REVERSAL 🪤',
+      badgeClass: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+      borderClass: 'border-rose-500/50',
+      bgGradient: 'from-rose-950/40 via-slate-900 to-amber-950/40',
+      point1Title: '1. What Happened In That Candle?',
+      point1Color: 'text-rose-300',
+      point1Content: (
+        <>
+          Price moved across a deceptively wide spread (<strong className="text-white">&ge; 1.35x ATR</strong>), but volume was severely dry and faded (<strong className="text-white">&le; 0.75x 20-SMA</strong>). This represents <em>&quot;Result Without Effort&quot;</em>—the market moved not because buyers were strong, but because the order book was thin and empty.
+        </>
+      ),
+      point2Title: '2. Will The Move Hold Or Fail?',
+      point2Color: 'text-rose-300',
+      point2Content: (
+        <>
+          <strong className="text-rose-400">The breakout is a liquidity trap. Expect a rapid snapback.</strong> Market makers easily sweep thin air pockets to grab retail stop orders. Because there are no real institutional buyers or sellers backing the move, price collapses back into the prior trading range as soon as liquidity normalizes.
+        </>
+      ),
+      point3Title: '3. How to Trade It (Action Rule)',
+      point3Color: 'text-rose-300',
+      point3Content: (
+        <>
+          • <strong className="text-rose-400">DO NOT BUY</strong> breakout highs on faded green volume, and <strong className="text-rose-400">DO NOT SHORT</strong> on faded red volume.<br />
+          • Prepare to trade the snapback reversal back toward equilibrium (VWAP).<br />
+          • Place stop-loss just outside the trap bar&apos;s high/low and target complete retracement.
+        </>
+      )
+    };
+  }
 
   return (
     <div className="space-y-4">
@@ -997,236 +1168,566 @@ function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
           <span className="text-slate-400">Baseline: 20-ATR Spread & 20-SMA Volume</span>
         </div>
 
-        {/* 4 VSA Pattern Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
-          {/* Card 1: Climax Exhaustion (Amber / Yellow Bar) - HIGHLIGHTED */}
-          <div className="bg-slate-900 border-2 border-amber-500/60 rounded-xl p-3 flex flex-col items-center text-center relative overflow-hidden shadow-lg shadow-amber-950/30">
-            <div className="absolute top-0 right-0 bg-amber-500 text-slate-950 text-[9px] font-mono font-extrabold px-2 py-0.5 rounded-bl">
-              YELLOW BAR
-            </div>
-            <span className="text-xs font-bold text-amber-300 flex items-center gap-1 mt-1">
-              🔄 Climax Exhaustion Wick
-            </span>
-            <span className="text-[10px] text-amber-200/70 font-mono">
-              Vol ≥ 1.5x SMA + Wick ≥ 50%
-            </span>
+        {/* 4 VSA Pattern Cards Grid - Pixel Aligned */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5 items-stretch">
+          {/* Card 1: Climax Exhaustion (Amber / Yellow Bar) */}
+          <div
+            onClick={() => setSelectedCard('climax')}
+            className={`rounded-xl p-3 flex flex-col justify-between relative overflow-hidden transition-all cursor-pointer ${
+              selectedCard === 'climax'
+                ? 'bg-slate-900 border-2 border-amber-500 shadow-xl shadow-amber-950/40 ring-1 ring-amber-400'
+                : 'bg-slate-900/80 border border-slate-800 hover:border-slate-700 hover:bg-slate-900'
+            }`}
+          >
+            <div>
+              {/* Header */}
+              <div className="flex items-start justify-between gap-1 min-h-[44px]">
+                <div className="text-left flex-1">
+                  <span className="text-xs font-bold text-amber-300 flex items-center gap-1">
+                    🔄 Climax Exhaustion Wick
+                  </span>
+                  <span className="text-[10px] text-amber-200/70 font-mono block">
+                    Vol ≥ 1.5x SMA + Wick ≥ 50%
+                  </span>
+                </div>
+                <span className="bg-amber-500 text-slate-950 text-[9px] font-mono font-extrabold px-1.5 py-0.5 rounded shrink-0">
+                  YELLOW BAR
+                </span>
+              </div>
 
-            {/* Sub-selector for Capitulation vs Buying Climax */}
-            <div className="flex items-center gap-1 my-2 bg-slate-950 p-0.5 rounded-lg border border-slate-800 w-full text-[10px] font-mono">
-              <button
-                type="button"
-                onClick={() => setClimaxSubTab('selling-capitulation')}
-                className={`flex-1 py-1 rounded transition-colors ${
-                  climaxSubTab === 'selling-capitulation'
-                    ? 'bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Capitulation
-              </button>
-              <button
-                type="button"
-                onClick={() => setClimaxSubTab('buying-climax')}
-                className={`flex-1 py-1 rounded transition-colors ${
-                  climaxSubTab === 'buying-climax'
-                    ? 'bg-rose-950 text-rose-300 border border-rose-800 font-bold'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Buying Climax
-              </button>
-            </div>
+              {/* Sub-selector */}
+              <div className="flex items-center gap-1 my-2 bg-slate-950 p-0.5 rounded-lg border border-slate-800 w-full text-[10px] font-mono h-8">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedCard('climax');
+                    setClimaxSubTab('selling-capitulation');
+                  }}
+                  className={`flex-1 py-1 rounded transition-colors ${
+                    climaxSubTab === 'selling-capitulation'
+                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Capitulation (UP)
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedCard('climax');
+                    setClimaxSubTab('buying-climax');
+                  }}
+                  className={`flex-1 py-1 rounded transition-colors ${
+                    climaxSubTab === 'buying-climax'
+                      ? 'bg-rose-950 text-rose-300 border border-rose-800 font-bold'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Buying Climax (DN)
+                </button>
+              </div>
 
-            {climaxSubTab === 'selling-capitulation' ? (
-              <>
-                <svg viewBox="0 0 100 150" className="w-24 h-36 my-1 select-none">
-                  {/* Selling Capitulation: Long Lower Rejection Wick, small body at top */}
-                  <line x1="50" y1="20" x2="50" y2="100" stroke="#10b981" strokeWidth="2" />
-                  <rect x="40" y="20" width="20" height="22" fill="#10b981" rx="2" />
-                  {/* Long lower wick indicator */}
-                  <text x="65" y="70" fill="#34d399" fontSize="8" fontWeight="bold">65% Wick</text>
-                  <text x="65" y="32" fill="#94a3b8" fontSize="7">Close</text>
-                  {/* Yellow/Amber Volume Bar */}
-                  <line x1="15" y1="108" x2="85" y2="108" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
-                  <rect x="40" y="112" width="20" height="28" fill="#f59e0b" opacity="0.95" rx="1" />
-                  <text x="50" y="148" fill="#fbbf24" fontSize="8" fontWeight="bold" textAnchor="middle">1.9x Vol</text>
-                </svg>
-                <div className="w-full text-left bg-emerald-950/40 border border-emerald-800/40 rounded p-1.5 mb-1.5">
+              {/* Candle Graphic */}
+              <div className="h-36 w-full flex items-center justify-center my-1 select-none">
+                {climaxSubTab === 'selling-capitulation' ? (
+                  <svg viewBox="0 0 100 150" className="w-24 h-36 select-none">
+                    <line x1="50" y1="20" x2="50" y2="100" stroke="#10b981" strokeWidth="2" />
+                    <rect x="40" y="20" width="20" height="22" fill="#10b981" rx="2" />
+                    <text x="65" y="70" fill="#34d399" fontSize="8" fontWeight="bold">65% Wick</text>
+                    <text x="65" y="32" fill="#94a3b8" fontSize="7">Close</text>
+                    <line x1="15" y1="108" x2="85" y2="108" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
+                    <rect x="40" y="112" width="20" height="28" fill="#f59e0b" opacity="0.95" rx="1" />
+                    <text x="50" y="148" fill="#fbbf24" fontSize="8" fontWeight="bold" textAnchor="middle">1.9x Vol</text>
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 100 150" className="w-24 h-36 select-none">
+                    <line x1="50" y1="15" x2="50" y2="95" stroke="#f43f5e" strokeWidth="2" />
+                    <rect x="40" y="70" width="20" height="22" fill="#f43f5e" rx="2" />
+                    <text x="65" y="45" fill="#fb7185" fontSize="8" fontWeight="bold">60% Wick</text>
+                    <text x="65" y="85" fill="#94a3b8" fontSize="7">Close</text>
+                    <line x1="15" y1="108" x2="85" y2="108" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
+                    <rect x="40" y="112" width="20" height="28" fill="#f59e0b" opacity="0.95" rx="1" />
+                    <text x="50" y="148" fill="#fbbf24" fontSize="8" fontWeight="bold" textAnchor="middle">1.8x Vol</text>
+                  </svg>
+                )}
+              </div>
+
+              {/* Bias Box */}
+              {climaxSubTab === 'selling-capitulation' ? (
+                <div className="w-full text-left bg-emerald-950/40 border border-emerald-800/40 rounded p-2 mb-2 min-h-[58px] flex flex-col justify-center">
                   <div className="text-[10px] font-bold text-emerald-300 flex items-center gap-1">
                     <span>🟢 Bias:</span> <strong>BULLISH REVERSAL (UP)</strong>
                   </div>
-                  <div className="text-[9px] text-slate-300">
+                  <div className="text-[9px] text-slate-300 mt-0.5">
                     Panic selling absorbed by institutional buy limits. Sellers exhausted.
                   </div>
                 </div>
-              </>
-            ) : (
-              <>
-                <svg viewBox="0 0 100 150" className="w-24 h-36 my-1 select-none">
-                  {/* Buying Climax: Long Upper Rejection Wick, small body at bottom */}
-                  <line x1="50" y1="15" x2="50" y2="95" stroke="#f43f5e" strokeWidth="2" />
-                  <rect x="40" y="70" width="20" height="22" fill="#f43f5e" rx="2" />
-                  {/* Long upper wick indicator */}
-                  <text x="65" y="45" fill="#fb7185" fontSize="8" fontWeight="bold">60% Wick</text>
-                  <text x="65" y="85" fill="#94a3b8" fontSize="7">Close</text>
-                  {/* Yellow/Amber Volume Bar */}
-                  <line x1="15" y1="108" x2="85" y2="108" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
-                  <rect x="40" y="112" width="20" height="28" fill="#f59e0b" opacity="0.95" rx="1" />
-                  <text x="50" y="148" fill="#fbbf24" fontSize="8" fontWeight="bold" textAnchor="middle">1.8x Vol</text>
-                </svg>
-                <div className="w-full text-left bg-rose-950/40 border border-rose-800/40 rounded p-1.5 mb-1.5">
+              ) : (
+                <div className="w-full text-left bg-rose-950/40 border border-rose-800/40 rounded p-2 mb-2 min-h-[58px] flex flex-col justify-center">
                   <div className="text-[10px] font-bold text-rose-300 flex items-center gap-1">
                     <span>🔴 Bias:</span> <strong>BEARISH REVERSAL (DOWN)</strong>
                   </div>
-                  <div className="text-[9px] text-slate-300">
+                  <div className="text-[9px] text-slate-300 mt-0.5">
                     Breakout buying dumped into institutional sell orders. Buyers trapped.
                   </div>
                 </div>
-              </>
-            )}
-            <p className="text-[10px] text-slate-300 leading-tight">
-              Aggressive market orders were decisively absorbed by contrary institutional liquidity, creating an exhaustion pivot.
-            </p>
+              )}
+
+              {/* Narrative */}
+              <p className="text-[10px] text-slate-300 leading-tight min-h-[40px] flex items-center text-center justify-center">
+                Aggressive market orders were decisively absorbed by contrary institutional liquidity, creating an exhaustion pivot.
+              </p>
+            </div>
+
+            {/* Deep Dive Action Pill */}
+            <div className={`mt-2.5 py-1 px-2 rounded text-[10px] font-mono flex items-center justify-center gap-1 transition-colors ${
+              selectedCard === 'climax'
+                ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40'
+                : 'text-slate-400 bg-slate-950/60 border border-slate-800'
+            }`}>
+              {selectedCard === 'climax' ? 'Deep Dive Active ▼' : 'Click to Deep Dive →'}
+            </div>
           </div>
 
           {/* Card 2: Institutional Absorption (Cyan Bar) */}
-          <div className="bg-slate-900 border border-cyan-800/60 rounded-xl p-3 flex flex-col items-center text-center relative overflow-hidden">
-            <div className="absolute top-0 right-0 bg-cyan-600 text-slate-950 text-[9px] font-mono font-extrabold px-2 py-0.5 rounded-bl">
-              CYAN BAR
-            </div>
-            <span className="text-xs font-bold text-cyan-300 flex items-center gap-1 mt-1">
-              ⚡ Institutional Absorption
-            </span>
-            <span className="text-[10px] text-cyan-200/70 font-mono">
-              Tight Spread (&le; 0.7x) + Vol &ge; 1.7x
-            </span>
-            <svg viewBox="0 0 100 150" className="w-24 h-36 my-2 select-none">
-              {/* Tiny Candle with Rejection Wick */}
-              <line x1="50" y1="35" x2="50" y2="90" stroke="#06b6d4" strokeWidth="2" />
-              <rect x="42" y="45" width="16" height="15" fill="#06b6d4" rx="2" />
-              <text x="65" y="55" fill="#67e8f9" fontSize="8" fontWeight="bold">8 pts</text>
-              {/* Massive Cyan Volume Bar */}
-              <line x1="15" y1="108" x2="85" y2="108" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
-              <rect x="40" y="112" width="20" height="28" fill="#06b6d4" opacity="0.95" rx="1" />
-              <text x="50" y="148" fill="#67e8f9" fontSize="8" fontWeight="bold" textAnchor="middle">2.2x Vol</text>
-            </svg>
-            <div className="w-full text-left bg-cyan-950/40 border border-cyan-800/40 rounded p-1.5 mb-1.5">
-              <div className="text-[10px] font-bold text-cyan-300">
-                <span>🔄 Bias:</span> <strong>IMMINENT PIVOT / BRAKE</strong>
+          <div
+            onClick={() => setSelectedCard('absorption')}
+            className={`rounded-xl p-3 flex flex-col justify-between relative overflow-hidden transition-all cursor-pointer ${
+              selectedCard === 'absorption'
+                ? 'bg-slate-900 border-2 border-cyan-500 shadow-xl shadow-cyan-950/40 ring-1 ring-cyan-400'
+                : 'bg-slate-900/80 border border-slate-800 hover:border-slate-700 hover:bg-slate-900'
+            }`}
+          >
+            <div>
+              {/* Header */}
+              <div className="flex items-start justify-between gap-1 min-h-[44px]">
+                <div className="text-left flex-1">
+                  <span className="text-xs font-bold text-cyan-300 flex items-center gap-1">
+                    ⚡ Institutional Absorption
+                  </span>
+                  <span className="text-[10px] text-cyan-200/70 font-mono block">
+                    Tight Spread (&le; 0.7x) + Vol &ge; 1.7x
+                  </span>
+                </div>
+                <span className="bg-cyan-600 text-slate-950 text-[9px] font-mono font-extrabold px-1.5 py-0.5 rounded shrink-0">
+                  CYAN BAR
+                </span>
               </div>
-              <div className="text-[9px] text-slate-300">
-                Smart money passive limits absorb market orders. Trend stalls.
+
+              {/* Sub-selector */}
+              <div className="flex items-center gap-1 my-2 bg-slate-950 p-0.5 rounded-lg border border-slate-800 w-full text-[10px] font-mono h-8">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedCard('absorption');
+                    setAbsorptionSubTab('bid-support');
+                  }}
+                  className={`flex-1 py-1 rounded transition-colors ${
+                    absorptionSubTab === 'bid-support'
+                      ? 'bg-cyan-950 text-cyan-300 border border-cyan-800 font-bold'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Support Pin (Bids)
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedCard('absorption');
+                    setAbsorptionSubTab('ask-ceiling');
+                  }}
+                  className={`flex-1 py-1 rounded transition-colors ${
+                    absorptionSubTab === 'ask-ceiling'
+                      ? 'bg-cyan-950 text-cyan-300 border border-cyan-800 font-bold'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Ceiling Pin (Asks)
+                </button>
               </div>
+
+              {/* Candle Graphic */}
+              <div className="h-36 w-full flex items-center justify-center my-1 select-none">
+                {absorptionSubTab === 'bid-support' ? (
+                  <svg viewBox="0 0 100 150" className="w-24 h-36 select-none">
+                    <line x1="50" y1="35" x2="50" y2="90" stroke="#06b6d4" strokeWidth="2" />
+                    <rect x="42" y="45" width="16" height="15" fill="#06b6d4" rx="2" />
+                    <text x="65" y="55" fill="#67e8f9" fontSize="8" fontWeight="bold">8 pts</text>
+                    <line x1="15" y1="108" x2="85" y2="108" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
+                    <rect x="40" y="112" width="20" height="28" fill="#06b6d4" opacity="0.95" rx="1" />
+                    <text x="50" y="148" fill="#67e8f9" fontSize="8" fontWeight="bold" textAnchor="middle">2.2x Vol</text>
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 100 150" className="w-24 h-36 select-none">
+                    <line x1="50" y1="35" x2="50" y2="90" stroke="#06b6d4" strokeWidth="2" />
+                    <rect x="42" y="65" width="16" height="15" fill="#06b6d4" rx="2" />
+                    <text x="65" y="75" fill="#67e8f9" fontSize="8" fontWeight="bold">7 pts</text>
+                    <line x1="15" y1="108" x2="85" y2="108" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
+                    <rect x="40" y="112" width="20" height="28" fill="#06b6d4" opacity="0.95" rx="1" />
+                    <text x="50" y="148" fill="#67e8f9" fontSize="8" fontWeight="bold" textAnchor="middle">2.1x Vol</text>
+                  </svg>
+                )}
+              </div>
+
+              {/* Bias Box */}
+              <div className="w-full text-left bg-cyan-950/40 border border-cyan-800/40 rounded p-2 mb-2 min-h-[58px] flex flex-col justify-center">
+                <div className="text-[10px] font-bold text-cyan-300 flex items-center gap-1">
+                  <span>🔄 Bias:</span> <strong>IMMINENT PIVOT / BRAKE</strong>
+                </div>
+                <div className="text-[9px] text-slate-300 mt-0.5">
+                  {absorptionSubTab === 'bid-support'
+                    ? 'Smart money limits absorb sell orders at support. Trend stalls.'
+                    : 'Smart money limits absorb buy orders at ceiling. Momentum stalls.'}
+                </div>
+              </div>
+
+              {/* Narrative */}
+              <p className="text-[10px] text-slate-300 leading-tight min-h-[40px] flex items-center text-center justify-center">
+                Effort without result. Giant institutional order blocks pin price, stopping momentum dead in its tracks.
+              </p>
             </div>
-            <p className="text-[10px] text-slate-300 leading-tight">
-              Effort without result. Giant institutional order blocks pin price, stopping momentum dead in its tracks.
-            </p>
+
+            {/* Deep Dive Action Pill */}
+            <div className={`mt-2.5 py-1 px-2 rounded text-[10px] font-mono flex items-center justify-center gap-1 transition-colors ${
+              selectedCard === 'absorption'
+                ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40'
+                : 'text-slate-400 bg-slate-950/60 border border-slate-800'
+            }`}>
+              {selectedCard === 'absorption' ? 'Deep Dive Active ▼' : 'Click to Deep Dive →'}
+            </div>
           </div>
 
           {/* Card 3: Confirmed Institutional Impulse (Solid Green/Red Bar) */}
-          <div className="bg-slate-900 border border-emerald-800/60 rounded-xl p-3 flex flex-col items-center text-center relative overflow-hidden">
-            <div className="absolute top-0 right-0 bg-emerald-600 text-slate-950 text-[9px] font-mono font-extrabold px-2 py-0.5 rounded-bl">
-              BRIGHT SOLID
-            </div>
-            <span className="text-xs font-bold text-emerald-300 flex items-center gap-1 mt-1">
-              ✅ Institutional Impulse
-            </span>
-            <span className="text-[10px] text-emerald-200/70 font-mono">
-              Wide Spread (&ge; 1.25x) + Vol &ge; 1.45x
-            </span>
-            <svg viewBox="0 0 100 150" className="w-24 h-36 my-2 select-none">
-              {/* Solid Long Candle */}
-              <line x1="50" y1="15" x2="50" y2="95" stroke="#10b981" strokeWidth="2" />
-              <rect x="40" y="20" width="20" height="70" fill="#10b981" rx="2" />
-              <text x="66" y="55" fill="#34d399" fontSize="8" fontWeight="bold">+40 pts</text>
-              {/* Outsized Solid Volume Bar */}
-              <line x1="15" y1="108" x2="85" y2="108" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
-              <rect x="40" y="114" width="20" height="26" fill="#10b981" opacity="0.95" rx="1" />
-              <text x="50" y="148" fill="#34d399" fontSize="8" fontWeight="bold" textAnchor="middle">1.8x Vol</text>
-            </svg>
-            <div className="w-full text-left bg-emerald-950/40 border border-emerald-800/40 rounded p-1.5 mb-1.5">
-              <div className="text-[10px] font-bold text-emerald-300">
-                <span>🚀 Bias:</span> <strong>TREND CONTINUATION</strong>
+          <div
+            onClick={() => setSelectedCard('impulse')}
+            className={`rounded-xl p-3 flex flex-col justify-between relative overflow-hidden transition-all cursor-pointer ${
+              selectedCard === 'impulse'
+                ? 'bg-slate-900 border-2 border-emerald-500 shadow-xl shadow-emerald-950/40 ring-1 ring-emerald-400'
+                : 'bg-slate-900/80 border border-slate-800 hover:border-slate-700 hover:bg-slate-900'
+            }`}
+          >
+            <div>
+              {/* Header */}
+              <div className="flex items-start justify-between gap-1 min-h-[44px]">
+                <div className="text-left flex-1">
+                  <span className="text-xs font-bold text-emerald-300 flex items-center gap-1">
+                    ✅ Institutional Impulse
+                  </span>
+                  <span className="text-[10px] text-emerald-200/70 font-mono block">
+                    Wide Spread (&ge; 1.25x) + Vol &ge; 1.45x
+                  </span>
+                </div>
+                <span className="bg-emerald-600 text-slate-950 text-[9px] font-mono font-extrabold px-1.5 py-0.5 rounded shrink-0">
+                  BRIGHT SOLID
+                </span>
               </div>
-              <div className="text-[9px] text-slate-300">
-                Institutional volume drives expansion. Follow direction.
+
+              {/* Sub-selector */}
+              <div className="flex items-center gap-1 my-2 bg-slate-950 p-0.5 rounded-lg border border-slate-800 w-full text-[10px] font-mono h-8">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedCard('impulse');
+                    setImpulseSubTab('bullish');
+                  }}
+                  className={`flex-1 py-1 rounded transition-colors ${
+                    impulseSubTab === 'bullish'
+                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Bullish (+40 pts)
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedCard('impulse');
+                    setImpulseSubTab('bearish');
+                  }}
+                  className={`flex-1 py-1 rounded transition-colors ${
+                    impulseSubTab === 'bearish'
+                      ? 'bg-rose-950 text-rose-300 border border-rose-800 font-bold'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Bearish (-40 pts)
+                </button>
               </div>
+
+              {/* Candle Graphic */}
+              <div className="h-36 w-full flex items-center justify-center my-1 select-none">
+                {impulseSubTab === 'bullish' ? (
+                  <svg viewBox="0 0 100 150" className="w-24 h-36 select-none">
+                    <line x1="50" y1="15" x2="50" y2="95" stroke="#10b981" strokeWidth="2" />
+                    <rect x="40" y="20" width="20" height="70" fill="#10b981" rx="2" />
+                    <text x="66" y="55" fill="#34d399" fontSize="8" fontWeight="bold">+40 pts</text>
+                    <line x1="15" y1="108" x2="85" y2="108" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
+                    <rect x="40" y="114" width="20" height="26" fill="#10b981" opacity="0.95" rx="1" />
+                    <text x="50" y="148" fill="#34d399" fontSize="8" fontWeight="bold" textAnchor="middle">1.8x Vol</text>
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 100 150" className="w-24 h-36 select-none">
+                    <line x1="50" y1="15" x2="50" y2="95" stroke="#f43f5e" strokeWidth="2" />
+                    <rect x="40" y="20" width="20" height="70" fill="#f43f5e" rx="2" />
+                    <text x="66" y="55" fill="#fb7185" fontSize="8" fontWeight="bold">-40 pts</text>
+                    <line x1="15" y1="108" x2="85" y2="108" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
+                    <rect x="40" y="114" width="20" height="26" fill="#f43f5e" opacity="0.95" rx="1" />
+                    <text x="50" y="148" fill="#fb7185" fontSize="8" fontWeight="bold" textAnchor="middle">1.8x Vol</text>
+                  </svg>
+                )}
+              </div>
+
+              {/* Bias Box */}
+              <div className={`w-full text-left rounded p-2 mb-2 min-h-[58px] flex flex-col justify-center border ${
+                impulseSubTab === 'bullish'
+                  ? 'bg-emerald-950/40 border-emerald-800/40 text-emerald-300'
+                  : 'bg-rose-950/40 border-rose-800/40 text-rose-300'
+              }`}>
+                <div className="text-[10px] font-bold flex items-center gap-1">
+                  <span>🚀 Bias:</span> <strong>TREND CONTINUATION ({impulseSubTab === 'bullish' ? 'UP' : 'DOWN'})</strong>
+                </div>
+                <div className="text-[9px] text-slate-300 mt-0.5">
+                  Institutional volume drives directional expansion. Follow direction.
+                </div>
+              </div>
+
+              {/* Narrative */}
+              <p className="text-[10px] text-slate-300 leading-tight min-h-[40px] flex items-center text-center justify-center">
+                Effort matches result. Real institutional participation confirms genuine directional intent with high follow-through odds.
+              </p>
             </div>
-            <p className="text-[10px] text-slate-300 leading-tight">
-              Effort matches result. Real institutional participation confirms genuine directional intent with high follow-through odds.
-            </p>
+
+            {/* Deep Dive Action Pill */}
+            <div className={`mt-2.5 py-1 px-2 rounded text-[10px] font-mono flex items-center justify-center gap-1 transition-colors ${
+              selectedCard === 'impulse'
+                ? 'bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/40'
+                : 'text-slate-400 bg-slate-950/60 border border-slate-800'
+            }`}>
+              {selectedCard === 'impulse' ? 'Deep Dive Active ▼' : 'Click to Deep Dive →'}
+            </div>
           </div>
 
           {/* Card 4: Air Pocket Spike / False Move (Faded Bar) */}
-          <div className="bg-slate-900 border border-rose-900/60 rounded-xl p-3 flex flex-col items-center text-center relative overflow-hidden">
-            <div className="absolute top-0 right-0 bg-slate-700 text-slate-300 text-[9px] font-mono font-extrabold px-2 py-0.5 rounded-bl">
-              FADED / DIM
-            </div>
-            <span className="text-xs font-bold text-rose-400 flex items-center gap-1 mt-1">
-              ⚠️ Air Pocket Spike / Trap
-            </span>
-            <span className="text-[10px] text-rose-300/70 font-mono">
-              Wide Spread (&ge; 1.35x) + Low Vol (&le; 0.75x)
-            </span>
-            <svg viewBox="0 0 100 150" className="w-24 h-36 my-2 select-none">
-              {/* Large Candle on Thin Air */}
-              <line x1="50" y1="15" x2="50" y2="95" stroke="#10b981" strokeWidth="2" />
-              <rect x="40" y="25" width="20" height="60" fill="#10b981" rx="2" />
-              <text x="66" y="55" fill="#34d399" fontSize="8" fontWeight="bold">+35 pts</text>
-              {/* Tiny Volume Bar */}
-              <line x1="15" y1="108" x2="85" y2="108" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
-              <rect x="42" y="125" width="16" height="15" fill="#f43f5e" opacity="0.35" rx="1" />
-              <text x="50" y="148" fill="#fda4af" fontSize="8" textAnchor="middle">0.5x Vol</text>
-            </svg>
-            <div className="w-full text-left bg-rose-950/40 border border-rose-800/40 rounded p-1.5 mb-1.5">
-              <div className="text-[10px] font-bold text-rose-300">
-                <span>🪤 Bias:</span> <strong>SNAPBACK TRAP (REVERSAL)</strong>
+          <div
+            onClick={() => setSelectedCard('trap')}
+            className={`rounded-xl p-3 flex flex-col justify-between relative overflow-hidden transition-all cursor-pointer ${
+              selectedCard === 'trap'
+                ? 'bg-slate-900 border-2 border-rose-500 shadow-xl shadow-rose-950/40 ring-1 ring-rose-400'
+                : 'bg-slate-900/80 border border-slate-800 hover:border-slate-700 hover:bg-slate-900'
+            }`}
+          >
+            <div>
+              {/* Header */}
+              <div className="flex items-start justify-between gap-1 min-h-[44px]">
+                <div className="text-left flex-1">
+                  <span className="text-xs font-bold text-rose-400 flex items-center gap-1">
+                    ⚠️ Air Pocket Spike / Trap
+                  </span>
+                  <span className="text-[10px] text-rose-300/70 font-mono block">
+                    Wide Spread (&ge; 1.35x) + Low Vol (&le; 0.75x)
+                  </span>
+                </div>
+                <span className="bg-slate-700 text-slate-300 text-[9px] font-mono font-extrabold px-1.5 py-0.5 rounded shrink-0">
+                  FADED / DIM
+                </span>
               </div>
-              <div className="text-[9px] text-slate-300">
-                Thin liquidity sweep without buyers. Breakout will fail.
+
+              {/* Sub-selector */}
+              <div className="flex items-center gap-1 my-2 bg-slate-950 p-0.5 rounded-lg border border-slate-800 w-full text-[10px] font-mono h-8">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedCard('trap');
+                    setTrapSubTab('bull-trap');
+                  }}
+                  className={`flex-1 py-1 rounded transition-colors ${
+                    trapSubTab === 'bull-trap'
+                      ? 'bg-amber-950 text-amber-300 border border-amber-800 font-bold'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Bull Trap (Spike)
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedCard('trap');
+                    setTrapSubTab('bear-trap');
+                  }}
+                  className={`flex-1 py-1 rounded transition-colors ${
+                    trapSubTab === 'bear-trap'
+                      ? 'bg-amber-950 text-amber-300 border border-amber-800 font-bold'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Bear Trap (Drop)
+                </button>
               </div>
+
+              {/* Candle Graphic */}
+              <div className="h-36 w-full flex items-center justify-center my-1 select-none">
+                {trapSubTab === 'bull-trap' ? (
+                  <svg viewBox="0 0 100 150" className="w-24 h-36 select-none">
+                    <line x1="50" y1="15" x2="50" y2="95" stroke="#10b981" strokeWidth="2" />
+                    <rect x="40" y="25" width="20" height="60" fill="#10b981" rx="2" />
+                    <text x="66" y="55" fill="#34d399" fontSize="8" fontWeight="bold">+35 pts</text>
+                    <line x1="15" y1="108" x2="85" y2="108" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
+                    <rect x="42" y="125" width="16" height="15" fill="#f43f5e" opacity="0.35" rx="1" />
+                    <text x="50" y="148" fill="#fda4af" fontSize="8" textAnchor="middle">0.5x Vol</text>
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 100 150" className="w-24 h-36 select-none">
+                    <line x1="50" y1="15" x2="50" y2="95" stroke="#f43f5e" strokeWidth="2" />
+                    <rect x="40" y="25" width="20" height="60" fill="#f43f5e" rx="2" />
+                    <text x="66" y="55" fill="#fb7185" fontSize="8" fontWeight="bold">-35 pts</text>
+                    <line x1="15" y1="108" x2="85" y2="108" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
+                    <rect x="42" y="125" width="16" height="15" fill="#10b981" opacity="0.35" rx="1" />
+                    <text x="50" y="148" fill="#6ee7b7" fontSize="8" textAnchor="middle">0.5x Vol</text>
+                  </svg>
+                )}
+              </div>
+
+              {/* Bias Box */}
+              <div className="w-full text-left bg-rose-950/40 border border-rose-800/40 rounded p-2 mb-2 min-h-[58px] flex flex-col justify-center">
+                <div className="text-[10px] font-bold text-rose-300 flex items-center gap-1">
+                  <span>🪤 Bias:</span> <strong>SNAPBACK TRAP ({trapSubTab === 'bull-trap' ? 'DOWN' : 'UP'})</strong>
+                </div>
+                <div className="text-[9px] text-slate-300 mt-0.5">
+                  Thin liquidity sweep without buyers. Breakout will fail.
+                </div>
+              </div>
+
+              {/* Narrative */}
+              <p className="text-[10px] text-slate-300 leading-tight min-h-[40px] flex items-center text-center justify-center">
+                Result without effort. Price moved because the order book was empty, not because buyers entered. High odds of rapid snapback.
+              </p>
             </div>
-            <p className="text-[10px] text-slate-300 leading-tight">
-              Result without effort. Price moved because the order book was empty, not because buyers entered. High odds of rapid snapback.
-            </p>
+
+            {/* Deep Dive Action Pill */}
+            <div className={`mt-2.5 py-1 px-2 rounded text-[10px] font-mono flex items-center justify-center gap-1 transition-colors ${
+              selectedCard === 'trap'
+                ? 'bg-rose-500/20 text-rose-300 font-bold border border-rose-500/40'
+                : 'text-slate-400 bg-slate-950/60 border border-slate-800'
+            }`}>
+              {selectedCard === 'trap' ? 'Deep Dive Active ▼' : 'Click to Deep Dive →'}
+            </div>
           </div>
         </div>
 
-        {/* SPECIAL DEEP-DIVE: "Selling Capitulation Wick" Explained */}
-        <div className="p-4 bg-gradient-to-r from-amber-950/40 via-slate-900 to-emerald-950/40 border border-amber-500/50 rounded-xl space-y-2.5">
+        {/* DYNAMIC DEEP-DIVE: Synchronized with Active Card Selection */}
+        <div className={`p-4 bg-gradient-to-r ${deepDiveData.bgGradient} border ${deepDiveData.borderClass} rounded-xl space-y-3 transition-all`}>
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-amber-400 animate-pulse" />
+              <span className={`w-3 h-3 rounded-full ${deepDiveData.pulseColor} animate-pulse`} />
               <h4 className="text-sm font-extrabold text-white">
-                Deep Dive: What Does "Selling Capitulation Wick" Mean? (Will Market Go UP or DOWN?)
+                {deepDiveData.title}
               </h4>
             </div>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-              Expected Direction: UP / BOUNCE 🟢
+            <span className={`px-2.5 py-0.5 rounded-full text-xs font-mono font-bold border ${deepDiveData.badgeClass}`}>
+              {deepDiveData.directionBadge}
             </span>
           </div>
 
+          {/* Quick Deep Dive Topic Switcher Chips */}
+          <div className="flex items-center gap-1.5 flex-wrap pt-0.5 pb-1 border-t border-b border-slate-800/60">
+            <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider mr-1">Deep Dive Focus:</span>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedCard('climax');
+                setClimaxSubTab('selling-capitulation');
+              }}
+              className={`text-[10px] font-mono px-2 py-0.5 rounded transition-all cursor-pointer ${
+                selectedCard === 'climax' && climaxSubTab === 'selling-capitulation'
+                  ? 'bg-amber-500 text-slate-950 font-bold shadow'
+                  : 'bg-slate-950 text-slate-300 border border-slate-800 hover:border-slate-700'
+              }`}
+            >
+              🟡 Selling Capitulation (UP 🟢)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedCard('climax');
+                setClimaxSubTab('buying-climax');
+              }}
+              className={`text-[10px] font-mono px-2 py-0.5 rounded transition-all cursor-pointer ${
+                selectedCard === 'climax' && climaxSubTab === 'buying-climax'
+                  ? 'bg-amber-500 text-slate-950 font-bold shadow'
+                  : 'bg-slate-950 text-slate-300 border border-slate-800 hover:border-slate-700'
+              }`}
+            >
+              🟡 Buying Climax (DOWN 🔴)
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedCard('absorption')}
+              className={`text-[10px] font-mono px-2 py-0.5 rounded transition-all cursor-pointer ${
+                selectedCard === 'absorption'
+                  ? 'bg-cyan-500 text-slate-950 font-bold shadow'
+                  : 'bg-slate-950 text-slate-300 border border-slate-800 hover:border-slate-700'
+              }`}
+            >
+              🔵 Absorption Wall (Pivot ⚡)
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedCard('impulse')}
+              className={`text-[10px] font-mono px-2 py-0.5 rounded transition-all cursor-pointer ${
+                selectedCard === 'impulse'
+                  ? 'bg-emerald-500 text-slate-950 font-bold shadow'
+                  : 'bg-slate-950 text-slate-300 border border-slate-800 hover:border-slate-700'
+              }`}
+            >
+              🟢 Confirmed Impulse (Trend 🚀)
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedCard('trap')}
+              className={`text-[10px] font-mono px-2 py-0.5 rounded transition-all cursor-pointer ${
+                selectedCard === 'trap'
+                  ? 'bg-rose-500 text-slate-950 font-bold shadow'
+                  : 'bg-slate-950 text-slate-300 border border-slate-800 hover:border-slate-700'
+              }`}
+            >
+              ⚠️ Air Pocket Trap (Snapback 🪤)
+            </button>
+          </div>
+
+          {/* 3 Actionable Pillars Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs pt-1">
-            <div className="bg-slate-950/70 p-3 rounded-lg border border-slate-800 space-y-1">
-              <strong className="text-amber-300 block font-mono">1. What Happened In That Candle?</strong>
+            <div className="bg-slate-950/80 p-3 rounded-lg border border-slate-800/90 space-y-1">
+              <strong className={`${deepDiveData.point1Color} block font-mono text-[11px]`}>
+                {deepDiveData.point1Title}
+              </strong>
               <p className="text-slate-300 leading-relaxed text-[11px]">
-                A violent panic sell-off pushed price down sharply on heavy volume (<strong className="text-white">&ge; 1.5x 20-SMA</strong>). Retail traders panicked and stop-losses were triggered. However, large institutions stepped in with massive <strong className="text-cyan-300">passive limit BUY orders</strong>, absorbing all the selling and fiercely driving price back up before the 5m bar closed.
+                {deepDiveData.point1Content}
               </p>
             </div>
 
-            <div className="bg-slate-950/70 p-3 rounded-lg border border-slate-800 space-y-1">
-              <strong className="text-emerald-300 block font-mono">2. Is Market Going Up or Down?</strong>
+            <div className="bg-slate-950/80 p-3 rounded-lg border border-slate-800/90 space-y-1">
+              <strong className={`${deepDiveData.point2Color} block font-mono text-[11px]`}>
+                {deepDiveData.point2Title}
+              </strong>
               <p className="text-slate-300 leading-relaxed text-[11px]">
-                <strong className="text-emerald-400">The market is about to go UP (reversal or strong bounce).</strong> "Capitulation" means sellers threw in the towel and dumped all their inventory. Because institutions absorbed that supply, the market is now in a <em>seller exhaustion</em> state: there are no sellers left to push price lower, so the path of least resistance is upward.
+                {deepDiveData.point2Content}
               </p>
             </div>
 
-            <div className="bg-slate-950/70 p-3 rounded-lg border border-slate-800 space-y-1">
-              <strong className="text-cyan-300 block font-mono">3. How to Trade It (Action Rule)</strong>
+            <div className="bg-slate-950/80 p-3 rounded-lg border border-slate-800/90 space-y-1">
+              <strong className={`${deepDiveData.point3Color} block font-mono text-[11px]`}>
+                {deepDiveData.point3Title}
+              </strong>
               <p className="text-slate-300 leading-relaxed text-[11px]">
-                • <strong className="text-rose-400">NEVER SHORT</strong> into a yellow capitulation wick.<br />
-                • The <em>low of the wick</em> is your <strong className="text-white">institutional defense floor</strong> and strict invalidation/stop-loss.<br />
-                • If the next 5m candle confirms by holding above the body, look for mean-reversion recovery targeting VWAP or the Decision Pivot.
+                {deepDiveData.point3Content}
               </p>
             </div>
           </div>
