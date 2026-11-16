@@ -38,7 +38,7 @@ import {
   type Time,
   type UTCTimestamp
 } from 'lightweight-charts';
-import { MultiTfPayload, CandleBar, SmartKeyLevel } from '@/lib/types';
+import { MultiTfPayload, CandleBar, SmartKeyLevel, ExecutiveMasterSynthesis } from '@/lib/types';
 import { MicrostructureVisualModal } from './MicrostructureVisualModal';
 
 interface ChartPanelProps {
@@ -491,9 +491,10 @@ function SingleTfChart({
 
 interface MultiTfParallelChartsProps {
   symbol?: 'NIFTY' | 'BANKNIFTY';
+  synthesis?: ExecutiveMasterSynthesis;
 }
 
-export function MultiTfParallelCharts({ symbol = 'NIFTY' }: MultiTfParallelChartsProps) {
+export function MultiTfParallelCharts({ symbol = 'NIFTY', synthesis }: MultiTfParallelChartsProps) {
   const [data, setData] = useState<MultiTfPayload | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -752,6 +753,7 @@ export function MultiTfParallelCharts({ symbol = 'NIFTY' }: MultiTfParallelChart
         isOpen={vsaModalOpen}
         initialTopic="vsa-microstructure"
         onClose={() => setVsaModalOpen(false)}
+        synthesis={synthesis}
         spotPrice={spotPrice}
         indexName={symbol === 'BANKNIFTY' ? 'BANK NIFTY' : 'NIFTY 50'}
       />

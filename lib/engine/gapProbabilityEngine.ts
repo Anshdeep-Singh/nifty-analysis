@@ -887,9 +887,9 @@ export function evaluateGapProbability(inputs: GapProbabilityInputs): GapPredict
 
   if (isExhaustion) {
     gapClassification = 'EXHAUSTION';
-    sameDayFill = 65;
-    continuation = 18;
-    fade = 17;
+    sameDayFill = 78;
+    continuation = 12;
+    fade = 10;
   } else if (isLevelBreached && streakCount <= 1) {
     // Fresh institutional breakout / breakdown out of value area
     gapClassification = 'BREAKAWAY';

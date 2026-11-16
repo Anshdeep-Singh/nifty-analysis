@@ -17,7 +17,7 @@ import {
   HelpCircle,
   Maximize2
 } from 'lucide-react';
-import { PredictionLevels } from '@/lib/types';
+import { PredictionLevels, ExecutiveMasterSynthesis } from '@/lib/types';
 import {
   MicrostructureVisualModal,
   MicrostructureTopicId
@@ -25,9 +25,15 @@ import {
 
 interface PredictionLevelsCardProps {
   prediction: PredictionLevels;
+  synthesis?: ExecutiveMasterSynthesis;
+  indexName?: string;
 }
 
-export function PredictionLevelsCard({ prediction }: PredictionLevelsCardProps) {
+export function PredictionLevelsCard({
+  prediction,
+  synthesis,
+  indexName = 'NIFTY 50'
+}: PredictionLevelsCardProps) {
   const [showMacroExplainer, setShowMacroExplainer] = useState(false);
   const [activeVisualTopic, setActiveVisualTopic] = useState<MicrostructureTopicId | null>(null);
   const isBull = prediction.trendScore > 0;
@@ -533,8 +539,9 @@ export function PredictionLevelsCard({ prediction }: PredictionLevelsCardProps) 
         isOpen={activeVisualTopic !== null}
         initialTopic={activeVisualTopic || 'expected-move'}
         onClose={() => setActiveVisualTopic(null)}
+        synthesis={synthesis}
         spotPrice={prediction.spotPrice}
-        indexName="NIFTY 50"
+        indexName={indexName}
       />
     </div>
   );

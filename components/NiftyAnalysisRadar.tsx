@@ -332,7 +332,7 @@ export function NiftyAnalysisRadar() {
             <ImpulseAttributionCard attribution={data.impulseAttribution} indexName="NIFTY 50" />
           )}
           <TugOfWarRadar sectors={data.sectors} indexName="NIFTY 50" spotNetChange={data.spotNetChange} />
-          <PredictionLevelsCard prediction={data.prediction} />
+          <PredictionLevelsCard prediction={data.prediction} synthesis={data.masterSynthesis} indexName="NIFTY 50" />
           <SectorCoDependencyMatrix coDependency={data.coDependency} />
           {data.anomalies.length > 0 && <AnomalyAlertFeed anomalies={data.anomalies} />}
           <ConstituentsHeatmap stocks={data.stocks} />
@@ -348,7 +348,7 @@ export function NiftyAnalysisRadar() {
       )}
 
       {viewMode === 'charts' && (
-        <MultiTfParallelCharts />
+        <MultiTfParallelCharts synthesis={data.masterSynthesis} />
       )}
 
       {viewMode === 'heatmap' && (

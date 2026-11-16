@@ -110,7 +110,7 @@ export function MicrostructureVisualModal({
   if (!isOpen) return null;
 
   const gapDynamics = synthesis?.gapDynamics;
-  const liveClassification = gapDynamics?.gapFillDynamics?.gapClassification || 'COMMON';
+  const liveClassification = gapDynamics?.gapFillDynamics?.gapClassification;
 
   return (
     <div
@@ -201,9 +201,11 @@ export function MicrostructureVisualModal({
                 ? 'bg-rose-950 border-rose-700 text-rose-300'
                 : liveClassification === 'RUNAWAY'
                 ? 'bg-emerald-950/80 border-emerald-800 text-emerald-300'
-                : 'bg-cyan-950 border-cyan-800 text-cyan-300'
+                : liveClassification === 'COMMON'
+                ? 'bg-cyan-950 border-cyan-800 text-cyan-300'
+                : 'bg-slate-800 border-slate-700 text-slate-400'
             }`}>
-              {liveClassification} GAP
+              {liveClassification ? `${liveClassification} GAP` : 'AWAITING GAP DATA'}
             </span>
           </div>
         </div>
@@ -319,12 +321,16 @@ interface VisualBaseProps {
 // ==========================================
 function CommonGapVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps) {
   const gapDynamics = synthesis?.gapDynamics;
-  const isLiveMatch = gapDynamics?.gapFillDynamics?.gapClassification === 'COMMON';
+  const liveClassification = gapDynamics?.gapFillDynamics?.gapClassification;
+  const isLiveMatch = liveClassification === 'COMMON';
   const liveFillOdds = gapDynamics?.gapFillDynamics?.sameDayFillProbabilityPct ?? 64;
   const liveContOdds = gapDynamics?.gapFillDynamics?.continuationProbabilityPct ?? 24;
   const corridorLow = gapDynamics?.expectedOpeningRange?.low ?? 24900;
   const corridorHigh = gapDynamics?.expectedOpeningRange?.high ?? 25100;
   const currentSpot = spotPrice ?? gapDynamics?.expectedOpeningRange?.centralPoint ?? 25000;
+  const prevClose = gapDynamics?.exhaustionTrapTracker?.gapFloorPrice && gapDynamics.exhaustionTrapTracker.gapFloorPrice > 0
+    ? gapDynamics.exhaustionTrapTracker.gapFloorPrice
+    : Math.round(currentSpot - 50);
 
   return (
     <div className="space-y-4">
@@ -335,21 +341,27 @@ function CommonGapVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps) {
             <span className="text-lg font-bold text-white">Common Gap (Range-Bound / Balance Area)</span>
             <span className={`text-[11px] font-mono px-2 py-0.5 rounded border ${
               viewMode === 'live-match'
-                ? isLiveMatch
+                ? !liveClassification
+                  ? 'bg-slate-800 border-slate-700 text-slate-400'
+                  : isLiveMatch
                   ? 'bg-emerald-950 border-emerald-700 text-emerald-300 font-bold'
                   : 'bg-amber-950 border-amber-700 text-amber-300 font-bold'
                 : 'bg-cyan-950 border-cyan-800 text-cyan-300'
             }`}>
               {viewMode === 'live-match'
-                ? isLiveMatch ? '🟢 Live Match Confirmed' : '⚠️ Live Regime Mismatch'
+                ? !liveClassification
+                  ? 'ℹ️ Awaiting Live Data'
+                  : isLiveMatch ? '🟢 Live Match Confirmed' : '⚠️ Live Regime Mismatch'
                 : 'High Fill Odds: 64%'}
             </span>
           </div>
           <p className="text-xs text-slate-400 mt-0.5">
             {viewMode === 'live-match'
-              ? isLiveMatch
+              ? !liveClassification
+                ? 'Awaiting live opening gap classification from engine feed.'
+                : isLiveMatch
                 ? 'Today’s market is trading inside a confirmed Common Gap regime. High odds of same-day fill.'
-                : `Today’s session is actively classified as a ${gapDynamics?.gapFillDynamics?.gapClassification || 'BREAKOUT'} (not a Common Gap).`
+                : `Today’s session is actively classified as a ${liveClassification} Gap (not a Common Gap).`
               : 'Price opens slightly outside yesterday’s close but remains trapped inside the standard range.'}
           </p>
         </div>
@@ -367,23 +379,39 @@ function CommonGapVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps) {
       {/* Live Match Comparison Banner (when in Live Match mode) */}
       {viewMode === 'live-match' && (
         <div className={`p-3 rounded-xl border text-xs space-y-1.5 ${
-          isLiveMatch
+          !liveClassification
+            ? 'bg-slate-900 border-slate-800 text-slate-300'
+            : isLiveMatch
             ? 'bg-emerald-950/30 border-emerald-800/60 text-emerald-200'
             : 'bg-amber-950/30 border-amber-800/60 text-amber-200'
         }`}>
           <div className="flex items-center justify-between font-bold">
             <span className="flex items-center gap-1.5">
-              {isLiveMatch ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <AlertTriangle className="w-4 h-4 text-amber-400" />}
-              <span>{isLiveMatch ? 'Correlating with Live Market' : 'How Today Differs from a Common Gap'}</span>
+              {!liveClassification ? (
+                <Info className="w-4 h-4 text-cyan-400" />
+              ) : isLiveMatch ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 text-amber-400" />
+              )}
+              <span>
+                {!liveClassification
+                  ? 'Awaiting Live Gap Feed'
+                  : isLiveMatch
+                  ? 'Correlating with Live Market'
+                  : 'How Today Differs from a Common Gap'}
+              </span>
             </span>
             <span className="font-mono text-[11px] bg-slate-900/80 px-2 py-0.5 rounded border border-slate-700 text-white">
               Spot: ₹{currentSpot.toLocaleString('en-IN')}
             </span>
           </div>
           <p className="text-[11px] leading-relaxed opacity-90 font-normal">
-            {isLiveMatch
+            {!liveClassification
+              ? `Live gap classification data is not yet available for this session. Textbook common gaps exhibit low relative volume and open within the expected volatility corridor.`
+              : isLiveMatch
               ? `Today’s session exhibits characteristic low relative volume and opens within the expected volatility corridor (₹${corridorLow.toLocaleString('en-IN')} – ₹${corridorHigh.toLocaleString('en-IN')}). Our engine predicts a ${liveFillOdds}% probability of filling the opening gap back toward the previous close.`
-              : `Caution: The active engine classified today as a ${gapDynamics?.gapFillDynamics?.gapClassification || 'BREAKOUT'} with ${liveContOdds}% continuation odds. Fading today’s open expecting a routine common gap fill carries elevated risk because institutional volume is driving directional momentum.`}
+              : `Caution: The active engine classified today as a ${liveClassification} Gap with ${liveContOdds}% continuation odds. Fading today’s open expecting a routine common gap fill carries elevated risk because institutional volume is driving directional momentum.`}
           </p>
         </div>
       )}
@@ -404,10 +432,10 @@ function CommonGapVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps) {
             {viewMode === 'live-match' ? `₹${Math.round(currentSpot).toLocaleString('en-IN')} (Spot)` : '25,000'}
           </text>
           <text x="575" y="144" fill="#38bdf8" fontSize="10" fontFamily="monospace" fontWeight="bold">
-            {viewMode === 'live-match' ? `₹${Math.round(corridorLow).toLocaleString('en-IN')} (Floor)` : '24,950 (Prev Close)'}
+            {viewMode === 'live-match' ? `₹${Math.round(prevClose).toLocaleString('en-IN')} (Prev Close)` : '24,950 (Prev Close)'}
           </text>
           <text x="575" y="184" fill="#64748b" fontSize="10" fontFamily="monospace">
-            {viewMode === 'live-match' ? `₹${Math.round(corridorLow - 50).toLocaleString('en-IN')}` : '24,900'}
+            {viewMode === 'live-match' ? `₹${Math.round(prevClose - 50).toLocaleString('en-IN')}` : '24,900'}
           </text>
 
           {/* Session Divider */}
@@ -496,10 +524,15 @@ function CommonGapVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps) {
 // ==========================================
 function BreakawayGapVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps) {
   const gapDynamics = synthesis?.gapDynamics;
-  const isLiveMatch = gapDynamics?.gapFillDynamics?.gapClassification === 'BREAKAWAY';
+  const liveClassification = gapDynamics?.gapFillDynamics?.gapClassification;
+  const isLiveMatch = liveClassification === 'BREAKAWAY';
   const liveContOdds = gapDynamics?.gapFillDynamics?.continuationProbabilityPct ?? 54;
   const liveFillOdds = gapDynamics?.gapFillDynamics?.sameDayFillProbabilityPct ?? 32;
   const ceilingPrice = synthesis?.keyLevels?.hardCeiling?.price ?? synthesis?.techSpecs?.callWall ?? 25000;
+  const isBearish = gapDynamics?.streakAnalysis?.streakType === 'BEARISH_GAP';
+  const barrierPrice = isBearish
+    ? (synthesis?.keyLevels?.hardFloor?.price ?? synthesis?.techSpecs?.putWall ?? 24800)
+    : ceilingPrice;
   const currentSpot = spotPrice ?? 25000;
 
   return (
@@ -510,21 +543,27 @@ function BreakawayGapVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps)
             <span className="text-lg font-bold text-white">Breakaway Gap (Structural Breakout)</span>
             <span className={`text-[11px] font-mono px-2 py-0.5 rounded border ${
               viewMode === 'live-match'
-                ? isLiveMatch
+                ? !liveClassification
+                  ? 'bg-slate-800 border-slate-700 text-slate-400'
+                  : isLiveMatch
                   ? 'bg-emerald-950 border-emerald-700 text-emerald-300 font-bold'
                   : 'bg-slate-800 border-slate-700 text-slate-300'
                 : 'bg-emerald-950 border-emerald-800 text-emerald-300'
             }`}>
               {viewMode === 'live-match'
-                ? isLiveMatch ? '🟢 Live Breakaway Active' : 'ℹ️ Not Active Today'
+                ? !liveClassification
+                  ? 'ℹ️ Awaiting Live Data'
+                  : isLiveMatch ? '🟢 Live Breakaway Active' : 'ℹ️ Not Active Today'
                 : 'Continuation Odds: 54%'}
             </span>
           </div>
           <p className="text-xs text-slate-400 mt-0.5">
             {viewMode === 'live-match'
-              ? isLiveMatch
+              ? !liveClassification
+                ? 'Awaiting live opening gap classification from engine feed.'
+                : isLiveMatch
                 ? 'Institutional breakout detected! Price has cleared key overhead barriers on aggressive volume.'
-                : `Today’s session is not classified as a Breakaway Gap (Active regime: ${gapDynamics?.gapFillDynamics?.gapClassification || 'COMMON'}).`
+                : `Today’s session is not classified as a Breakaway Gap (Active regime: ${liveClassification} Gap).`
               : 'Price gaps clean over multi-day consolidation or a heavy Call Wall with massive institutional volume.'}
           </p>
         </div>
@@ -550,13 +589,17 @@ function BreakawayGapVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps)
               <span>{isLiveMatch ? 'Confirmed Structural Breakaway Regime' : 'How Today Relates to Breakaway Thresholds'}</span>
             </span>
             <span className="font-mono text-[11px] bg-slate-950 px-2 py-0.5 rounded border border-slate-700 text-white">
-              Resistance: ₹{ceilingPrice.toLocaleString('en-IN')}
+              {isBearish ? 'Support Floor' : 'Resistance Ceiling'}: ₹{barrierPrice.toLocaleString('en-IN')}
             </span>
           </div>
           <p className="text-[11px] leading-relaxed opacity-90 font-normal">
             {isLiveMatch
-              ? `Spot price (₹${currentSpot.toLocaleString('en-IN')}) has gapped decisively over the structural ceiling (₹${ceilingPrice.toLocaleString('en-IN')}). Delta-hedging mechanics force option market makers to buy index futures, creating a protected floor on intraday pullbacks.`
-              : `Spot (₹${currentSpot.toLocaleString('en-IN')}) remains contained below structural resistance (₹${ceilingPrice.toLocaleString('en-IN')}). Without a high-volume gap clearing this ceiling, do not anticipate runaway breakaway continuation.`}
+              ? isBearish
+                ? `Spot price (₹${currentSpot.toLocaleString('en-IN')}) has broken decisively below structural support (₹${barrierPrice.toLocaleString('en-IN')}). Delta-hedging mechanics force market makers to aggressively short index futures, accelerating downside momentum.`
+                : `Spot price (₹${currentSpot.toLocaleString('en-IN')}) has gapped decisively over the structural ceiling (₹${barrierPrice.toLocaleString('en-IN')}). Delta-hedging mechanics force option market makers to buy index futures, creating a protected floor on intraday pullbacks.`
+              : isBearish
+              ? `Spot (₹${currentSpot.toLocaleString('en-IN')}) remains contained above structural support (₹${barrierPrice.toLocaleString('en-IN')}). No high-volume breakaway breakdown active.`
+              : `Spot (₹${currentSpot.toLocaleString('en-IN')}) remains contained below structural resistance (₹${barrierPrice.toLocaleString('en-IN')}). Without a high-volume gap clearing this ceiling, do not anticipate runaway breakaway continuation.`}
           </p>
         </div>
       )}
@@ -565,7 +608,7 @@ function BreakawayGapVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps)
         <svg viewBox="0 0 760 220" className="w-full h-auto min-w-[550px] select-none">
           <line x1="40" y1="120" x2="560" y2="120" stroke="#f43f5e" strokeWidth="2" strokeDasharray="5 3" />
           <text x="575" y="124" fill="#f43f5e" fontSize="10" fontFamily="monospace" fontWeight="bold">
-            {viewMode === 'live-match' ? `Key Barrier: ₹${ceilingPrice.toLocaleString('en-IN')}` : 'Key Resistance (25,000)'}
+            {viewMode === 'live-match' ? `Key Barrier: ₹${barrierPrice.toLocaleString('en-IN')}` : 'Key Resistance (25,000)'}
           </text>
 
           <rect x="50" y="122" width="190" height="75" fill="#334155" fillOpacity="0.15" stroke="#475569" strokeWidth="1" strokeDasharray="3 3" rx="4" />
@@ -635,17 +678,18 @@ function BreakawayGapVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps)
 // ==========================================
 function RunawayGapVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps) {
   const gapDynamics = synthesis?.gapDynamics;
-  const isLiveMatch = gapDynamics?.gapFillDynamics?.gapClassification === 'RUNAWAY';
+  const liveClassification = gapDynamics?.gapFillDynamics?.gapClassification;
+  const isLiveMatch = liveClassification === 'RUNAWAY';
   const consecutiveGaps = gapDynamics?.streakAnalysis?.consecutiveGaps ?? 0;
   const streakType = gapDynamics?.streakAnalysis?.streakType ?? 'ALTERNATING_CHOP';
   const currentSpot = spotPrice ?? gapDynamics?.expectedOpeningRange?.centralPoint ?? 25000;
-  const liveClassification = gapDynamics?.gapFillDynamics?.gapClassification || 'COMMON';
   const liveContOdds = gapDynamics?.gapFillDynamics?.continuationProbabilityPct ?? 62;
   const liveFillOdds = gapDynamics?.gapFillDynamics?.sameDayFillProbabilityPct ?? 28;
   const trapTracker = gapDynamics?.exhaustionTrapTracker;
   const gapFloor = trapTracker?.gapFloorPrice && trapTracker.gapFloorPrice > 0 ? trapTracker.gapFloorPrice : Math.round(currentSpot - 100);
   const gapCeiling = trapTracker?.gapCeilingPrice && trapTracker.gapCeilingPrice > 0 ? trapTracker.gapCeilingPrice : Math.round(currentSpot - 25);
   const isGapBreached = trapTracker?.trapStatus === 'EXHAUSTION_CONFIRMED_GAP_FILLED';
+  const isBearish = streakType === 'BEARISH_GAP';
   const gapDiffPts = Math.abs(gapCeiling - gapFloor);
 
   return (
@@ -657,22 +701,30 @@ function RunawayGapVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps) {
             <span className="text-lg font-bold text-white">Runaway Gap (Mid-Trend Carry)</span>
             <span className={`text-[11px] font-mono px-2 py-0.5 rounded border ${
               viewMode === 'live-match'
-                ? isLiveMatch
+                ? !liveClassification
+                  ? 'bg-slate-800 border-slate-700 text-slate-400'
+                  : isLiveMatch
                   ? 'bg-emerald-950 border-emerald-700 text-emerald-300 font-bold'
                   : 'bg-amber-950 border-amber-700 text-amber-300 font-bold'
                 : 'bg-emerald-950 border-emerald-800 text-emerald-300'
             }`}>
               {viewMode === 'live-match'
-                ? isLiveMatch ? '🟢 Live Runaway Active' : `⚠️ Live: ${liveClassification} (Not Runaway)`
+                ? !liveClassification
+                  ? 'ℹ️ Awaiting Live Data'
+                  : isLiveMatch ? '🟢 Live Runaway Active' : `⚠️ Live: ${liveClassification} (Not Runaway)`
                 : 'Continuation Odds: 62%'}
             </span>
           </div>
           <p className="text-xs text-slate-400 mt-0.5">
             {viewMode === 'live-match'
-              ? isLiveMatch
-                ? `Mid-trend acceleration confirmed with ${consecutiveGaps} consecutive gaps in ${streakType.replaceAll('_', ' ')}. Gap floor defended.`
+              ? !liveClassification
+                ? 'Awaiting live opening gap classification from engine feed.'
+                : isLiveMatch
+                ? isBearish
+                  ? `Mid-trend downside acceleration confirmed with ${consecutiveGaps} consecutive gaps in ${streakType.replaceAll('_', ' ')}. Gap ceiling defended by sellers.`
+                  : `Mid-trend acceleration confirmed with ${consecutiveGaps} consecutive gaps in ${streakType.replaceAll('_', ' ')}. Gap floor defended.`
                 : isGapBreached
-                ? `Today opened with a gap but intraday sellers breached the gap floor at ₹${gapFloor.toLocaleString('en-IN')}. Runaway continuation failed; converted to exhaustion unwinding.`
+                ? `Today opened with a gap but intraday counter-flow breached the structural boundary at ₹${(isBearish ? gapCeiling : gapFloor).toLocaleString('en-IN')}. Runaway continuation failed; converted to exhaustion unwinding.`
                 : `Today is actively classified as ${liveClassification} with ${consecutiveGaps} consecutive gaps. Not currently in runaway momentum carry.`
               : 'Occurs in the middle of an established, fast-moving trend. Sidelined buyers panic-buy without waiting for pullbacks.'}
           </p>
@@ -909,11 +961,17 @@ function RunawayGapVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps) {
 function ExhaustionGapVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps) {
   const gapDynamics = synthesis?.gapDynamics;
   const trapTracker = gapDynamics?.exhaustionTrapTracker;
+  const liveClassification = gapDynamics?.gapFillDynamics?.gapClassification;
+  const liveFillOdds = gapDynamics?.gapFillDynamics?.sameDayFillProbabilityPct ?? 78;
+  const liveContOdds = gapDynamics?.gapFillDynamics?.continuationProbabilityPct ?? 12;
   const isTrapActive = trapTracker?.trapStatus === 'ACTIVE_EXHAUSTION_TRAP' || trapTracker?.trapStatus === 'EXHAUSTION_CONFIRMED_GAP_FILLED';
+  const isLiveMatch = liveClassification === 'EXHAUSTION' || isTrapActive;
   const isGapFilled = trapTracker?.trapStatus === 'EXHAUSTION_CONFIRMED_GAP_FILLED';
   const score = trapTracker?.exhaustionScorePct ?? 0;
   const currentSpot = spotPrice ?? gapDynamics?.expectedOpeningRange?.centralPoint ?? 25000;
-  const floorPrice = trapTracker?.institutionalFloorPrice ?? synthesis?.keyLevels?.hardFloor?.price ?? Math.round(currentSpot - 150);
+  const floorPrice = trapTracker?.institutionalFloorPrice && trapTracker.institutionalFloorPrice > 0
+    ? trapTracker.institutionalFloorPrice
+    : (synthesis?.keyLevels?.hardFloor?.price ?? Math.round(currentSpot - 150));
   const gapFloor = trapTracker?.gapFloorPrice && trapTracker.gapFloorPrice > 0 ? trapTracker.gapFloorPrice : Math.round(currentSpot - 60);
   const trappedHigh = trapTracker?.trappedSupplyZone?.high || Math.round(currentSpot + 50);
   const trappedLow = trapTracker?.trappedSupplyZone?.low || Math.round(currentSpot);
@@ -930,30 +988,36 @@ function ExhaustionGapVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps
             <span className="text-lg font-bold text-white">Exhaustion Gap (Late Trap / Climax Reversal)</span>
             <span className={`text-[11px] font-mono px-2 py-0.5 rounded border ${
               viewMode === 'live-match'
-                ? isTrapActive
+                ? !liveClassification
+                  ? 'bg-slate-800 border-slate-700 text-slate-400'
+                  : isLiveMatch
                   ? 'bg-rose-950 border-rose-700 text-rose-300 font-bold animate-pulse'
                   : 'bg-emerald-950 border-emerald-800 text-emerald-300'
                 : 'bg-rose-950 border-rose-800 text-rose-300'
             }`}>
               {viewMode === 'live-match'
-                ? isTrapActive ? `🚨 Live Trap Active (${score}%)` : '✅ Momentum Healthy'
+                ? !liveClassification
+                  ? 'ℹ️ Awaiting Live Data'
+                  : isLiveMatch ? `🚨 Live Trap Active (${score > 0 ? `${score}%` : 'Exhaustion'})` : `✅ No Exhaustion (${liveClassification} Gap)`
                 : 'Fill & Reverse Odds: 78%'}
             </span>
           </div>
           <p className="text-xs text-slate-400 mt-0.5">
             {viewMode === 'live-match'
-              ? isTrapActive
-                ? trapTracker?.plainEnglishBriefing?.headline || 'Exhaustion trap detected! Retail trapped at highs.'
-                : 'No active exhaustion trap detected today. Current trend exhibits healthy momentum or standard digestion.'
+              ? !liveClassification
+                ? 'Awaiting live opening gap classification from engine feed.'
+                : isLiveMatch
+                ? trapTracker?.plainEnglishBriefing?.headline || 'Exhaustion trap detected! Institutional selling into climax liquidity.'
+                : `Today’s session is not classified as an Exhaustion Gap (Active regime: ${liveClassification} Gap). Current trend exhibits healthy momentum or standard digestion.`
               : 'Price gaps aggressively after an extended multi-day rally straight into an institutional ceiling, then collapses.'}
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs font-mono">
           <span className="px-2 py-1 rounded bg-rose-950/60 border border-rose-800/60 text-rose-300">
-            Reversal Fill: <strong>78%</strong>
+            Reversal Fill: <strong>{viewMode === 'live-match' ? `${liveFillOdds}%` : '78%'}</strong>
           </span>
           <span className="px-2 py-1 rounded bg-slate-800 text-slate-300">
-            Continuation: <strong>12% (Trap)</strong>
+            Continuation: <strong>{viewMode === 'live-match' ? `${liveContOdds}%` : '12% (Trap)'}</strong>
           </span>
         </div>
       </div>
@@ -1055,7 +1119,7 @@ function ExhaustionGapVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps
       <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 sm:p-4 overflow-x-auto">
         {viewMode === 'live-match' ? (
           /* Live Dynamic SVG Chart */
-          !isTrapActive ? (
+          !isLiveMatch ? (
             /* CASE A: Momentum Healthy - Render Green Defended Chart (NOT an alarmist crash!) */
             <svg viewBox="0 0 760 220" className="w-full h-auto min-w-[550px] select-none">
               <line x1="40" y1="35" x2="560" y2="35" stroke="#1e293b" strokeDasharray="3 3" />
@@ -1255,9 +1319,12 @@ function ClvVisual({ viewMode, synthesis }: VisualBaseProps) {
       </div>
 
       <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-4">
-        <div className="p-3 bg-slate-900/90 border border-slate-800 rounded-lg text-xs font-mono text-cyan-300 flex items-center justify-between">
-          <span>CLV Formula = ((Close - Low) - (High - Close)) / (High - Low)</span>
-          <span className="text-slate-400">Scale: -1.0 to +1.0 (or 0% to 100%)</span>
+        <div className="p-3 bg-slate-900/90 border border-slate-800 rounded-lg text-xs font-mono text-cyan-300 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <span className="block font-semibold">Normalized CLV% = (Close - Low) / (High - Low) × 100%</span>
+            <span className="text-[11px] text-slate-400">Classical Scale: [(Close - Low) - (High - Close)] / (High - Low) = -1.0 to +1.0</span>
+          </div>
+          <span className="text-slate-400 font-sans text-[11px]">Normalized: 0% (Low) • 50% (Mid) • 100% (High)</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -2319,10 +2386,13 @@ function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
 // ==========================================
 // 6. STOP HUNT / LIQUIDITY SWEEP VISUAL
 // ==========================================
-function StopHuntVisual({ viewMode, synthesis }: VisualBaseProps) {
+function StopHuntVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps) {
   const trapState = synthesis?.liquidityPool?.trapState ?? 'NO_TRAP';
   const isSweepActive = trapState === 'LONG_STOP_HUNT_SWEEP' || trapState === 'SHORT_SQUEEZE_SWEEP';
   const stopZone = synthesis?.keyLevels?.stopHuntZone?.range ?? '24,960 – 25,000';
+  const hardFloor = synthesis?.keyLevels?.hardFloor?.price && synthesis.keyLevels.hardFloor.price > 0
+    ? synthesis.keyLevels.hardFloor.price
+    : (spotPrice ? Math.round(spotPrice - 50) : 25000);
 
   return (
     <div className="space-y-4">
@@ -2355,7 +2425,9 @@ function StopHuntVisual({ viewMode, synthesis }: VisualBaseProps) {
       <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 sm:p-4 overflow-x-auto">
         <svg viewBox="0 0 760 220" className="w-full h-auto min-w-[550px] select-none">
           <line x1="40" y1="120" x2="560" y2="120" stroke="#38bdf8" strokeWidth="2" strokeDasharray="5 3" />
-          <text x="570" y="124" fill="#38bdf8" fontSize="10" fontFamily="monospace" fontWeight="bold">Obvious Support (25,000)</text>
+          <text x="570" y="124" fill="#38bdf8" fontSize="10" fontFamily="monospace" fontWeight="bold">
+            {viewMode === 'live-match' ? `Obvious Support (₹${hardFloor.toLocaleString('en-IN')})` : 'Obvious Support (25,000)'}
+          </text>
 
           <rect x="220" y="122" width="220" height="40" fill="#ef4444" fillOpacity="0.15" stroke="#ef4444" strokeWidth="1" strokeDasharray="3 3" rx="4" />
           <text x="330" y="145" fill="#fda4af" fontSize="9" fontWeight="bold" textAnchor="middle">
@@ -2414,12 +2486,13 @@ function StopHuntVisual({ viewMode, synthesis }: VisualBaseProps) {
 // ==========================================
 // 7. SINGLE-STOCK SKEW & BREADTH TRAP VISUAL
 // ==========================================
-function CulpritDivergenceVisual({ viewMode, synthesis }: VisualBaseProps) {
+function CulpritDivergenceVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps) {
   const culprit = synthesis?.techSpecs?.culpritSymbol;
   const culpritPct = synthesis?.techSpecs?.culpritContributionPct ?? 0;
   const advanceTurnover = synthesis?.techSpecs?.advancingTurnoverPct ?? 50;
   const declineTurnover = synthesis?.techSpecs?.decliningTurnoverPct ?? 50;
   const isSkewed = Boolean(culprit && culpritPct > 35);
+  const currentSpot = spotPrice ?? synthesis?.keyLevels?.hardFloor?.price ?? 25000;
 
   return (
     <div className="space-y-4">
@@ -2462,7 +2535,7 @@ function CulpritDivergenceVisual({ viewMode, synthesis }: VisualBaseProps) {
           <line x1="190" y1="65" x2="190" y2="155" stroke="#10b981" strokeWidth="2.5" />
           <rect x="175" y="75" width="30" height="65" fill="#10b981" rx="2" />
           <text x="190" y="170" fill="#34d399" fontSize="11" fontWeight="bold" textAnchor="middle">
-            {viewMode === 'live-match' ? `Index: ₹${(synthesis?.techSpecs?.gammaFlip ?? 25000).toLocaleString('en-IN')}` : 'Nifty 50: +65 pts (+0.26%) 🚀'}
+            {viewMode === 'live-match' ? `Index Spot: ₹${Math.round(currentSpot).toLocaleString('en-IN')}` : 'Nifty 50: +65 pts (+0.26%) 🚀'}
           </text>
           <text x="190" y="185" fill="#94a3b8" fontSize="9" textAnchor="middle">
             Retail sees green and FOMO buys calls
@@ -2531,9 +2604,15 @@ function CulpritDivergenceVisual({ viewMode, synthesis }: VisualBaseProps) {
 // 8. PUT WALL & CALL WALL VISUAL
 // ==========================================
 function PutCallWallsVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps) {
-  const putWall = synthesis?.techSpecs?.putWall ?? 24800;
-  const callWall = synthesis?.techSpecs?.callWall ?? 25300;
-  const currentSpot = spotPrice ?? 25050;
+  const currentSpot = viewMode === 'live-match' ? (spotPrice ?? 25050) : 25050;
+  const rawPutWall = synthesis?.techSpecs?.putWall;
+  const rawCallWall = synthesis?.techSpecs?.callWall;
+  const putWall = viewMode === 'live-match' && rawPutWall && rawPutWall > 0
+    ? rawPutWall
+    : (viewMode === 'live-match' ? Math.round(currentSpot - 200) : 24800);
+  const callWall = viewMode === 'live-match' && rawCallWall && rawCallWall > 0
+    ? rawCallWall
+    : (viewMode === 'live-match' ? Math.round(currentSpot + 200) : 25300);
 
   return (
     <div className="space-y-4">
@@ -2724,9 +2803,12 @@ function OiVelocityVisual({ viewMode, synthesis }: VisualBaseProps) {
 // ==========================================
 // 10. AIR POCKET & INSTITUTIONAL FLOOR VISUAL
 // ==========================================
-function AirPocketVisual({ viewMode, synthesis }: VisualBaseProps) {
-  const pocFloor = synthesis?.gapDynamics?.exhaustionTrapTracker?.institutionalFloorPrice ?? synthesis?.keyLevels?.hardFloor?.price ?? 25000;
-  const dangerHigh = synthesis?.keyLevels?.hardCeiling?.price ?? 25250;
+function AirPocketVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps) {
+  const currentSpot = spotPrice ?? 25000;
+  const rawPoc = synthesis?.gapDynamics?.exhaustionTrapTracker?.institutionalFloorPrice ?? synthesis?.keyLevels?.hardFloor?.price;
+  const rawCeiling = synthesis?.keyLevels?.hardCeiling?.price;
+  const pocFloor = viewMode === 'live-match' && rawPoc && rawPoc > 0 ? rawPoc : (viewMode === 'live-match' ? Math.round(currentSpot - 150) : 25000);
+  const dangerHigh = viewMode === 'live-match' && rawCeiling && rawCeiling > 0 ? rawCeiling : (viewMode === 'live-match' ? Math.round(currentSpot + 100) : 25250);
 
   return (
     <div className="space-y-4">
@@ -2894,8 +2976,11 @@ function GammaRegimeVisual({ viewMode, synthesis }: VisualBaseProps) {
 // 12. GAMMA FLIP LINE VISUAL
 // ==========================================
 function GammaFlipVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps) {
-  const gammaFlip = synthesis?.techSpecs?.gammaFlip ?? 24950;
-  const currentSpot = spotPrice ?? 25050;
+  const currentSpot = viewMode === 'live-match' ? (spotPrice ?? 25050) : 25050;
+  const rawGammaFlip = synthesis?.techSpecs?.gammaFlip;
+  const gammaFlip = viewMode === 'live-match' && rawGammaFlip && rawGammaFlip > 0
+    ? rawGammaFlip
+    : (viewMode === 'live-match' ? Math.round(currentSpot - 80) : 24950);
   const isAbove = currentSpot >= gammaFlip;
 
   return (
@@ -2960,12 +3045,16 @@ function GammaFlipVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps) {
 // ==========================================
 function ExpectedMoveVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps) {
   const corridor = synthesis?.gapDynamics?.expectedOpeningRange;
-  const central = corridor?.centralPoint ?? spotPrice ?? 25000;
-  const low = corridor?.low ?? central - 120;
-  const high = corridor?.high ?? central + 120;
-  const movePts = corridor?.dailyExpectedMovePts ?? 120;
-  const currentSpot = spotPrice ?? central;
-  const isInside = currentSpot >= low && currentSpot <= high;
+  const central = viewMode === 'live-match'
+    ? (corridor?.centralPoint ?? spotPrice ?? 25000)
+    : 25000;
+  const movePts = viewMode === 'live-match'
+    ? (corridor?.dailyExpectedMovePts && corridor.dailyExpectedMovePts > 0 ? Math.round(corridor.dailyExpectedMovePts) : Math.round(central * 0.008))
+    : 120;
+  const oneSigmaLow = Math.round(central - movePts);
+  const oneSigmaHigh = Math.round(central + movePts);
+  const currentSpot = viewMode === 'live-match' ? (spotPrice ?? central) : 25020;
+  const isInside = currentSpot >= oneSigmaLow && currentSpot <= oneSigmaHigh;
 
   return (
     <div className="space-y-4">
@@ -2987,7 +3076,7 @@ function ExpectedMoveVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps)
           </div>
           <p className="text-xs text-slate-400 mt-0.5">
             {viewMode === 'live-match'
-              ? `Live 1-Day Expected Move: ±${movePts} pts (Corridor: ₹${low.toLocaleString('en-IN')} – ₹${high.toLocaleString('en-IN')}). Current Spot: ₹${currentSpot.toLocaleString('en-IN')}.`
+              ? `Live 1-Day Expected Move: ±${movePts} pts (1σ Envelope: ₹${oneSigmaLow.toLocaleString('en-IN')} – ₹${oneSigmaHigh.toLocaleString('en-IN')}). Current Spot: ₹${Math.round(currentSpot).toLocaleString('en-IN')}.`
               : 'The mathematical boundary where 68.2% of all daily price closes land, derived continuously from India VIX.'}
           </p>
         </div>
@@ -3017,12 +3106,12 @@ function ExpectedMoveVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps)
 
           {/* Upper +1 Sigma Line */}
           <line x1="540" y1="35" x2="540" y2="185" stroke="#10b981" strokeWidth="2" />
-          <text x="545" y="100" fill="#34d399" fontSize="10" fontWeight="bold">+1σ (₹{high.toLocaleString('en-IN')})</text>
+          <text x="545" y="100" fill="#34d399" fontSize="10" fontWeight="bold">+1σ (₹{oneSigmaHigh.toLocaleString('en-IN')})</text>
           <text x="545" y="115" fill="#6ee7b7" fontSize="8">+{movePts} pts expected</text>
 
           {/* Lower -1 Sigma Line */}
           <line x1="220" y1="35" x2="220" y2="185" stroke="#f43f5e" strokeWidth="2" />
-          <text x="135" y="100" fill="#f87171" fontSize="10" fontWeight="bold">-1σ (₹{low.toLocaleString('en-IN')})</text>
+          <text x="135" y="100" fill="#f87171" fontSize="10" fontWeight="bold">-1σ (₹{oneSigmaLow.toLocaleString('en-IN')})</text>
           <text x="135" y="115" fill="#fda4af" fontSize="8">-{movePts} pts expected</text>
 
           <text x="630" y="150" fill="#f59e0b" fontSize="9" textAnchor="middle">Tail Volatility (&gt; +1σ)</text>

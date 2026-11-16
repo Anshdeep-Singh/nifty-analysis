@@ -330,7 +330,7 @@ export function BankNiftyAnalysisRadar() {
             <ImpulseAttributionCard attribution={data.impulseAttribution} indexName="BANK NIFTY" />
           )}
           <TugOfWarRadar sectors={data.sectors} indexName="BANK NIFTY" spotNetChange={data.spotNetChange} />
-          <PredictionLevelsCard prediction={data.prediction} />
+          <PredictionLevelsCard prediction={data.prediction} synthesis={data.masterSynthesis} indexName="BANK NIFTY" />
           <SectorCoDependencyMatrix
             coDependency={data.coDependency}
             title="Private vs PSU Bank Co-Dependency & Transmission"
@@ -354,7 +354,7 @@ export function BankNiftyAnalysisRadar() {
       )}
 
       {viewMode === 'charts' && (
-        <MultiTfParallelCharts symbol="BANKNIFTY" />
+        <MultiTfParallelCharts symbol="BANKNIFTY" synthesis={data.masterSynthesis} />
       )}
 
       {viewMode === 'heatmap' && (
