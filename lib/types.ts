@@ -213,7 +213,10 @@ export type VsaPatternType =
   | 'CLIMAX_EXHAUSTION'           // Outsized wick (> 50% range) on heavy volume -> Rejection / Climax
   | 'INITIAL_SUPPLY_REJECTION'    // MBP: First touch rejection with dominant upper wick at resistance
   | 'INITIAL_DEMAND_DEFENSE'      // MBP: First touch defense with dominant lower wick at support
-  | 'PASSIVE_ABSORPTION_BREAKOUT' // MBP: Repeated tests with shrinking wicks + strong CLV -> Imminent breakout
+  | 'PASSIVE_ABSORPTION_TEST'     // MBP: Repeated tests with shrinking wicks contained within range -> Absorption in progress
+  | 'PASSIVE_ABSORPTION_BREAKOUT' // MBP: Repeated tests with shrinking wicks + confirmed close beyond level -> Displacement breakout
+  | 'NO_DEMAND_TEST'              // VSA: Low volume test of resistance -> Demand exhausted, impending rollover
+  | 'NO_SUPPLY_TEST'              // VSA: Low volume test of support -> Supply exhausted, impending bounce
   | 'NORMAL_AUCTION';             // Continuous balanced flow within baseline expectations
 
 export interface VsaClassification {

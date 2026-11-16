@@ -306,10 +306,13 @@ export function Rolling30mPredictionCard({
                   title={volumeMetrics.latestCandleVsa.narrative}
                 >
                   {(volumeMetrics.latestCandleVsa.pattern === 'AIR_POCKET_SPIKE' || volumeMetrics.latestCandleVsa.pattern === 'AIR_POCKET_DROP') && '⚠️ '}
+                  {volumeMetrics.latestCandleVsa.pattern === 'NO_DEMAND_TEST' && '⚠️ '}
+                  {volumeMetrics.latestCandleVsa.pattern === 'NO_SUPPLY_TEST' && '🛡️ '}
                   {volumeMetrics.latestCandleVsa.pattern === 'INSTITUTIONAL_ABSORPTION' && '⚡ '}
                   {volumeMetrics.latestCandleVsa.pattern === 'INSTITUTIONAL_IMPULSE' && '✅ '}
                   {volumeMetrics.latestCandleVsa.pattern === 'CLIMAX_EXHAUSTION' && '🔄 '}
                   {volumeMetrics.latestCandleVsa.pattern === 'PASSIVE_ABSORPTION_BREAKOUT' && '🚀 '}
+                  {volumeMetrics.latestCandleVsa.pattern === 'PASSIVE_ABSORPTION_TEST' && '⏳ '}
                   {volumeMetrics.latestCandleVsa.pattern === 'INITIAL_SUPPLY_REJECTION' && '🛡️ '}
                   {volumeMetrics.latestCandleVsa.pattern === 'INITIAL_DEMAND_DEFENSE' && '🛡️ '}
                   {volumeMetrics.latestCandleVsa.label.split(' ')[0]} ({volumeMetrics.latestCandleVsa.volumeRatio}x)

@@ -1654,14 +1654,16 @@ function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
       point3Content: isSupply ? (
         <>
           • <strong className="text-rose-400">NEVER SHORT</strong> shrinking rejection wicks at resistance.<br />
-          • Expect an immediate breakout expansion; trade in the direction of the absorption (Buy Calls / Bull Spreads).<br />
-          • Place stop-loss just below the midpoint or low of the absorbing candle.
+          • <strong className="text-cyan-300">Wait for Displacement:</strong> Differentiate between <em>Absorption in Progress</em> (close inside range) and <em>Confirmed Breakout</em> (close strictly above prior resistance high).<br />
+          • <strong className="text-amber-400">Beware No-Demand Tests:</strong> If price retests resistance on dry volume (&lt; 1.0x), it is NOT absorption—it signals buyer exhaustion and an impending rollover.<br />
+          • Place stop-loss just below the midpoint or low of the absorbing candle cluster.
         </>
       ) : (
         <>
           • <strong className="text-rose-400">NEVER BUY CALLS</strong> or try to catch a knife on shrinking lower wicks at support.<br />
-          • Expect an immediate breakdown cascade; trade in the direction of the absorption (Buy Puts / Bear Spreads).<br />
-          • Place stop-loss just above the midpoint or high of the absorbing candle.
+          • <strong className="text-rose-300">Wait for Displacement:</strong> Differentiate between <em>Demand Absorption in Progress</em> and <em>Confirmed Breakdown</em> (close strictly below prior support low).<br />
+          • <strong className="text-emerald-400">Beware No-Supply Tests:</strong> If price retests support on dry volume (&lt; 1.0x), sellers are absent; expect a technical bounce.<br />
+          • Place stop-loss just above the midpoint or high of the absorbing candle cluster.
         </>
       )
     };

@@ -230,6 +230,116 @@ function runTests() {
     console.log('PASS Test 8: Day boundary guard prevents false cross-session absorption sequences');
   }
 
+  // TEST 9: Consecutive 1-Minute Chop Box Suppression (Replicating Yesterday's 13:00 Issue)
+  {
+    // Generate baseline bars trading between 23960 and 23975
+    const base: CandleBar[] = [];
+    for (let i = 0; i < 20; i++) {
+      base.push(createMockCandle(1000 + i * 60, 23965, 23975, 23960, 23970, 1000));
+    }
+    // Bar 1: Strong push up and demand breakdown attempt at 24000
+    const bar1 = createMockCandle(3000, 23995, 24005, 23990, 23992, 10500); // 10.5x vol
+    // Bar 2: Immediate next bar pushes to 24010 with 60% upper wick on 4.33x vol -> INITIAL_SUPPLY_REJECTION
+    const bar2 = createMockCandle(3060, 24002, 24010, 24002, 24005, 4330);
+    // Bar 3: Immediate next bar (consecutive to Bar 2, no pullback) touches 24010 with 3.64x vol
+    const bar3 = createMockCandle(3120, 24005, 24010, 24005, 24009, 3640);
+
+    const result = classifyCandleVsa([...base, bar1, bar2, bar3], '1min');
+    const b2Class = result[result.length - 2].vsa;
+    const b3Class = result[result.length - 1].vsa;
+
+    // Bar 3 MUST NOT trigger PASSIVE_ABSORPTION_BREAKOUT because Bar 2 was the immediate adjacent candle
+    if (b3Class?.pattern === 'PASSIVE_ABSORPTION_BREAKOUT') {
+      console.error('FAIL Test 9: Bar 3 in consecutive 1m chop should NOT trigger PASSIVE_ABSORPTION_BREAKOUT without pullback, got:', b3Class?.pattern);
+      process.exit(1);
+    }
+    console.log('PASS Test 9: Consecutive 1-minute chop box correctly suppresses false absorption breakout');
+  }
+
+  // TEST 10: 0.94x Volume Resistance Test Triggers NO_DEMAND_TEST (Replicating Yesterday's 0.94x Cyan Bar)
+  {
+    const base = generateBaseline(20, 10, 1000);
+    // Touch 1: Upper wick 60% at 24020 with 1.6x volume
+    const touch1 = createMockCandle(3000, 24010, 24020, 24010, 24014, 1600);
+    // Pullback to 24005
+    const pb = createMockCandle(3060, 24014, 24015, 24005, 24008, 900);
+    // Touch 2: Retests 24020 on dry 0.94x volume (940 vol vs 1000 SMA)
+    const touch2 = createMockCandle(3120, 24008, 24020, 24008, 24018, 940);
+
+    const result = classifyCandleVsa([...base, touch1, pb, touch2], '1min');
+    const t2Class = result[result.length - 1].vsa;
+
+    if (t2Class?.pattern !== 'NO_DEMAND_TEST') {
+      console.error('FAIL Test 10: 0.94x volume test of resistance should be NO_DEMAND_TEST, got:', t2Class?.pattern);
+      process.exit(1);
+    }
+    if (t2Class?.bias !== 'TRAP_WARNING') {
+      console.error('FAIL Test 10: NO_DEMAND_TEST bias should be TRAP_WARNING, got:', t2Class?.bias);
+      process.exit(1);
+    }
+    console.log('PASS Test 10: 0.94x volume test accurately classified as NO_DEMAND_TEST (Trap Warning)');
+  }
+
+  // TEST 11: 2-Stage Lifecycle (Absorption Test vs Confirmed Displacement Breakout)
+  {
+    const base = generateBaseline(20, 15, 1000);
+    // Touch 1 at 24030 with 70% upper wick on 1.8x vol
+    const touch1 = createMockCandle(3000, 24015, 24030, 24015, 24019, 1800);
+    // Pullback to 24010
+    const pb = createMockCandle(3060, 24019, 24020, 24010, 24012, 1000);
+    // Touch 2: Upper wick shrinks to 26% (4/15), volume is 1.5x, but candle closes inside at 24026 (below 24030 extreme)
+    const touch2Inside = createMockCandle(3120, 24015, 24030, 24015, 24026, 1500);
+
+    const resultInside = classifyCandleVsa([...base, touch1, pb, touch2Inside], '5min');
+    const t2InsideClass = resultInside[resultInside.length - 1].vsa;
+
+    if (t2InsideClass?.pattern !== 'PASSIVE_ABSORPTION_TEST') {
+      console.error('FAIL Test 11a: Inside-level absorption should be PASSIVE_ABSORPTION_TEST, got:', t2InsideClass?.pattern);
+      process.exit(1);
+    }
+    if (t2InsideClass?.bias !== 'ABSORPTION') {
+      console.error('FAIL Test 11a: Inside-level absorption bias should be ABSORPTION, got:', t2InsideClass?.bias);
+      process.exit(1);
+    }
+    console.log('PASS Test 11a: Inside-level absorption correctly tagged as PASSIVE_ABSORPTION_TEST');
+
+    // Touch 3: Candle closes above 24030 with displacement at 24033
+    const touch3Breakout = createMockCandle(3180, 24023, 24035, 24020, 24033, 1600);
+    const resultBreakout = classifyCandleVsa([...base, touch1, pb, touch3Breakout], '5min');
+    const t3BreakoutClass = resultBreakout[resultBreakout.length - 1].vsa;
+
+    if (t3BreakoutClass?.pattern !== 'PASSIVE_ABSORPTION_BREAKOUT') {
+      console.error('FAIL Test 11b: Displaced close should be PASSIVE_ABSORPTION_BREAKOUT, got:', t3BreakoutClass?.pattern);
+      process.exit(1);
+    }
+    if (t3BreakoutClass?.bias !== 'BULLISH') {
+      console.error('FAIL Test 11b: Confirmed breakout bias should be BULLISH, got:', t3BreakoutClass?.bias);
+      process.exit(1);
+    }
+    console.log('PASS Test 11b: Confirmed displaced close accurately triggers PASSIVE_ABSORPTION_BREAKOUT');
+  }
+
+  // TEST 12: VWAP Context Note Integration
+  {
+    const base = generateBaseline(20, 20, 2000);
+    const touch1 = createMockCandle(3000, 24485, 24500, 24480, 24485, 3200);
+    const pb = createMockCandle(3060, 24485, 24490, 24475, 24480, 1800);
+    // Touch 2 has vwap at 24550 (trading at 24497 is below VWAP)
+    const touch2 = {
+      ...createMockCandle(3120, 24482, 24500, 24480, 24497, 2600),
+      vwap: 24550
+    };
+
+    const result = classifyCandleVsa([...base, touch1, pb, touch2], '5min');
+    const t2Class = result[result.length - 1].vsa;
+
+    if (!t2Class?.narrative.includes('trading below intraday VWAP') && !t2Class?.narrative.includes('Trading below intraday VWAP')) {
+      console.error('FAIL Test 12: Narrative should include VWAP context warning, got:', t2Class?.narrative);
+      process.exit(1);
+    }
+    console.log('PASS Test 12: VWAP context note properly reflected in narrative');
+  }
+
   console.log('--- ALL VSA & MBP UNIT TESTS PASSED ---');
 }
 

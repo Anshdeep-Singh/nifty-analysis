@@ -324,7 +324,13 @@ function SingleTfChart({
           } else if (vsa?.pattern === 'INSTITUTIONAL_ABSORPTION') {
             color = 'rgba(6, 182, 212, 0.90)'; // Vibrant cyan for absorption pin
           } else if (vsa?.pattern === 'PASSIVE_ABSORPTION_BREAKOUT') {
-            color = vsa.bias === 'BULLISH' ? 'rgba(6, 182, 212, 0.95)' : 'rgba(244, 63, 94, 0.95)'; // Cyan/Rose for MBP absorption
+            color = vsa.bias === 'BULLISH' ? 'rgba(6, 182, 212, 0.95)' : 'rgba(244, 63, 94, 0.95)'; // Cyan/Rose for confirmed breakout
+          } else if (vsa?.pattern === 'PASSIVE_ABSORPTION_TEST') {
+            color = vsa.bias === 'BULLISH' || vsa.bias === 'ABSORPTION' ? 'rgba(6, 182, 212, 0.65)' : 'rgba(244, 63, 94, 0.65)'; // Soft cyan/rose for absorption in progress
+          } else if (vsa?.pattern === 'NO_DEMAND_TEST') {
+            color = 'rgba(245, 158, 11, 0.60)'; // Amber warning for dry volume test of resistance
+          } else if (vsa?.pattern === 'NO_SUPPLY_TEST') {
+            color = 'rgba(16, 185, 129, 0.60)'; // Emerald floor defense warning for dry volume test of support
           } else if (vsa?.pattern === 'INITIAL_SUPPLY_REJECTION') {
             color = 'rgba(244, 63, 94, 0.85)'; // Rose for supply defense
           } else if (vsa?.pattern === 'INITIAL_DEMAND_DEFENSE') {
@@ -423,8 +429,11 @@ function SingleTfChart({
               >
                 <span>
                   {(latestCandle.vsa.pattern === 'AIR_POCKET_SPIKE' || latestCandle.vsa.pattern === 'AIR_POCKET_DROP') && '⚠️ '}
+                  {latestCandle.vsa.pattern === 'NO_DEMAND_TEST' && '⚠️ '}
+                  {latestCandle.vsa.pattern === 'NO_SUPPLY_TEST' && '🛡️ '}
                   {latestCandle.vsa.pattern === 'INSTITUTIONAL_ABSORPTION' && '⚡ '}
                   {latestCandle.vsa.pattern === 'PASSIVE_ABSORPTION_BREAKOUT' && '🚀 '}
+                  {latestCandle.vsa.pattern === 'PASSIVE_ABSORPTION_TEST' && '⏳ '}
                   {latestCandle.vsa.pattern === 'INITIAL_SUPPLY_REJECTION' && '🛡️ '}
                   {latestCandle.vsa.pattern === 'INITIAL_DEMAND_DEFENSE' && '🛡️ '}
                   {latestCandle.vsa.pattern === 'INSTITUTIONAL_IMPULSE' && '✅ '}

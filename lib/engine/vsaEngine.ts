@@ -228,7 +228,7 @@ export function classifyCandleVsa(candles: CandleBar[], timeframe: VsaTimeframe 
     // MBP CHECK: CONSECUTIVE WICK SEQUENCE (ABSORPTION VS REJECTION)
     // =========================================================================
     let mbpSequenceDetected = false;
-    const lookbackStart = Math.max(0, i - 12);
+    const lookbackStart = Math.max(0, i - 18);
 
     // Look for previous retests of resistance or support within current session
     let priorResistanceTouchIdx = -1;
@@ -238,94 +238,184 @@ export function classifyCandleVsa(candles: CandleBar[], timeframe: VsaTimeframe 
 
     // Tolerance scales dynamically with rolling ATR & spot price
     const currentAtr = Math.max(1, atr20[i]);
-    const dynamicTol = Math.max(3, Math.min(currentAtr * 0.45, c.high * 0.0012));
+    const dynamicTol = Math.max(isBankNifty ? 7 : 3, Math.min(currentAtr * 0.45, c.high * 0.0012));
 
-    for (let j = i - 1; j >= lookbackStart; j--) {
-      const prev = candles[j];
-      const prevM = barMetrics[j];
+    // Calculate the swing range in the lookback window to check if market is in a dead flat chop box
+    let localHigh = -Infinity;
+    let localLow = Infinity;
+    for (let k = lookbackStart; k <= i; k++) {
+      if (candles[k].high > localHigh) localHigh = candles[k].high;
+      if (candles[k].low < localLow) localLow = candles[k].low;
+    }
+    const localBracketSpread = localHigh - localLow;
+    // Chop gate: On 1m, require minimum bracket spread (e.g. >= minSpread * 1.5) to avoid false ping-pong in micro-ranges
+    const isBracketSpreadSufficient = timeframe !== '1min' || localBracketSpread >= minSpread * 1.5;
 
-      // Session guard: Do not cross overnight gaps or large gaps (> 5 hours)
-      if (c.date && prev.date && c.date !== prev.date) break;
-      if (c.timestamp && prev.timestamp && Math.abs(c.timestamp - prev.timestamp) > 18000) break;
+    if (isBracketSpreadSufficient) {
+      for (let j = i - 1; j >= lookbackStart; j--) {
+        const prev = candles[j];
+        const prevM = barMetrics[j];
 
-      // Resistance test: Highs close to each other within dynamic tolerance
-      const highDiff = Math.abs(c.high - prev.high);
-      const isNearHigh = highDiff <= dynamicTol;
-      if (isNearHigh && prevM.upperWickPct >= 0.40 && (prev.volume || 0) > 0 && prevM.volumeRatio >= 0.75) {
-        if (priorResistanceTouchIdx === -1) {
-          // Check that intermediate bars didn't blow out resistance
+        // Session guard: Do not cross overnight gaps or large gaps (> 5 hours)
+        if (c.date && prev.date && c.date !== prev.date) break;
+        if (c.timestamp && prev.timestamp && Math.abs(c.timestamp - prev.timestamp) > 18000) break;
+
+        // Separation guard: A retest cannot be the immediate adjacent bar (must have at least 1 intervening bar)
+        if (i - j < 2) continue;
+
+        // Resistance test: Highs close to each other within dynamic tolerance
+        const highDiff = Math.abs(c.high - prev.high);
+        const isNearHigh = highDiff <= dynamicTol;
+        if (isNearHigh && prevM.upperWickPct >= 0.40 && (prev.volume || 0) > 0 && prevM.volumeRatio >= 0.75) {
+          // Check that intermediate bars didn't blow out resistance AND that there was an actual pullback between touches
           let intermediateBreach = false;
+          let lowestBetween = Infinity;
           for (let k = j + 1; k < i; k++) {
             if (candles[k].high > Math.max(c.high, prev.high) + dynamicTol * 1.5) {
               intermediateBreach = true;
               break;
             }
+            if (candles[k].low < lowestBetween) {
+              lowestBetween = candles[k].low;
+            }
           }
-          if (!intermediateBreach) {
-            priorResistanceTouchIdx = j;
-          }
-        } else {
-          resistanceRetestCount++;
-        }
-      }
 
-      // Support test: Lows close to each other within dynamic tolerance
-      const lowDiff = Math.abs(c.low - prev.low);
-      const isNearLow = lowDiff <= dynamicTol;
-      if (isNearLow && prevM.lowerWickPct >= 0.40 && (prev.volume || 0) > 0 && prevM.volumeRatio >= 0.75) {
-        if (priorSupportTouchIdx === -1) {
-          // Check that intermediate bars didn't blow out support
+          // Pullback requirement: Price must have pulled back away from resistance between touches
+          const minPullback = Math.max(isBankNifty ? 6 : 2.5, dynamicTol * 0.6);
+          const hadPullback = (Math.min(c.high, prev.high) - lowestBetween) >= minPullback;
+
+          if (!intermediateBreach && hadPullback) {
+            if (priorResistanceTouchIdx === -1) {
+              priorResistanceTouchIdx = j;
+            } else {
+              resistanceRetestCount++;
+            }
+          }
+        }
+
+        // Support test: Lows close to each other within dynamic tolerance
+        const lowDiff = Math.abs(c.low - prev.low);
+        const isNearLow = lowDiff <= dynamicTol;
+        if (isNearLow && prevM.lowerWickPct >= 0.40 && (prev.volume || 0) > 0 && prevM.volumeRatio >= 0.75) {
           let intermediateBreach = false;
+          let highestBetween = -Infinity;
           for (let k = j + 1; k < i; k++) {
             if (candles[k].low < Math.min(c.low, prev.low) - dynamicTol * 1.5) {
               intermediateBreach = true;
               break;
             }
+            if (candles[k].high > highestBetween) {
+              highestBetween = candles[k].high;
+            }
           }
-          if (!intermediateBreach) {
-            priorSupportTouchIdx = j;
+
+          // Bounce requirement: Price must have bounced off support between touches
+          const minBounce = Math.max(isBankNifty ? 6 : 2.5, dynamicTol * 0.6);
+          const hadBounce = (highestBetween - Math.max(c.low, prev.low)) >= minBounce;
+
+          if (!intermediateBreach && hadBounce) {
+            if (priorSupportTouchIdx === -1) {
+              priorSupportTouchIdx = j;
+            } else {
+              supportRetestCount++;
+            }
           }
-        } else {
-          supportRetestCount++;
         }
       }
     }
 
-    // A. Supply Absorption Check (Retesting Resistance with Shrinking Wicks)
+    // A. Resistance Tests: No Demand vs. Supply Absorption
     if (priorResistanceTouchIdx !== -1) {
+      const priorTouchCandle = candles[priorResistanceTouchIdx];
       const priorM = barMetrics[priorResistanceTouchIdx];
-      const wickShrank = m.upperWickPct <= 0.30 && m.upperWickPct < priorM.upperWickPct * 0.65;
-      const strongClose = m.clv >= 0.35;
-      const sustainedVol = m.volumeRatio >= 0.90;
+      const minAbsVol = timeframe === '1min' ? 1.30 : 1.10;
 
-      if (wickShrank && strongClose && sustainedVol) {
-        pattern = 'PASSIVE_ABSORPTION_BREAKOUT';
-        label = 'MBP: Supply Absorption Breakout';
-        bias = 'BULLISH';
+      // Check 1: Low Volume Test at Resistance -> NO DEMAND TEST (narrow/normal spread on dry volume)
+      if (m.volumeRatio < (timeframe === '1min' ? 1.05 : 0.95) && m.spreadRatio < cfg.airPocketSpread) {
+        pattern = 'NO_DEMAND_TEST';
+        label = 'No Demand Test (Exhaustion Warning)';
+        bias = 'TRAP_WARNING';
         isAnomaly = true;
-        sequenceStage = resistanceRetestCount + 1;
-        badgeColor = 'bg-cyan-950/90 text-cyan-300 border-cyan-400/60';
-        narrative = `MBP Absorption: Upper rejection wick shrank from ${(priorM.upperWickPct * 100).toFixed(0)}% to ${(m.upperWickPct * 100).toFixed(0)}% at resistance (Touch #${sequenceStage}) with a strong close (CLV +${m.clv}) and sustained volume (${m.volumeRatio}x SMA). Passive limit sellers are exhausted; bullish breakout imminent.`;
+        badgeColor = 'bg-amber-950/90 text-amber-300 border-amber-500/50';
+        narrative = `No Demand Test: Price probed resistance (~₹${priorTouchCandle.high.toFixed(0)}) on dry volume (${m.volumeRatio}x 20-SMA). Absence of institutional buying appetite confirms buyer exhaustion; high probability of downward rollover.`;
         mbpSequenceDetected = true;
+      }
+      // Check 2: High Volume Absorption with Shrinking Upper Wick
+      else {
+        const wickShrank = m.upperWickPct <= 0.30 && m.upperWickPct < priorM.upperWickPct * 0.65;
+        const strongClose = m.clv >= 0.35;
+        const sustainedVol = m.volumeRatio >= minAbsVol;
+
+        if (wickShrank && strongClose && sustainedVol) {
+          // Check for displacement: Did candle close at or above the prior resistance extreme?
+          const isConfirmedBreakout = c.close >= priorTouchCandle.high - (dynamicTol * 0.4);
+
+          if (isConfirmedBreakout) {
+            pattern = 'PASSIVE_ABSORPTION_BREAKOUT';
+            label = 'MBP: Supply Absorption Breakout';
+            bias = 'BULLISH';
+            isAnomaly = true;
+            sequenceStage = resistanceRetestCount + 1;
+            badgeColor = 'bg-cyan-950/90 text-cyan-300 border-cyan-400/60';
+            narrative = `MBP Absorption Breakout: Upper rejection wick shrank from ${(priorM.upperWickPct * 100).toFixed(0)}% to ${(m.upperWickPct * 100).toFixed(0)}% at resistance (Touch #${sequenceStage}) with strong close (₹${c.close.toFixed(1)}, CLV +${m.clv}) and sustained volume (${m.volumeRatio}x SMA). Limit sellers are exhausted; bullish breakout confirmed.`;
+          } else {
+            pattern = 'PASSIVE_ABSORPTION_TEST';
+            label = 'MBP: Supply Absorption in Progress';
+            bias = 'ABSORPTION';
+            isAnomaly = true;
+            sequenceStage = resistanceRetestCount + 1;
+            badgeColor = 'bg-cyan-950/70 text-cyan-300 border-cyan-500/40';
+            narrative = `MBP Absorption Test: Upper rejection wick shrank from ${(priorM.upperWickPct * 100).toFixed(0)}% to ${(m.upperWickPct * 100).toFixed(0)}% at resistance on sustained volume (${m.volumeRatio}x SMA), but close remains inside the level. Limit sellers are being absorbed; awaiting confirmed breakout expansion.`;
+          }
+          mbpSequenceDetected = true;
+        }
       }
     }
 
-    // B. Demand Absorption Check (Retesting Support with Shrinking Wicks)
+    // B. Support Tests: No Supply vs. Demand Absorption
     if (!mbpSequenceDetected && priorSupportTouchIdx !== -1) {
+      const priorTouchCandle = candles[priorSupportTouchIdx];
       const priorM = barMetrics[priorSupportTouchIdx];
-      const wickShrank = m.lowerWickPct <= 0.30 && m.lowerWickPct < priorM.lowerWickPct * 0.65;
-      const weakClose = m.clv <= -0.35;
-      const sustainedVol = m.volumeRatio >= 0.90;
+      const minAbsVol = timeframe === '1min' ? 1.30 : 1.10;
 
-      if (wickShrank && weakClose && sustainedVol) {
-        pattern = 'PASSIVE_ABSORPTION_BREAKOUT';
-        label = 'MBP: Demand Absorption Breakdown';
-        bias = 'BEARISH';
+      // Check 1: Low Volume Test at Support -> NO SUPPLY TEST (narrow/normal spread on dry volume)
+      if (m.volumeRatio < (timeframe === '1min' ? 1.05 : 0.95) && m.spreadRatio < cfg.airPocketSpread) {
+        pattern = 'NO_SUPPLY_TEST';
+        label = 'No Supply Test (Floor Defense)';
+        bias = 'BULLISH';
         isAnomaly = true;
-        sequenceStage = supportRetestCount + 1;
-        badgeColor = 'bg-cyan-950/90 text-cyan-300 border-cyan-400/60';
-        narrative = `MBP Absorption: Lower rejection wick shrank from ${(priorM.lowerWickPct * 100).toFixed(0)}% to ${(m.lowerWickPct * 100).toFixed(0)}% at support (Touch #${sequenceStage}) with a weak close (CLV ${m.clv}) and sustained volume (${m.volumeRatio}x SMA). Passive limit buyers are exhausted; bearish breakdown imminent.`;
+        badgeColor = 'bg-emerald-950/90 text-emerald-300 border-emerald-500/50';
+        narrative = `No Supply Test: Price probed support (~₹${priorTouchCandle.low.toFixed(0)}) on dry volume (${m.volumeRatio}x 20-SMA). Absence of institutional selling pressure confirms seller exhaustion; high probability of upward bounce.`;
         mbpSequenceDetected = true;
+      }
+      // Check 2: High Volume Absorption with Shrinking Lower Wick
+      else {
+        const wickShrank = m.lowerWickPct <= 0.30 && m.lowerWickPct < priorM.lowerWickPct * 0.65;
+        const weakClose = m.clv <= -0.35;
+        const sustainedVol = m.volumeRatio >= minAbsVol;
+
+        if (wickShrank && weakClose && sustainedVol) {
+          const isConfirmedBreakdown = c.close <= priorTouchCandle.low + (dynamicTol * 0.4);
+
+          if (isConfirmedBreakdown) {
+            pattern = 'PASSIVE_ABSORPTION_BREAKOUT';
+            label = 'MBP: Demand Absorption Breakdown';
+            bias = 'BEARISH';
+            isAnomaly = true;
+            sequenceStage = supportRetestCount + 1;
+            badgeColor = 'bg-rose-950/90 text-rose-300 border-rose-400/60';
+            narrative = `MBP Absorption Breakdown: Lower rejection wick shrank from ${(priorM.lowerWickPct * 100).toFixed(0)}% to ${(m.lowerWickPct * 100).toFixed(0)}% at support (Touch #${sequenceStage}) with weak close (₹${c.close.toFixed(1)}, CLV ${m.clv}) and sustained volume (${m.volumeRatio}x SMA). Limit buyers are exhausted; bearish breakdown confirmed.`;
+          } else {
+            pattern = 'PASSIVE_ABSORPTION_TEST';
+            label = 'MBP: Demand Absorption in Progress';
+            bias = 'ABSORPTION';
+            isAnomaly = true;
+            sequenceStage = supportRetestCount + 1;
+            badgeColor = 'bg-rose-950/70 text-rose-300 border-rose-500/40';
+            narrative = `MBP Demand Absorption Test: Lower rejection wick shrank from ${(priorM.lowerWickPct * 100).toFixed(0)}% to ${(m.lowerWickPct * 100).toFixed(0)}% at support on sustained volume (${m.volumeRatio}x SMA), but close remains inside the level. Limit buyers are being absorbed; awaiting confirmed breakdown expansion.`;
+          }
+          mbpSequenceDetected = true;
+        }
       }
     }
 
@@ -402,6 +492,15 @@ export function classifyCandleVsa(candles: CandleBar[], timeframe: VsaTimeframe 
           ? 'bg-emerald-950/90 text-emerald-300 border-emerald-500/50'
           : 'bg-rose-950/90 text-rose-300 border-rose-500/50';
         narrative = `Strong directional expansion (${m.spreadRatio}x ATR) confirmed by heavy institutional participation (${m.volumeRatio}x 20-SMA, CLV ${m.clv > 0 ? '+' : ''}${m.clv}). Continuation favored.`;
+      }
+    }
+
+    // Enrich narrative with VWAP trend context if VWAP is calculated
+    if (typeof c.vwap === 'number' && c.vwap > 0) {
+      if (bias === 'BULLISH' && c.close < c.vwap) {
+        narrative += ` (Context: Trading below intraday VWAP ₹${c.vwap.toFixed(1)} — counter-trend resistance overhead).`;
+      } else if (bias === 'BEARISH' && c.close > c.vwap) {
+        narrative += ` (Context: Trading above intraday VWAP ₹${c.vwap.toFixed(1)} — counter-trend support underneath).`;
       }
     }
 
