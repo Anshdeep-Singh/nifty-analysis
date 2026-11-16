@@ -79,6 +79,25 @@ function SingleTfChart({
 
   const [activeCandle, setActiveCandle] = useState<CandleBar | null>(null);
 
+  // Deduplicate and sort candles by timestamp
+  const { cleanCandles, candleMap } = React.useMemo(() => {
+    const sorted = [...candles].sort((a, b) => a.timestamp - b.timestamp);
+    const map = new Map<number, CandleBar>();
+    for (const c of sorted) {
+      map.set(c.timestamp, c);
+    }
+    return { cleanCandles: Array.from(map.values()), candleMap: map };
+  }, [candles]);
+
+  const cleanCandlesRef = useRef<CandleBar[]>(cleanCandles);
+  const candleMapRef = useRef<Map<number, CandleBar>>(candleMap);
+  const isHoveringRef = useRef<boolean>(false);
+  const lastFirstTsRef = useRef<number | null>(null);
+
+  // Keep references fresh synchronously on every render so crosshairMove listener never has stale closures
+  cleanCandlesRef.current = cleanCandles;
+  candleMapRef.current = candleMap;
+
   // Initialize and update chart
   useEffect(() => {
     if (!containerRef.current) return;
@@ -230,12 +249,32 @@ function SingleTfChart({
 
     // Crosshair listener
     chart.subscribeCrosshairMove((param) => {
-      if (!param.time || !param.seriesData) {
-        if (candles.length > 0) setActiveCandle(candles[candles.length - 1]);
+      const list = cleanCandlesRef.current;
+      const map = candleMapRef.current;
+
+      if (!param.time || !param.seriesData || (param.seriesData instanceof Map && param.seriesData.size === 0)) {
+        isHoveringRef.current = false;
+        if (list.length > 0) setActiveCandle(list[list.length - 1]);
         return;
       }
-      const c = candles.find((item) => item.timestamp === param.time);
-      if (c) setActiveCandle(c);
+
+      let timeKey: number | null = null;
+      if (typeof param.time === 'number') {
+        timeKey = param.time;
+      } else if (typeof param.time === 'string') {
+        timeKey = Number(param.time);
+      }
+
+      const c = (timeKey !== null ? map.get(timeKey) : undefined) ||
+        (timeKey !== null ? list.find((item) => item.timestamp === timeKey) : undefined);
+
+      if (c) {
+        isHoveringRef.current = true;
+        setActiveCandle(c);
+      } else if (list.length > 0) {
+        isHoveringRef.current = false;
+        setActiveCandle(list[list.length - 1]);
+      }
     });
 
     // Resize observer
@@ -257,15 +296,7 @@ function SingleTfChart({
 
   // Update Data & Indicators
   useEffect(() => {
-    if (!chartRef.current || !candleSeriesRef.current || candles.length === 0) return;
-
-    // Deduplicate and sort by timestamp
-    const sorted = [...candles].sort((a, b) => a.timestamp - b.timestamp);
-    const uniqueMap = new Map<number, CandleBar>();
-    for (const c of sorted) {
-      uniqueMap.set(c.timestamp, c);
-    }
-    const cleanCandles = Array.from(uniqueMap.values());
+    if (!chartRef.current || !candleSeriesRef.current || cleanCandles.length === 0) return;
 
     const cData: CandlestickData<Time>[] = cleanCandles.map((c) => ({
       time: c.timestamp as UTCTimestamp,
@@ -344,16 +375,33 @@ function SingleTfChart({
     }
 
     // Set Default Active Candle
-    setActiveCandle(cleanCandles[cleanCandles.length - 1]);
+    if (cleanCandles.length > 0) {
+      if (isHoveringRef.current) {
+        setActiveCandle((prev) => {
+          if (prev && candleMap.has(prev.timestamp)) {
+            return candleMap.get(prev.timestamp) || prev;
+          }
+          return cleanCandles[cleanCandles.length - 1];
+        });
+      } else {
+        setActiveCandle(cleanCandles[cleanCandles.length - 1]);
+      }
+    }
 
-    // Fit content smoothly
-    chartRef.current.timeScale().fitContent();
-  }, [candles, showIndicators]);
+    // Only fit content when session or date changes (or on initial load), preserving user zoom during live polling
+    const currentFirstTs = cleanCandles[0]?.timestamp;
+    if (currentFirstTs !== undefined && currentFirstTs !== lastFirstTsRef.current) {
+      chartRef.current.timeScale().fitContent();
+      lastFirstTsRef.current = currentFirstTs;
+    }
+  }, [cleanCandles, showIndicators, volumeAvailable]);
 
-  const latestCandle = activeCandle || (candles.length > 0 ? candles[candles.length - 1] : null);
+  const latestCandle = (activeCandle && candleMap.has(activeCandle.timestamp))
+    ? activeCandle
+    : (cleanCandles.length > 0 ? cleanCandles[cleanCandles.length - 1] : null);
   const isUp = latestCandle ? latestCandle.close >= latestCandle.open : true;
   const isHasVolume = Boolean(
-    (volumeAvailable ?? true) && (latestCandle?.volume ? latestCandle.volume > 0 : candles.some(c => (c.volume || 0) > 0))
+    (volumeAvailable ?? true) && (latestCandle?.volume ? latestCandle.volume > 0 : cleanCandles.some(c => (c.volume || 0) > 0))
   );
 
   return (
@@ -535,16 +583,13 @@ export function MultiTfParallelCharts({ symbol = 'NIFTY', synthesis }: MultiTfPa
   const fetchChartData = useCallback(async (isManual = false, targetDate?: string) => {
     if (isManual) setRefreshing(true);
     try {
-      const activeDate = targetDate !== undefined ? targetDate : selectedDate;
+      const activeDate = targetDate !== undefined ? targetDate : (isHistoricalMode ? selectedDate : '');
       const dateQuery = activeDate ? `&date=${encodeURIComponent(activeDate)}` : '';
       const res = await fetch(`/api/market-chart?symbol=${symbol}${dateQuery}&_t=${Date.now()}`);
       if (res.ok) {
         const json = await res.json();
         if (json.success && json.data) {
           setData(json.data);
-          if (json.data.selectedDate && targetDate === undefined && !selectedDate) {
-            setSelectedDate(json.data.selectedDate);
-          }
           setLastUpdated(new Date());
         }
       }
@@ -553,7 +598,7 @@ export function MultiTfParallelCharts({ symbol = 'NIFTY', synthesis }: MultiTfPa
     }
     setLoading(false);
     setRefreshing(false);
-  }, [symbol, selectedDate]);
+  }, [symbol, selectedDate, isHistoricalMode]);
 
   useEffect(() => {
     fetchChartData(false);
@@ -700,9 +745,10 @@ export function MultiTfParallelCharts({ symbol = 'NIFTY', synthesis }: MultiTfPa
                   onChange={(e) => {
                     const chosen = e.target.value;
                     const latestDate = data.availableDates?.[data.availableDates.length - 1];
-                    setIsHistoricalMode(chosen !== latestDate);
-                    setSelectedDate(chosen);
-                    fetchChartData(true, chosen);
+                    const isHist = Boolean(chosen && chosen !== latestDate);
+                    setIsHistoricalMode(isHist);
+                    setSelectedDate(isHist ? chosen : '');
+                    fetchChartData(true, isHist ? chosen : '');
                   }}
                   className="bg-slate-900 border border-slate-700 text-cyan-300 font-mono text-xs rounded px-2 py-0.5 focus:outline-none focus:border-cyan-500 cursor-pointer"
                 >
@@ -724,9 +770,11 @@ export function MultiTfParallelCharts({ symbol = 'NIFTY', synthesis }: MultiTfPa
                 onChange={(e) => {
                   const val = e.target.value;
                   if (val) {
-                    setIsHistoricalMode(true);
-                    setSelectedDate(val);
-                    fetchChartData(true, val);
+                    const latestDate = data.availableDates?.[data.availableDates.length - 1];
+                    const isHist = Boolean(val !== latestDate);
+                    setIsHistoricalMode(isHist);
+                    setSelectedDate(isHist ? val : '');
+                    fetchChartData(true, isHist ? val : '');
                   }
                 }}
                 className="bg-slate-900 border border-slate-700 text-white font-mono text-xs rounded px-2 py-0.5 focus:outline-none focus:border-cyan-500 cursor-pointer"
