@@ -287,7 +287,7 @@ export function BankNiftyAnalysisRadar() {
             { id: 'overview', label: 'Composite Overview', icon: Activity },
             { id: 'impulse', label: 'Impulse & Culprit Radar', icon: Flame },
             { id: 'tugofwar', label: 'Bank Tug-of-War', icon: Swords },
-            { id: 'charts', label: 'Multi-TF Charts (5m/15m/1h)', icon: BarChart3 },
+            { id: 'charts', label: 'Multi-TF Charts (1m/5m/15m/1h)', icon: BarChart3 },
             { id: 'heatmap', label: '14 Bank Heatmap', icon: Grid },
             { id: 'sectors', label: 'Private vs PSU Co-Dependency', icon: Compass },
             { id: 'anomalies', label: `Anomalies (${data.anomalies.length})`, icon: BellRing },

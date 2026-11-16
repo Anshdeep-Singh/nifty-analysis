@@ -289,7 +289,7 @@ export function NiftyAnalysisRadar() {
             { id: 'overview', label: 'Composite Overview', icon: Activity },
             { id: 'impulse', label: 'Impulse & Culprit Radar', icon: Flame },
             { id: 'tugofwar', label: 'Sector Tug-of-War', icon: Swords },
-            { id: 'charts', label: 'Multi-TF Charts (5m/15m/1h)', icon: BarChart3 },
+            { id: 'charts', label: 'Multi-TF Charts (1m/5m/15m/1h)', icon: BarChart3 },
             { id: 'heatmap', label: '50 Heatmap', icon: Grid },
             { id: 'sectors', label: 'Sectors & Co-Dependency', icon: Compass },
             { id: 'anomalies', label: `Anomalies (${data.anomalies.length})`, icon: BellRing },

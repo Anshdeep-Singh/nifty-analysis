@@ -56,7 +56,7 @@ function attachIndicators(candles: CandleBar[]): CandleBar[] {
   return classifyCandleVsa(baseCandles);
 }
 
-function aggregateCandles(baseCandles: CandleBar[], groupCount: number, tf: '15min' | '1hr'): CandleBar[] {
+function aggregateCandles(baseCandles: CandleBar[], groupCount: number, tf: '5min' | '15min' | '1hr'): CandleBar[] {
   const aggregated: CandleBar[] = [];
   for (let i = 0; i < baseCandles.length; i += groupCount) {
     const slice = baseCandles.slice(i, i + groupCount);
@@ -80,7 +80,7 @@ function aggregateCandles(baseCandles: CandleBar[], groupCount: number, tf: '15m
 /**
  * Loads authentic 1-minute historical candles from disk cache as fallback (Nifty)
  */
-function loadFallbackAuthenticCandles(): { fiveMin: CandleBar[]; prevClose: number; spot: number } | null {
+function loadFallbackAuthenticCandles(): { oneMin: CandleBar[]; prevClose: number; spot: number } | null {
   if (!fs.existsSync(HISTORICAL_DATA_DIR)) return null;
 
   try {
@@ -120,32 +120,27 @@ function loadFallbackAuthenticCandles(): { fiveMin: CandleBar[]; prevClose: numb
     const prevDay1m = prevDate ? dateMap[prevDate] : null;
     const prevClose = prevDay1m && prevDay1m.length > 0 ? prevDay1m[prevDay1m.length - 1].close : (day1m[0]?.open || 24500);
 
-    // Aggregate 1-minute into 5-minute candles
-    const fiveMin: CandleBar[] = [];
-    for (let i = 0; i < day1m.length; i += 5) {
-      const slice = day1m.slice(i, i + 5);
-      if (slice.length === 0) continue;
-      const first = slice[0];
-      const last = slice[slice.length - 1];
-      const { hours, minutes, timeStr, dateStr } = getISTDateParts(first.timestamp);
+    const oneMin: CandleBar[] = [];
+    for (const c of day1m) {
+      const { hours, minutes, timeStr, dateStr } = getISTDateParts(c.timestamp);
       const totalMins = hours * 60 + minutes;
       if (totalMins < 555 || totalMins > 930) continue; // 09:15 to 15:30 IST
 
-      fiveMin.push({
-        timestamp: first.timestamp,
+      oneMin.push({
+        timestamp: c.timestamp,
         time: timeStr,
         date: dateStr,
-        open: Number(first.open.toFixed(2)),
-        high: Number(Math.max(...slice.map(s => s.high)).toFixed(2)),
-        low: Number(Math.min(...slice.map(s => s.low)).toFixed(2)),
-        close: Number(last.close.toFixed(2)),
-        volume: slice.reduce((sum, s) => sum + s.volume, 0)
+        open: Number(c.open.toFixed(2)),
+        high: Number(c.high.toFixed(2)),
+        low: Number(c.low.toFixed(2)),
+        close: Number(c.close.toFixed(2)),
+        volume: c.volume || 0
       });
     }
 
-    const spot = fiveMin.length > 0 ? fiveMin[fiveMin.length - 1].close : prevClose;
+    const spot = oneMin.length > 0 ? oneMin[oneMin.length - 1].close : prevClose;
     return {
-      fiveMin: attachIndicators(fiveMin),
+      oneMin: attachIndicators(oneMin),
       prevClose,
       spot
     };
@@ -156,12 +151,12 @@ function loadFallbackAuthenticCandles(): { fiveMin: CandleBar[]; prevClose: numb
 }
 
 /**
- * Loads authentic 5-minute intraday candles from live public exchange API
+ * Loads authentic 1-minute intraday candles from live public exchange API
  */
-async function fetchYahooIntradayCandles(yahooSymbol: string): Promise<{ candles: CandleBar[]; prevClose: number; spot: number; dayOpen: number } | null> {
+async function fetchYahooIntradayCandles(yahooSymbol: string): Promise<{ oneMin: CandleBar[]; prevClose: number; spot: number; dayOpen: number } | null> {
   try {
     const cleanSym = yahooSymbol.startsWith('%5E') ? decodeURIComponent(yahooSymbol) : yahooSymbol;
-    const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(cleanSym)}?interval=5m&range=1d`, {
+    const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(cleanSym)}?interval=1m&range=1d`, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       },
@@ -212,7 +207,7 @@ async function fetchYahooIntradayCandles(yahooSymbol: string): Promise<{ candles
     const dayOpen = candles[0].open;
 
     return {
-      candles: attachIndicators(candles),
+      oneMin: attachIndicators(candles),
       prevClose: prevClose || dayOpen,
       spot,
       dayOpen
@@ -236,6 +231,7 @@ export async function GET(request: Request) {
     const kiteIndexKey = isBankNifty ? 'NSE:NIFTY BANK' : 'NSE:NIFTY 50';
     const yahooSymbol = isBankNifty ? '%5ENSEBANK' : '%5ENSEI';
 
+    let oneMinCandles: CandleBar[] = [];
     let fiveMinCandles: CandleBar[] = [];
     let spotPrice = isBankNifty ? 55900 : 24500;
     let prevClose = isBankNifty ? 55500 : 24350;
@@ -264,11 +260,14 @@ export async function GET(request: Request) {
         // Resolve front-month futures contract dynamically to obtain authentic candle volume
         const futContract = await getActiveFuturesContract(targetSymbol).catch(() => null);
         const futPromise = futContract
-          ? fetchKiteHistoricalCandles(futContract.instrumentToken, '5minute', fromStr, toStr, session).catch(() => [])
+          ? fetchKiteHistoricalCandles(futContract.instrumentToken, 'minute', fromStr, toStr, session).catch(() => [])
           : Promise.resolve([]);
 
-        const [kCandles5m, quotes, kFutCandles] = await Promise.all([
-          fetchKiteHistoricalCandles(indexToken, '5minute', fromStr, toStr, session),
+        const [kCandlesRaw, quotes, kFutCandles] = await Promise.all([
+          fetchKiteHistoricalCandles(indexToken, 'minute', fromStr, toStr, session).catch(async () => {
+            // Fallback to 5minute if minute is unsupported
+            return fetchKiteHistoricalCandles(indexToken, '5minute', fromStr, toStr, session).catch(() => []);
+          }),
           fetchKiteQuotes([kiteIndexKey, 'NSE:INDIA VIX'], session).catch((): Record<string, KiteQuoteItem> => ({})),
           futPromise
         ]);
@@ -294,19 +293,19 @@ export async function GET(request: Request) {
           if (qIndex.ohlc?.open) dayOpen = qIndex.ohlc.open;
         }
 
-        if (Array.isArray(kCandles5m) && kCandles5m.length > 0) {
-          // Identify the most recent active trading date in the dataset
-          const lastCandle = kCandles5m[kCandles5m.length - 1];
+        if (Array.isArray(kCandlesRaw) && kCandlesRaw.length > 0) {
+          const isOneMinute = kCandlesRaw.length >= 2 && (kCandlesRaw[1].timestamp - kCandlesRaw[0].timestamp) <= 120;
+          const lastCandle = kCandlesRaw[kCandlesRaw.length - 1];
           const { dateStr: targetDate } = getISTDateParts(lastCandle.timestamp);
 
-          const sessionCandles = kCandles5m.filter(c => {
+          const sessionCandles = kCandlesRaw.filter(c => {
             const { dateStr, hours, minutes } = getISTDateParts(c.timestamp);
             const totalMins = hours * 60 + minutes;
             return dateStr === targetDate && totalMins >= 555 && totalMins <= 930;
           });
 
           // Prior session close if multi-day lookback returned previous days
-          const priorCandles = kCandles5m.filter(c => {
+          const priorCandles = kCandlesRaw.filter(c => {
             const { dateStr } = getISTDateParts(c.timestamp);
             return dateStr < targetDate;
           });
@@ -314,7 +313,7 @@ export async function GET(request: Request) {
             prevClose = priorCandles[priorCandles.length - 1].close;
           }
 
-          fiveMinCandles = sessionCandles.map(c => {
+          const parsedBars = sessionCandles.map(c => {
             const { timeStr, dateStr } = getISTDateParts(c.timestamp);
             const futVol = futVolMap.get(c.timestamp);
             return {
@@ -328,10 +327,19 @@ export async function GET(request: Request) {
               volume: typeof futVol === 'number' && futVol > 0 ? futVol : (c.volume || 0)
             };
           });
-          fiveMinCandles = attachIndicators(fiveMinCandles);
-          if (fiveMinCandles.length > 0) {
-            dayOpen = fiveMinCandles[0].open;
-            spotPrice = fiveMinCandles[fiveMinCandles.length - 1].close;
+
+          if (isOneMinute) {
+            oneMinCandles = attachIndicators(parsedBars);
+            if (oneMinCandles.length > 0) {
+              dayOpen = oneMinCandles[0].open;
+              spotPrice = oneMinCandles[oneMinCandles.length - 1].close;
+            }
+          } else {
+            fiveMinCandles = attachIndicators(parsedBars);
+            if (fiveMinCandles.length > 0) {
+              dayOpen = fiveMinCandles[0].open;
+              spotPrice = fiveMinCandles[fiveMinCandles.length - 1].close;
+            }
           }
         }
       } catch (kiteErr) {
@@ -339,11 +347,11 @@ export async function GET(request: Request) {
       }
     }
 
-    // TIER 2: PUBLIC LIVE EXCHANGE CANDLES (Yahoo Finance authentic 5m bars)
-    if (fiveMinCandles.length === 0) {
+    // TIER 2: PUBLIC LIVE EXCHANGE CANDLES (Yahoo Finance authentic 1m bars)
+    if (oneMinCandles.length === 0) {
       const publicCandles = await fetchYahooIntradayCandles(yahooSymbol);
-      if (publicCandles && publicCandles.candles.length > 0) {
-        fiveMinCandles = attachIndicators(publicCandles.candles);
+      if (publicCandles && publicCandles.oneMin.length > 0) {
+        oneMinCandles = publicCandles.oneMin;
         prevClose = publicCandles.prevClose;
         spotPrice = publicCandles.spot;
         dayOpen = publicCandles.dayOpen;
@@ -351,21 +359,21 @@ export async function GET(request: Request) {
     }
 
     // TIER 3: AUTHENTIC DISK CACHE FALLBACK (for Nifty)
-    if (fiveMinCandles.length === 0 && !isBankNifty) {
+    if (oneMinCandles.length === 0 && !isBankNifty) {
       const diskData = loadFallbackAuthenticCandles();
-      if (diskData && diskData.fiveMin.length > 0) {
-        fiveMinCandles = attachIndicators(diskData.fiveMin);
+      if (diskData && diskData.oneMin.length > 0) {
+        oneMinCandles = diskData.oneMin;
         prevClose = diskData.prevClose;
         spotPrice = diskData.spot;
-        dayOpen = fiveMinCandles[0]?.open || prevClose;
+        dayOpen = oneMinCandles[0]?.open || prevClose;
       }
     }
 
     // Guard: Clean base session fallback if still empty (strictly 0 volume if unavailable, no artificial calculation)
-    if (fiveMinCandles.length === 0) {
+    if (oneMinCandles.length === 0 && fiveMinCandles.length === 0) {
       const baseTime = Math.floor(Date.now() / 1000) - 3600;
       const buffer = isBankNifty ? 35 : 10;
-      fiveMinCandles = [
+      oneMinCandles = [
         {
           timestamp: baseTime,
           time: '09:15',
@@ -377,19 +385,27 @@ export async function GET(request: Request) {
           volume: 0
         }
       ];
-      fiveMinCandles = attachIndicators(fiveMinCandles);
+      oneMinCandles = attachIndicators(oneMinCandles);
     }
 
-    // Aggregate into 15m and 1hr
-    const fifteenMinCandles = aggregateCandles(fiveMinCandles, 3, '15min');
-    const oneHourCandles = aggregateCandles(fiveMinCandles, 12, '1hr');
+    // Derive 5m, 15m, and 1hr from 1m (or aggregate from 5m if only 5m was obtained)
+    if (fiveMinCandles.length === 0 && oneMinCandles.length > 0) {
+      fiveMinCandles = aggregateCandles(oneMinCandles, 5, '5min');
+    }
+    const fifteenMinCandles = oneMinCandles.length > 0
+      ? aggregateCandles(oneMinCandles, 15, '15min')
+      : aggregateCandles(fiveMinCandles, 3, '15min');
+    const oneHourCandles = oneMinCandles.length > 0
+      ? aggregateCandles(oneMinCandles, 60, '1hr')
+      : aggregateCandles(fiveMinCandles, 12, '1hr');
 
-    const dayHigh = Math.max(...fiveMinCandles.map(c => c.high));
-    const dayLow = Math.min(...fiveMinCandles.map(c => c.low));
-    const latestClose = fiveMinCandles[fiveMinCandles.length - 1]?.close || spotPrice;
+    const effectiveOneMinCandles = oneMinCandles.length > 0 ? oneMinCandles : fiveMinCandles;
+    const dayHigh = Math.max(...effectiveOneMinCandles.map(c => c.high));
+    const dayLow = Math.min(...effectiveOneMinCandles.map(c => c.low));
+    const latestClose = effectiveOneMinCandles[effectiveOneMinCandles.length - 1]?.close || spotPrice;
 
     // Check if authentic volume is available
-    const hasVolume = fiveMinCandles.some(c => typeof c.volume === 'number' && c.volume > 0);
+    const hasVolume = effectiveOneMinCandles.some(c => typeof c.volume === 'number' && c.volume > 0);
     const volumeMessage = hasVolume
       ? undefined
       : 'Volume data not available for cash index spot (Connect Zerodha Kite to stream authentic front-month Futures volume)';
@@ -402,7 +418,7 @@ export async function GET(request: Request) {
       dayHigh,
       dayLow,
       vix,
-      candles: fiveMinCandles,
+      candles: fiveMinCandles.length > 0 ? fiveMinCandles : effectiveOneMinCandles,
       symbol: targetSymbol
     });
 
@@ -416,6 +432,17 @@ export async function GET(request: Request) {
       volumeAvailable: hasVolume,
       volumeMessage,
       charts: {
+        oneMin: {
+          timeframe: '1min',
+          candles: effectiveOneMinCandles,
+          vwap: effectiveOneMinCandles[effectiveOneMinCandles.length - 1]?.vwap,
+          dayOpen,
+          dayHigh,
+          dayLow,
+          prevClose,
+          volumeAvailable: hasVolume,
+          volumeMessage
+        },
         fiveMin: {
           timeframe: '5min',
           candles: fiveMinCandles,

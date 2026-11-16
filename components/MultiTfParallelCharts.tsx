@@ -533,7 +533,7 @@ export function MultiTfParallelCharts({ symbol = 'NIFTY', synthesis }: MultiTfPa
       <div className="min-h-[450px] flex flex-col items-center justify-center p-8 bg-slate-900/60 border border-slate-800 rounded-xl text-center">
         <RefreshCw className="w-8 h-8 text-cyan-400 animate-spin mb-3" />
         <h3 className="text-base font-bold text-white">Loading Multi-Timeframe Intraday Charts...</h3>
-        <p className="text-xs text-slate-400 mt-1">Aggregating authentic 5-minute, 15-minute, and 1-hour candles.</p>
+        <p className="text-xs text-slate-400 mt-1">Aggregating authentic 1-minute, 5-minute, 15-minute, and 1-hour candles.</p>
       </div>
     );
   }
@@ -553,7 +553,7 @@ export function MultiTfParallelCharts({ symbol = 'NIFTY', synthesis }: MultiTfPa
               Live Developing Intraday Multi-Timeframe Cockpit
             </span>
             <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-800/60">
-              Parallel 5m • 15m • 1h
+              Parallel 1m • 5m • 15m • 1h
             </span>
           </div>
 
@@ -678,6 +678,25 @@ export function MultiTfParallelCharts({ symbol = 'NIFTY', synthesis }: MultiTfPa
           onOpenVsaGuide={() => setVsaModalOpen(true)}
         />
       </div>
+
+      {/* 4. Full-Width 1-Minute Developing Chart */}
+      {charts.oneMin && (
+        <div className="w-full">
+          <SingleTfChart
+            title="1-Minute Scalp & Microstructure Flow"
+            subtitle="VWAP • 1m EMA 20/50 • Sub-Minute Momentum & Order Flow"
+            timeframe="1m"
+            candles={charts.oneMin.candles}
+            dayOpen={dayOpen}
+            prevClose={prevClose}
+            tacticalLevels={smartRoadmap.tacticalLevels}
+            showIndicators={showIndicators}
+            volumeAvailable={charts.oneMin.volumeAvailable ?? data.volumeAvailable}
+            volumeMessage={charts.oneMin.volumeMessage ?? data.volumeMessage}
+            onOpenVsaGuide={() => setVsaModalOpen(true)}
+          />
+        </div>
+      )}
 
       {/* Tactical Key Levels Roadmap Table */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-xl backdrop-blur-md">

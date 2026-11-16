@@ -240,7 +240,7 @@ export interface CandleBar {
 }
 
 export interface MultiTfChartData {
-  timeframe: '5min' | '15min' | '1hr';
+  timeframe: '1min' | '5min' | '15min' | '1hr';
   candles: CandleBar[];
   vwap?: number;
   dayOpen: number;
@@ -261,6 +261,7 @@ export interface MultiTfPayload {
   volumeAvailable?: boolean;
   volumeMessage?: string;
   charts: {
+    oneMin: MultiTfChartData;
     fiveMin: MultiTfChartData;
     fifteenMin: MultiTfChartData;
     oneHour: MultiTfChartData;
