@@ -117,6 +117,10 @@ export function classifyCandleVsa(candles: CandleBar[], timeframe: VsaTimeframe 
   const count = candles.length;
   const cfg = TF_THRESHOLDS[timeframe] || TF_THRESHOLDS['5min'];
 
+  // Detect whether candles represent Bank Nifty to adapt absolute point gates (e.g. minSpreadPts)
+  const isBankNifty = candles.some(c => (c.close > 35000) || (c.open > 35000));
+  const minSpread = isBankNifty ? cfg.minSpreadPts * 2.4 : cfg.minSpreadPts;
+
   // 1. Calculate Rolling 20-period True Range and Volume SMA on authentic volume
   const trList: number[] = [];
   for (let i = 0; i < count; i++) {
@@ -191,7 +195,7 @@ export function classifyCandleVsa(candles: CandleBar[], timeframe: VsaTimeframe 
     const isBull = c.close >= c.open;
 
     // NOISE GATE: On 1-minute chart, suppress micro-tick anomalies when absolute spread is tiny
-    if (timeframe === '1min' && m.spread < cfg.minSpreadPts) {
+    if (timeframe === '1min' && m.spread < minSpread) {
       classifiedBars.push({
         ...c,
         vsa: {
@@ -226,26 +230,64 @@ export function classifyCandleVsa(candles: CandleBar[], timeframe: VsaTimeframe 
     let mbpSequenceDetected = false;
     const lookbackStart = Math.max(0, i - 12);
 
-    // Look for previous retests of resistance (swing high within 0.15% or 8 points)
+    // Look for previous retests of resistance or support within current session
     let priorResistanceTouchIdx = -1;
     let priorSupportTouchIdx = -1;
+    let resistanceRetestCount = 1;
+    let supportRetestCount = 1;
+
+    // Tolerance scales dynamically with rolling ATR & spot price
+    const currentAtr = Math.max(1, atr20[i]);
+    const dynamicTol = Math.max(3, Math.min(currentAtr * 0.45, c.high * 0.0012));
 
     for (let j = i - 1; j >= lookbackStart; j--) {
       const prev = candles[j];
       const prevM = barMetrics[j];
 
-      // Resistance test: Highs close to each other
+      // Session guard: Do not cross overnight gaps or large gaps (> 5 hours)
+      if (c.date && prev.date && c.date !== prev.date) break;
+      if (c.timestamp && prev.timestamp && Math.abs(c.timestamp - prev.timestamp) > 18000) break;
+
+      // Resistance test: Highs close to each other within dynamic tolerance
       const highDiff = Math.abs(c.high - prev.high);
-      const isNearHigh = highDiff <= Math.max(4, c.high * 0.0015);
-      if (isNearHigh && prevM.upperWickPct >= 0.40 && priorResistanceTouchIdx === -1) {
-        priorResistanceTouchIdx = j;
+      const isNearHigh = highDiff <= dynamicTol;
+      if (isNearHigh && prevM.upperWickPct >= 0.40 && (prev.volume || 0) > 0 && prevM.volumeRatio >= 0.75) {
+        if (priorResistanceTouchIdx === -1) {
+          // Check that intermediate bars didn't blow out resistance
+          let intermediateBreach = false;
+          for (let k = j + 1; k < i; k++) {
+            if (candles[k].high > Math.max(c.high, prev.high) + dynamicTol * 1.5) {
+              intermediateBreach = true;
+              break;
+            }
+          }
+          if (!intermediateBreach) {
+            priorResistanceTouchIdx = j;
+          }
+        } else {
+          resistanceRetestCount++;
+        }
       }
 
-      // Support test: Lows close to each other
+      // Support test: Lows close to each other within dynamic tolerance
       const lowDiff = Math.abs(c.low - prev.low);
-      const isNearLow = lowDiff <= Math.max(4, c.low * 0.0015);
-      if (isNearLow && prevM.lowerWickPct >= 0.40 && priorSupportTouchIdx === -1) {
-        priorSupportTouchIdx = j;
+      const isNearLow = lowDiff <= dynamicTol;
+      if (isNearLow && prevM.lowerWickPct >= 0.40 && (prev.volume || 0) > 0 && prevM.volumeRatio >= 0.75) {
+        if (priorSupportTouchIdx === -1) {
+          // Check that intermediate bars didn't blow out support
+          let intermediateBreach = false;
+          for (let k = j + 1; k < i; k++) {
+            if (candles[k].low < Math.min(c.low, prev.low) - dynamicTol * 1.5) {
+              intermediateBreach = true;
+              break;
+            }
+          }
+          if (!intermediateBreach) {
+            priorSupportTouchIdx = j;
+          }
+        } else {
+          supportRetestCount++;
+        }
       }
     }
 
@@ -261,9 +303,9 @@ export function classifyCandleVsa(candles: CandleBar[], timeframe: VsaTimeframe 
         label = 'MBP: Supply Absorption Breakout';
         bias = 'BULLISH';
         isAnomaly = true;
-        sequenceStage = 2;
+        sequenceStage = resistanceRetestCount + 1;
         badgeColor = 'bg-cyan-950/90 text-cyan-300 border-cyan-400/60';
-        narrative = `MBP Absorption: Upper rejection wick shrank from ${(priorM.upperWickPct * 100).toFixed(0)}% to ${(m.upperWickPct * 100).toFixed(0)}% at resistance with a strong close (CLV +${m.clv}) and sustained volume (${m.volumeRatio}x SMA). Passive limit sellers are exhausted; bullish breakout imminent.`;
+        narrative = `MBP Absorption: Upper rejection wick shrank from ${(priorM.upperWickPct * 100).toFixed(0)}% to ${(m.upperWickPct * 100).toFixed(0)}% at resistance (Touch #${sequenceStage}) with a strong close (CLV +${m.clv}) and sustained volume (${m.volumeRatio}x SMA). Passive limit sellers are exhausted; bullish breakout imminent.`;
         mbpSequenceDetected = true;
       }
     }
@@ -280,9 +322,9 @@ export function classifyCandleVsa(candles: CandleBar[], timeframe: VsaTimeframe 
         label = 'MBP: Demand Absorption Breakdown';
         bias = 'BEARISH';
         isAnomaly = true;
-        sequenceStage = 2;
+        sequenceStage = supportRetestCount + 1;
         badgeColor = 'bg-cyan-950/90 text-cyan-300 border-cyan-400/60';
-        narrative = `MBP Absorption: Lower rejection wick shrank from ${(priorM.lowerWickPct * 100).toFixed(0)}% to ${(m.lowerWickPct * 100).toFixed(0)}% at support with a weak close (CLV ${m.clv}) and sustained volume (${m.volumeRatio}x SMA). Passive limit buyers are exhausted; bearish breakdown imminent.`;
+        narrative = `MBP Absorption: Lower rejection wick shrank from ${(priorM.lowerWickPct * 100).toFixed(0)}% to ${(m.lowerWickPct * 100).toFixed(0)}% at support (Touch #${sequenceStage}) with a weak close (CLV ${m.clv}) and sustained volume (${m.volumeRatio}x SMA). Passive limit buyers are exhausted; bearish breakdown imminent.`;
         mbpSequenceDetected = true;
       }
     }
@@ -322,7 +364,7 @@ export function classifyCandleVsa(candles: CandleBar[], timeframe: VsaTimeframe 
           const compHigh = Math.max(c0.high, c1.high, c.high);
           const compLow = Math.min(c0.low, c1.low, c.low);
           const compSpread = compHigh - compLow;
-          if (compSpread < cfg.minSpreadPts * 1.5) {
+          if (compSpread < minSpread * 1.5) {
             confirm1m = false;
           }
         }

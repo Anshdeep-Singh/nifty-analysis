@@ -107,6 +107,91 @@ function runTests() {
     console.log('PASS Test 4: MBP shrinking wick sequence accurately triggers PASSIVE_ABSORPTION_BREAKOUT');
   }
 
+  // TEST 5: Bank Nifty 1m Noise Gate Scaling (Threshold 6.0 pts)
+  {
+    const bnBase: CandleBar[] = [];
+    for (let i = 0; i < 20; i++) {
+      bnBase.push(createMockCandle(1000 + i * 60, 52000, 52025, 52000, 52012, 1000));
+    }
+    // Sub-noise bar on Bank Nifty: spread 4.0 points (< 6.0 points)
+    const bnNoise = createMockCandle(2260, 52000, 52004, 52000, 52001, 2500);
+    const resultBnNoise = classifyCandleVsa([...bnBase, bnNoise], '1min');
+    const lastBar = resultBnNoise[resultBnNoise.length - 1];
+
+    if (lastBar.vsa?.pattern !== 'NORMAL_AUCTION') {
+      console.error('FAIL Test 5: Bank Nifty 4.0 pt spread on 1m should be suppressed as NORMAL_AUCTION, got:', lastBar.vsa?.pattern);
+      process.exit(1);
+    }
+    console.log('PASS Test 5: Bank Nifty 1m noise gate properly scales threshold to 6.0 pts');
+  }
+
+  // TEST 6: MBP Demand Absorption Breakdown Sequence (Bearish)
+  {
+    const base = generateBaseline(20, 20, 2000);
+    // Touch 1 at Support 24400: Open 24415, High 24420, Low 24400, Close 24415 (Lower wick 15/20 = 75%), Vol 3200 (1.6x)
+    const touch1 = createMockCandle(3000, 24415, 24420, 24400, 24415, 3200);
+    // Bounce candle
+    const pb = createMockCandle(3060, 24415, 24425, 24410, 24420, 1800);
+    // Touch 2 at Support 24400: Open 24418, High 24420, Low 24400, Close 24403 (Lower wick 3/20 = 15%, CLV -0.70), Vol 2600 (1.3x)
+    const touch2 = createMockCandle(3120, 24418, 24420, 24400, 24403, 2600);
+
+    const result = classifyCandleVsa([...base, touch1, pb, touch2], '5min');
+    const t1Class = result[result.length - 3].vsa;
+    const t2Class = result[result.length - 1].vsa;
+
+    if (t1Class?.pattern !== 'INITIAL_DEMAND_DEFENSE') {
+      console.error('FAIL Test 6a: Touch 1 should be INITIAL_DEMAND_DEFENSE, got:', t1Class?.pattern);
+      process.exit(1);
+    }
+
+    if (t2Class?.pattern !== 'PASSIVE_ABSORPTION_BREAKOUT' || t2Class?.bias !== 'BEARISH') {
+      console.error('FAIL Test 6b: Touch 2 should be PASSIVE_ABSORPTION_BREAKOUT with BEARISH bias, got:', t2Class?.pattern, t2Class?.bias);
+      process.exit(1);
+    }
+    console.log('PASS Test 6: MBP demand absorption breakdown sequence accurately triggers BEARISH PASSIVE_ABSORPTION_BREAKOUT');
+  }
+
+  // TEST 7: Intermediate Breakout Invalidation (Price blew out resistance -> NOT absorption)
+  {
+    const base = generateBaseline(20, 20, 2000);
+    const touch1 = createMockCandle(3000, 24485, 24500, 24480, 24485, 3200);
+    // Massive intermediate breakout that blew through 24500 to 24650
+    const blowout = createMockCandle(3060, 24485, 24650, 24480, 24640, 4000);
+    // Subsequent retest of 24500 from above
+    const retest = createMockCandle(3120, 24482, 24500, 24480, 24497, 2600);
+
+    const result = classifyCandleVsa([...base, touch1, blowout, retest], '5min');
+    const retestClass = result[result.length - 1].vsa;
+
+    if (retestClass?.pattern === 'PASSIVE_ABSORPTION_BREAKOUT') {
+      console.error('FAIL Test 7: Blown-out resistance should NOT trigger PASSIVE_ABSORPTION_BREAKOUT');
+      process.exit(1);
+    }
+    console.log('PASS Test 7: Intermediate breakout correctly invalidates false absorption classification');
+  }
+
+  // TEST 8: Overnight Day Boundary Guard (Do not connect touches across days)
+  {
+    const base = generateBaseline(20, 20, 2000);
+    const yesterdayTouch = {
+      ...createMockCandle(1000, 24485, 24500, 24480, 24485, 3200),
+      date: '2026-11-15'
+    };
+    const todayTouch = {
+      ...createMockCandle(50000, 24482, 24500, 24480, 24497, 2600),
+      date: '2026-11-16'
+    };
+
+    const result = classifyCandleVsa([...base, yesterdayTouch, todayTouch], '5min');
+    const todayClass = result[result.length - 1].vsa;
+
+    if (todayClass?.pattern === 'PASSIVE_ABSORPTION_BREAKOUT') {
+      console.error('FAIL Test 8: Overnight touches should NOT connect as intraday absorption');
+      process.exit(1);
+    }
+    console.log('PASS Test 8: Day boundary guard prevents false cross-session absorption sequences');
+  }
+
   console.log('--- ALL VSA & MBP UNIT TESTS PASSED ---');
 }
 

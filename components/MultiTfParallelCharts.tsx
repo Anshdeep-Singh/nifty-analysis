@@ -477,6 +477,24 @@ function SingleTfChart({
                 <button
                   type="button"
                   onClick={onOpenVsaGuide}
+                  className="flex items-center gap-1 text-cyan-300 hover:text-cyan-200 transition-colors"
+                  title="Cyan Pulse: MBP Sequential Wick Absorption (Shrinking wicks at key boundary -> Imminent Breakout)"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-300 animate-pulse" />
+                  <span>🚀 MBP Absorption</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onOpenVsaGuide}
+                  className="flex items-center gap-1 text-rose-300 hover:text-rose-200 transition-colors"
+                  title="Rose/Emerald Bar: Initial Defense (First touch rejection at boundary with high volume)"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                  <span>🛡️ Initial Defense</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onOpenVsaGuide}
                   className="flex items-center gap-1 text-rose-400/80 hover:text-rose-300 transition-colors"
                   title="Faded Bar: Air Pocket Spike (Dry volume trap)"
                 >

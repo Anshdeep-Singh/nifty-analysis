@@ -1411,6 +1411,7 @@ function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
   const [absorptionSubTab, setAbsorptionSubTab] = useState<'bid-support' | 'ask-ceiling'>('bid-support');
   const [impulseSubTab, setImpulseSubTab] = useState<'bullish' | 'bearish'>('bullish');
   const [trapSubTab, setTrapSubTab] = useState<'bull-trap' | 'bear-trap'>('bull-trap');
+  const [mbpSubTab, setMbpSubTab] = useState<'supply-breakout' | 'demand-breakdown'>('supply-breakout');
 
   // Dynamic Deep Dive Content Resolution
   let deepDiveData = {
@@ -1578,34 +1579,59 @@ function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
       )
     };
   } else if (selectedCard === 'mbp-sequence') {
+    const isSupply = mbpSubTab === 'supply-breakout';
     deepDiveData = {
-      title: 'Deep Dive: What Is "MBP Sequential Wick Absorption" (Why Shrinking Wicks Mean Breakout)?',
-      pulseColor: 'bg-cyan-400',
-      directionBadge: 'Expected Direction: IMMINENT BREAKOUT / EXPANSION 🚀',
-      badgeClass: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40',
-      borderClass: 'border-cyan-500/50',
-      bgGradient: 'from-cyan-950/40 via-slate-900 to-emerald-950/40',
-      point1Title: '1. Touch 1 vs. Touch 2/3 (The Wick Story)',
-      point1Color: 'text-cyan-300',
-      point1Content: (
+      title: isSupply
+        ? 'Deep Dive: What Is "MBP Supply Absorption" (Why Shrinking Upper Wicks Mean Breakout)?'
+        : 'Deep Dive: What Is "MBP Demand Absorption" (Why Shrinking Lower Wicks Mean Breakdown)?',
+      pulseColor: isSupply ? 'bg-cyan-400' : 'bg-rose-400',
+      directionBadge: isSupply
+        ? 'Expected Direction: IMMINENT BREAKOUT (UP) 🚀'
+        : 'Expected Direction: IMMINENT BREAKDOWN (DOWN) 🔻',
+      badgeClass: isSupply
+        ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+        : 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+      borderClass: isSupply ? 'border-cyan-500/50' : 'border-rose-500/50',
+      bgGradient: isSupply
+        ? 'from-cyan-950/40 via-slate-900 to-emerald-950/40'
+        : 'from-rose-950/40 via-slate-900 to-rose-950/40',
+      point1Title: isSupply
+        ? '1. Touch 1 vs. Touch 2/3 (The Upper Wick Story)'
+        : '1. Touch 1 vs. Touch 2/3 (The Lower Wick Story)',
+      point1Color: isSupply ? 'text-cyan-300' : 'text-rose-300',
+      point1Content: isSupply ? (
         <>
-          On Touch #1, price tested resistance and left a large rejection wick (&ge; 50%), confirming active limit sellers. But on Touch #2 or #3, price returned to the exact same zone, and the upper wick shrank dramatically (&le; 25%) while the candle closed near its high (CLV &ge; +0.35) on sustained volume.
+          On Touch #1, price tested resistance and left a large upper rejection wick (&ge; 50%), confirming active limit sellers. But on Touch #2 or #3, price returned to the exact same zone, and the upper wick shrank dramatically (&le; 25%) while the candle closed near its high (CLV &ge; +0.35) on sustained volume.
+        </>
+      ) : (
+        <>
+          On Touch #1, price tested support and bounced with a large lower rejection wick (&ge; 50%), confirming responsive buyers. But on Touch #2 or #3, price re-tested the exact same support, and the lower wick shrank to almost nothing (&le; 25%) while the candle closed on its low (CLV &le; -0.35) on sustained volume.
         </>
       ),
       point2Title: '2. What Does It Mean Mathematically?',
-      point2Color: 'text-emerald-300',
-      point2Content: (
+      point2Color: isSupply ? 'text-emerald-300' : 'text-rose-300',
+      point2Content: isSupply ? (
         <>
           <strong className="text-emerald-400">Resting limit orders have been consumed.</strong> Every time an auction tests a limit order wall without retreating deeply, resting limit orders are eaten by aggressive market orders. Because sellers did not reload their limit orders, resistance is now paper-thin, clearing the way for a sharp expansion.
         </>
+      ) : (
+        <>
+          <strong className="text-rose-400">Resting buy limits have been exhausted.</strong> Repeated retests without bouncing prove buyers are no longer stepping in to reload bids. The support bid shelf has been completely chewed through by persistent institutional selling, clearing the way for a sharp breakdown.
+        </>
       ),
       point3Title: '3. How to Trade It (Action Rule)',
-      point3Color: 'text-cyan-300',
-      point3Content: (
+      point3Color: isSupply ? 'text-cyan-300' : 'text-rose-300',
+      point3Content: isSupply ? (
         <>
           • <strong className="text-rose-400">NEVER SHORT</strong> shrinking rejection wicks at resistance.<br />
           • Expect an immediate breakout expansion; trade in the direction of the absorption (Buy Calls / Bull Spreads).<br />
           • Place stop-loss just below the midpoint or low of the absorbing candle.
+        </>
+      ) : (
+        <>
+          • <strong className="text-rose-400">NEVER BUY CALLS</strong> or try to catch a knife on shrinking lower wicks at support.<br />
+          • Expect an immediate breakdown cascade; trade in the direction of the absorption (Buy Puts / Bear Spreads).<br />
+          • Place stop-loss just above the midpoint or high of the absorbing candle.
         </>
       )
     };
@@ -1634,8 +1660,8 @@ function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
           <span className="text-slate-400">Baseline: 20-ATR Spread & 20-SMA Volume</span>
         </div>
 
-        {/* 4 VSA Pattern Cards Grid - Pixel Aligned */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5 items-stretch">
+        {/* 5 VSA Pattern Cards Grid - Pixel Aligned */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3.5 items-stretch">
           {/* Card 1: Climax Exhaustion (Amber / Yellow Bar) */}
           <div
             onClick={() => setSelectedCard('climax')}
@@ -2086,6 +2112,169 @@ function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
               {selectedCard === 'trap' ? 'Deep Dive Active ▼' : 'Click to Deep Dive →'}
             </div>
           </div>
+
+          {/* Card 5: MBP Sequential Wick Absorption (Cyan / Pulse Bar) */}
+          <div
+            onClick={() => setSelectedCard('mbp-sequence')}
+            className={`rounded-xl p-3 flex flex-col justify-between relative overflow-hidden transition-all cursor-pointer ${
+              selectedCard === 'mbp-sequence'
+                ? 'bg-slate-900 border-2 border-cyan-400 shadow-xl shadow-cyan-950/40 ring-1 ring-cyan-300'
+                : 'bg-slate-900/80 border border-slate-800 hover:border-slate-700 hover:bg-slate-900'
+            }`}
+          >
+            <div>
+              {/* Header */}
+              <div className="flex items-start justify-between gap-1 min-h-[44px]">
+                <div className="text-left flex-1">
+                  <span className="text-xs font-bold text-cyan-300 flex items-center gap-1">
+                    🚀 MBP Wick Absorption
+                  </span>
+                  <span className="text-[10px] text-cyan-200/70 font-mono block">
+                    Shrinking Wicks + |CLV| ≥ 0.35
+                  </span>
+                </div>
+                <span className="bg-cyan-400 text-slate-950 text-[9px] font-mono font-extrabold px-1.5 py-0.5 rounded shrink-0 animate-pulse">
+                  CYAN PULSE
+                </span>
+              </div>
+
+              {/* Sub-selector */}
+              <div className="flex items-center gap-1 my-2 bg-slate-950 p-0.5 rounded-lg border border-slate-800 w-full text-[10px] font-mono h-8">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedCard('mbp-sequence');
+                    setMbpSubTab('supply-breakout');
+                  }}
+                  className={`flex-1 py-1 rounded transition-colors ${
+                    mbpSubTab === 'supply-breakout'
+                      ? 'bg-cyan-950 text-cyan-300 border border-cyan-800 font-bold'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Supply (UP 🚀)
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedCard('mbp-sequence');
+                    setMbpSubTab('demand-breakdown');
+                  }}
+                  className={`flex-1 py-1 rounded transition-colors ${
+                    mbpSubTab === 'demand-breakdown'
+                      ? 'bg-rose-950 text-rose-300 border border-rose-800 font-bold'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Demand (DN 🔻)
+                </button>
+              </div>
+
+              {/* Candle Graphic: 3 Candles Side-by-Side */}
+              <div className="h-36 w-full flex items-center justify-center my-1 select-none">
+                {mbpSubTab === 'supply-breakout' ? (
+                  <svg viewBox="0 0 120 150" className="w-28 h-36 select-none">
+                    {/* Resistance ceiling line */}
+                    <line x1="5" y1="22" x2="115" y2="22" stroke="#f43f5e" strokeWidth="1.5" strokeDasharray="3,2" />
+                    <text x="115" y="16" fill="#fb7185" fontSize="7" textAnchor="end">Resistance</text>
+                    
+                    {/* Candle 1: Touch 1 with large upper wick */}
+                    <line x1="25" y1="22" x2="25" y2="85" stroke="#10b981" strokeWidth="1.5" />
+                    <rect x="18" y="55" width="14" height="25" fill="#10b981" rx="1.5" />
+                    <text x="25" y="98" fill="#94a3b8" fontSize="7" textAnchor="middle">T1 (60% W)</text>
+
+                    {/* Candle 2: Pullback bar */}
+                    <line x1="55" y1="45" x2="55" y2="80" stroke="#f43f5e" strokeWidth="1" />
+                    <rect x="49" y="50" width="12" height="22" fill="#f43f5e" rx="1" />
+                    <text x="55" y="98" fill="#64748b" fontSize="6.5" textAnchor="middle">Pullback</text>
+
+                    {/* Candle 3: Touch 2 with shrinking wick + strong close */}
+                    <line x1="88" y1="22" x2="88" y2="75" stroke="#06b6d4" strokeWidth="2" />
+                    <rect x="80" y="24" width="16" height="42" fill="#06b6d4" rx="2" />
+                    <text x="88" y="98" fill="#38bdf8" fontSize="7" fontWeight="bold" textAnchor="middle">T2 (15% W)</text>
+
+                    {/* Breakout Arrow */}
+                    <path d="M 88 18 L 88 6 M 84 10 L 88 6 L 92 10" stroke="#38bdf8" strokeWidth="2" fill="none" />
+
+                    {/* Volume bars */}
+                    <line x1="10" y1="108" x2="110" y2="108" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
+                    <rect x="18" y="112" width="14" height="24" fill="#10b981" opacity="0.9" rx="1" />
+                    <rect x="49" y="122" width="12" height="14" fill="#64748b" opacity="0.7" rx="1" />
+                    <rect x="80" y="115" width="16" height="21" fill="#06b6d4" opacity="0.95" rx="1" />
+                    <text x="60" y="146" fill="#38bdf8" fontSize="7" fontWeight="bold" textAnchor="middle">Sustained Fuel</text>
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 120 150" className="w-28 h-36 select-none">
+                    {/* Support floor line */}
+                    <line x1="5" y1="92" x2="115" y2="92" stroke="#10b981" strokeWidth="1.5" strokeDasharray="3,2" />
+                    <text x="115" y="102" fill="#34d399" fontSize="7" textAnchor="end">Support</text>
+                    
+                    {/* Candle 1: Touch 1 with large lower wick */}
+                    <line x1="25" y1="30" x2="25" y2="92" stroke="#f43f5e" strokeWidth="1.5" />
+                    <rect x="18" y="35" width="14" height="25" fill="#f43f5e" rx="1.5" />
+                    <text x="25" y="18" fill="#94a3b8" fontSize="7" textAnchor="middle">T1 (60% W)</text>
+
+                    {/* Candle 2: Bounce bar */}
+                    <line x1="55" y1="35" x2="55" y2="70" stroke="#10b981" strokeWidth="1" />
+                    <rect x="49" y="42" width="12" height="20" fill="#10b981" rx="1" />
+                    <text x="55" y="18" fill="#64748b" fontSize="6.5" textAnchor="middle">Bounce</text>
+
+                    {/* Candle 3: Touch 2 with shrinking wick + weak close */}
+                    <line x1="88" y1="40" x2="88" y2="92" stroke="#f43f5e" strokeWidth="2" />
+                    <rect x="80" y="48" width="16" height="42" fill="#f43f5e" rx="2" />
+                    <text x="88" y="18" fill="#fb7185" fontSize="7" fontWeight="bold" textAnchor="middle">T2 (15% W)</text>
+
+                    {/* Breakdown Arrow */}
+                    <path d="M 88 96 L 88 108 M 84 104 L 88 108 L 92 104" stroke="#f43f5e" strokeWidth="2" fill="none" />
+
+                    {/* Volume bars */}
+                    <line x1="10" y1="112" x2="110" y2="112" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
+                    <rect x="18" y="116" width="14" height="24" fill="#f43f5e" opacity="0.9" rx="1" />
+                    <rect x="49" y="126" width="12" height="14" fill="#64748b" opacity="0.7" rx="1" />
+                    <rect x="80" y="118" width="16" height="22" fill="#f43f5e" opacity="0.95" rx="1" />
+                    <text x="60" y="148" fill="#fb7185" fontSize="7" fontWeight="bold" textAnchor="middle">Sustained Fuel</text>
+                  </svg>
+                )}
+              </div>
+
+              {/* Bias Box */}
+              {mbpSubTab === 'supply-breakout' ? (
+                <div className="w-full text-left bg-cyan-950/40 border border-cyan-800/40 rounded p-2 mb-2 min-h-[58px] flex flex-col justify-center">
+                  <div className="text-[10px] font-bold text-cyan-300 flex items-center gap-1">
+                    <span>🚀 Bias:</span> <strong>IMMINENT BREAKOUT (UP)</strong>
+                  </div>
+                  <div className="text-[9px] text-slate-300 mt-0.5">
+                    Upper rejection wicks shrank. Passive limit sellers consumed.
+                  </div>
+                </div>
+              ) : (
+                <div className="w-full text-left bg-rose-950/40 border border-rose-800/40 rounded p-2 mb-2 min-h-[58px] flex flex-col justify-center">
+                  <div className="text-[10px] font-bold text-rose-300 flex items-center gap-1">
+                    <span>🔻 Bias:</span> <strong>IMMINENT BREAKDOWN (DOWN)</strong>
+                  </div>
+                  <div className="text-[9px] text-slate-300 mt-0.5">
+                    Lower rejection wicks shrank. Passive limit buyers exhausted.
+                  </div>
+                </div>
+              )}
+
+              {/* Narrative */}
+              <p className="text-[10px] text-slate-300 leading-tight min-h-[40px] flex items-center text-center justify-center">
+                Repeated retest of auction boundary with shrinking rejection wicks. Passive resting limits are eaten, opening path for expansion.
+              </p>
+            </div>
+
+            {/* Deep Dive Action Pill */}
+            <div className={`mt-2.5 py-1 px-2 rounded text-[10px] font-mono flex items-center justify-center gap-1 transition-colors ${
+              selectedCard === 'mbp-sequence'
+                ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40'
+                : 'text-slate-400 bg-slate-950/60 border border-slate-800'
+            }`}>
+              {selectedCard === 'mbp-sequence' ? 'Deep Dive Active ▼' : 'Click to Deep Dive →'}
+            </div>
+          </div>
         </div>
 
         {/* DYNAMIC DEEP-DIVE: Synchronized with Active Card Selection */}
@@ -2168,14 +2357,31 @@ function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
             </button>
             <button
               type="button"
-              onClick={() => setSelectedCard('mbp-sequence')}
+              onClick={() => {
+                setSelectedCard('mbp-sequence');
+                setMbpSubTab('supply-breakout');
+              }}
               className={`text-[10px] font-mono px-2 py-0.5 rounded transition-all cursor-pointer ${
-                selectedCard === 'mbp-sequence'
+                selectedCard === 'mbp-sequence' && mbpSubTab === 'supply-breakout'
                   ? 'bg-cyan-500 text-slate-950 font-bold shadow'
                   : 'bg-slate-950 text-slate-300 border border-slate-800 hover:border-slate-700'
               }`}
             >
-              🚀 MBP Shrinking Wicks (Breakout ⚡)
+              🚀 MBP Supply Breakout (UP ⚡)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedCard('mbp-sequence');
+                setMbpSubTab('demand-breakdown');
+              }}
+              className={`text-[10px] font-mono px-2 py-0.5 rounded transition-all cursor-pointer ${
+                selectedCard === 'mbp-sequence' && mbpSubTab === 'demand-breakdown'
+                  ? 'bg-rose-500 text-slate-950 font-bold shadow'
+                  : 'bg-slate-950 text-slate-300 border border-slate-800 hover:border-slate-700'
+              }`}
+            >
+              🔻 MBP Demand Breakdown (DN ⚡)
             </button>
           </div>
 
@@ -2255,6 +2461,75 @@ function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
                   </td>
                   <td className="py-2.5 px-3.5 font-sans text-slate-300 leading-relaxed">
                     Repeated test of resistance where upper rejection wicks shrank dramatically while closing near high. Passive sellers exhausted; bullish breakout imminent.
+                  </td>
+                </tr>
+                <tr className="hover:bg-slate-800/40 transition-colors">
+                  <td className="py-2.5 px-3.5 font-bold text-rose-400 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-400 shrink-0" />
+                      <span>Solid Rose / Cyan outline</span>
+                    </div>
+                  </td>
+                  <td className="py-2.5 px-3.5 font-bold text-rose-300 whitespace-nowrap">
+                    MBP: Demand Absorption Breakdown
+                  </td>
+                  <td className="py-2.5 px-3.5 text-slate-300 whitespace-nowrap font-sans">
+                    Lower Wick &le; 30% (Shrank) &amp; CLV &le; -0.35 &amp; Vol &ge; 0.90x
+                  </td>
+                  <td className="py-2.5 px-3.5 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-rose-950 text-rose-300 font-bold border border-rose-800 shadow-sm whitespace-nowrap">
+                      <span>BREAKDOWN (DN)</span>
+                      <span>🔻</span>
+                    </span>
+                  </td>
+                  <td className="py-2.5 px-3.5 font-sans text-slate-300 leading-relaxed">
+                    Repeated test of support where lower rejection wicks shrank dramatically while closing near low. Passive buyers exhausted; bearish breakdown imminent.
+                  </td>
+                </tr>
+                <tr className="hover:bg-slate-800/40 transition-colors">
+                  <td className="py-2.5 px-3.5 font-bold text-rose-400 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-400 shrink-0" />
+                      <span>Solid Rose / Amber</span>
+                    </div>
+                  </td>
+                  <td className="py-2.5 px-3.5 font-bold text-rose-300 whitespace-nowrap">
+                    Initial Supply Rejection
+                  </td>
+                  <td className="py-2.5 px-3.5 text-slate-300 whitespace-nowrap font-sans">
+                    TF Vol Surge &amp; Upper Wick &ge; TF Climax%
+                  </td>
+                  <td className="py-2.5 px-3.5 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-rose-950 text-rose-300 font-bold border border-rose-800 shadow-sm whitespace-nowrap">
+                      <span>RESISTANCE DEFENSE</span>
+                      <span>🛡️</span>
+                    </span>
+                  </td>
+                  <td className="py-2.5 px-3.5 font-sans text-slate-300 leading-relaxed">
+                    First-touch rejection at resistance. Institutional limit sellers heavily defended the level on arrival.
+                  </td>
+                </tr>
+                <tr className="hover:bg-slate-800/40 transition-colors">
+                  <td className="py-2.5 px-3.5 font-bold text-emerald-400 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0" />
+                      <span>Solid Emerald / Amber</span>
+                    </div>
+                  </td>
+                  <td className="py-2.5 px-3.5 font-bold text-emerald-300 whitespace-nowrap">
+                    Initial Demand Defense
+                  </td>
+                  <td className="py-2.5 px-3.5 text-slate-300 whitespace-nowrap font-sans">
+                    TF Vol Surge &amp; Lower Wick &ge; TF Climax%
+                  </td>
+                  <td className="py-2.5 px-3.5 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-950 text-emerald-300 font-bold border border-emerald-800 shadow-sm whitespace-nowrap">
+                      <span>SUPPORT DEFENSE</span>
+                      <span>🛡️</span>
+                    </span>
+                  </td>
+                  <td className="py-2.5 px-3.5 font-sans text-slate-300 leading-relaxed">
+                    First-touch defense at support. Institutional limit buyers stepped up aggressively to protect the boundary floor.
                   </td>
                 </tr>
                 <tr className="hover:bg-slate-800/40 transition-colors">
@@ -2423,13 +2698,79 @@ function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
           </div>
         </div>
 
+        {/* Multi-Timeframe Variance Calibration & Noise Gates */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg p-3.5 space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <Layers className="w-4 h-4 text-cyan-400" />
+              <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+                Multi-Timeframe Variance Calibration &amp; Noise Gates (&sigma; &prop; 1 / &radic;N)
+              </h4>
+            </div>
+            <span className="text-[11px] font-mono text-cyan-300">Central Limit Theorem Damping</span>
+          </div>
+
+          <p className="text-xs text-slate-300 leading-relaxed font-sans">
+            Why don&apos;t all timeframes use the same volume and spread thresholds? Because <strong className="text-white">N independent 1-minute bars aggregate into a higher timeframe bar</strong>, smoothing variance according to <strong className="text-cyan-300">&sigma;<sub>TF</sub> &asymp; &sigma;<sub>1m</sub> / &radic;N</strong>. A 1.30x volume surge on a 15-minute chart represents the same statistical rarity (~2.5&sigma;) as a 1.70x surge on a 5-minute chart or a 2.20x surge on a 1-minute chart.
+          </p>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs font-mono">
+              <thead>
+                <tr className="border-b border-slate-800 text-slate-400 bg-slate-950/50 text-[11px]">
+                  <th className="py-2 px-3 whitespace-nowrap">Timeframe</th>
+                  <th className="py-2 px-3 whitespace-nowrap">Surge Vol Ratio</th>
+                  <th className="py-2 px-3 whitespace-nowrap">Absorption Vol / Spread</th>
+                  <th className="py-2 px-3 whitespace-nowrap">Air Pocket Vol / Spread</th>
+                  <th className="py-2 px-3 whitespace-nowrap">Min Spread Gate</th>
+                  <th className="py-2 px-3 whitespace-nowrap">Composite &amp; Sequence Filter</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 text-[11px]">
+                <tr className="hover:bg-slate-800/40">
+                  <td className="py-2 px-3 font-bold text-cyan-400">1-Minute (1min)</td>
+                  <td className="py-2 px-3 text-slate-200">&ge; 2.00x SMA</td>
+                  <td className="py-2 px-3 text-slate-200">&ge; 2.20x Vol &amp; &le; 0.60x Spread</td>
+                  <td className="py-2 px-3 text-slate-200">&le; 0.55x Vol &amp; &ge; 1.45x Spread</td>
+                  <td className="py-2 px-3 text-amber-300 font-bold">&ge; 2.5 pts (NIFTY) / &ge; 6.0 pts (BN)</td>
+                  <td className="py-2 px-3 text-slate-300 font-sans">3-bar rolling composite filter eliminates sub-tick flickers</td>
+                </tr>
+                <tr className="hover:bg-slate-800/40">
+                  <td className="py-2 px-3 font-bold text-emerald-400">5-Minute (5min)</td>
+                  <td className="py-2 px-3 text-slate-200">&ge; 1.50x SMA</td>
+                  <td className="py-2 px-3 text-slate-200">&ge; 1.70x Vol &amp; &le; 0.70x Spread</td>
+                  <td className="py-2 px-3 text-slate-200">&le; 0.75x Vol &amp; &ge; 1.35x Spread</td>
+                  <td className="py-2 px-3 text-slate-300">&ge; 5.0 pts</td>
+                  <td className="py-2 px-3 text-slate-300 font-sans">Primary execution benchmark; rolling 20-ATR scaling</td>
+                </tr>
+                <tr className="hover:bg-slate-800/40">
+                  <td className="py-2 px-3 font-bold text-purple-400">15-Minute (15min)</td>
+                  <td className="py-2 px-3 text-slate-200">&ge; 1.25x SMA</td>
+                  <td className="py-2 px-3 text-slate-200">&ge; 1.30x Vol &amp; &le; 0.80x Spread</td>
+                  <td className="py-2 px-3 text-slate-200">&le; 0.85x Vol &amp; &ge; 1.25x Spread</td>
+                  <td className="py-2 px-3 text-slate-300">&ge; 10.0 pts</td>
+                  <td className="py-2 px-3 text-slate-300 font-sans">Institutional ORB &amp; swing pivots activated (no longer silent)</td>
+                </tr>
+                <tr className="hover:bg-slate-800/40">
+                  <td className="py-2 px-3 font-bold text-sky-400">1-Hour (1hr)</td>
+                  <td className="py-2 px-3 text-slate-200">&ge; 1.15x SMA</td>
+                  <td className="py-2 px-3 text-slate-200">&ge; 1.20x Vol &amp; &le; 0.85x Spread</td>
+                  <td className="py-2 px-3 text-slate-200">&le; 0.90x Vol &amp; &ge; 1.15x Spread</td>
+                  <td className="py-2 px-3 text-slate-300">&ge; 18.0 pts</td>
+                  <td className="py-2 px-3 text-slate-300 font-sans">Macro structural bars &amp; institutional multi-hour absorption</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         {/* Tactical Playbook Matrix */}
         <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg space-y-2">
           <div className="text-xs font-bold text-white flex items-center gap-1.5">
             <Compass className="w-3.5 h-3.5 text-cyan-400" />
             <span>Tactical Execution Playbook for VSA Signals</span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-[11px]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-[11px]">
             <div className="p-2.5 rounded bg-slate-950 border border-amber-900/40 text-slate-300">
               <strong className="text-amber-400 block mb-0.5">🟡 Climax Exhaustion Wick:</strong>
               Do NOT chase the direction of the spike. If lower wick &ge; 50% (Capitulation), prepare for an upward bounce. Use the wick low as your stop-loss floor. If upper wick &ge; 50% (Buying Climax), prepare for a drop.
@@ -2441,6 +2782,10 @@ function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
             <div className="p-2.5 rounded bg-slate-950 border border-rose-900/40 text-slate-300">
               <strong className="text-rose-400 block mb-0.5">⚠️ Air Pocket Spikes:</strong>
               Do NOT place breakout market orders when volume is thin. Wait for the snapback back inside the range to fade the false move.
+            </div>
+            <div className="p-2.5 rounded bg-slate-950 border border-cyan-900/40 text-slate-300">
+              <strong className="text-cyan-300 block mb-0.5">🚀 MBP Sequential Absorption:</strong>
+              When rejection wicks shrink across consecutive retests at resistance or support, passive limit walls have been eaten. NEVER fade shrinking wicks; trade the imminent breakout/breakdown expansion with a tight stop behind the absorbing candle.
             </div>
           </div>
         </div>
