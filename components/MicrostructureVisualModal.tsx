@@ -1406,7 +1406,7 @@ function ClvVisual({ viewMode, synthesis }: VisualBaseProps) {
 // 5.5 VOLUME SPREAD ANALYSIS (VSA) VISUAL
 // ==========================================
 function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
-  const [selectedCard, setSelectedCard] = useState<'climax' | 'absorption' | 'impulse' | 'trap'>('climax');
+  const [selectedCard, setSelectedCard] = useState<'climax' | 'absorption' | 'impulse' | 'trap' | 'mbp-sequence'>('climax');
   const [climaxSubTab, setClimaxSubTab] = useState<'selling-capitulation' | 'buying-climax'>('selling-capitulation');
   const [absorptionSubTab, setAbsorptionSubTab] = useState<'bid-support' | 'ask-ceiling'>('bid-support');
   const [impulseSubTab, setImpulseSubTab] = useState<'bullish' | 'bearish'>('bullish');
@@ -1574,6 +1574,38 @@ function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
           • <strong className="text-rose-400">DO NOT BUY</strong> breakout highs on faded green volume, and <strong className="text-rose-400">DO NOT SHORT</strong> on faded red volume.<br />
           • Prepare to trade the snapback reversal back toward equilibrium (VWAP).<br />
           • Place stop-loss just outside the trap bar&apos;s high/low and target complete retracement.
+        </>
+      )
+    };
+  } else if (selectedCard === 'mbp-sequence') {
+    deepDiveData = {
+      title: 'Deep Dive: What Is "MBP Sequential Wick Absorption" (Why Shrinking Wicks Mean Breakout)?',
+      pulseColor: 'bg-cyan-400',
+      directionBadge: 'Expected Direction: IMMINENT BREAKOUT / EXPANSION 🚀',
+      badgeClass: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40',
+      borderClass: 'border-cyan-500/50',
+      bgGradient: 'from-cyan-950/40 via-slate-900 to-emerald-950/40',
+      point1Title: '1. Touch 1 vs. Touch 2/3 (The Wick Story)',
+      point1Color: 'text-cyan-300',
+      point1Content: (
+        <>
+          On Touch #1, price tested resistance and left a large rejection wick (&ge; 50%), confirming active limit sellers. But on Touch #2 or #3, price returned to the exact same zone, and the upper wick shrank dramatically (&le; 25%) while the candle closed near its high (CLV &ge; +0.35) on sustained volume.
+        </>
+      ),
+      point2Title: '2. What Does It Mean Mathematically?',
+      point2Color: 'text-emerald-300',
+      point2Content: (
+        <>
+          <strong className="text-emerald-400">Resting limit orders have been consumed.</strong> Every time an auction tests a limit order wall without retreating deeply, resting limit orders are eaten by aggressive market orders. Because sellers did not reload their limit orders, resistance is now paper-thin, clearing the way for a sharp expansion.
+        </>
+      ),
+      point3Title: '3. How to Trade It (Action Rule)',
+      point3Color: 'text-cyan-300',
+      point3Content: (
+        <>
+          • <strong className="text-rose-400">NEVER SHORT</strong> shrinking rejection wicks at resistance.<br />
+          • Expect an immediate breakout expansion; trade in the direction of the absorption (Buy Calls / Bull Spreads).<br />
+          • Place stop-loss just below the midpoint or low of the absorbing candle.
         </>
       )
     };
@@ -2134,6 +2166,17 @@ function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
             >
               ⚠️ Air Pocket Trap (Snapback 🪤)
             </button>
+            <button
+              type="button"
+              onClick={() => setSelectedCard('mbp-sequence')}
+              className={`text-[10px] font-mono px-2 py-0.5 rounded transition-all cursor-pointer ${
+                selectedCard === 'mbp-sequence'
+                  ? 'bg-cyan-500 text-slate-950 font-bold shadow'
+                  : 'bg-slate-950 text-slate-300 border border-slate-800 hover:border-slate-700'
+              }`}
+            >
+              🚀 MBP Shrinking Wicks (Breakout ⚡)
+            </button>
           </div>
 
           {/* 3 Actionable Pillars Grid */}
@@ -2191,6 +2234,29 @@ function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 text-[11px]">
+                <tr className="hover:bg-slate-800/40 transition-colors">
+                  <td className="py-2.5 px-3.5 font-bold text-cyan-400 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 shrink-0" />
+                      <span>Solid Cyan / Pulse</span>
+                    </div>
+                  </td>
+                  <td className="py-2.5 px-3.5 font-bold text-cyan-300 whitespace-nowrap">
+                    MBP: Supply Absorption Breakout
+                  </td>
+                  <td className="py-2.5 px-3.5 text-slate-300 whitespace-nowrap font-sans">
+                    Upper Wick &le; 30% (Shrank) &amp; CLV &ge; +0.35 &amp; Vol &ge; 0.90x
+                  </td>
+                  <td className="py-2.5 px-3.5 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-cyan-950 text-cyan-300 font-bold border border-cyan-800 shadow-sm whitespace-nowrap">
+                      <span>BREAKOUT (UP)</span>
+                      <span>🚀</span>
+                    </span>
+                  </td>
+                  <td className="py-2.5 px-3.5 font-sans text-slate-300 leading-relaxed">
+                    Repeated test of resistance where upper rejection wicks shrank dramatically while closing near high. Passive sellers exhausted; bullish breakout imminent.
+                  </td>
+                </tr>
                 <tr className="hover:bg-slate-800/40 transition-colors">
                   <td className="py-2.5 px-3.5 font-bold text-amber-400 whitespace-nowrap">
                     <div className="flex items-center gap-2">

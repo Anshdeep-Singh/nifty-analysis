@@ -38,7 +38,7 @@ function calculateEma(values: number[], period: number): number[] {
   return ema;
 }
 
-function attachIndicators(candles: CandleBar[]): CandleBar[] {
+function attachIndicators(candles: CandleBar[], tf: '1min' | '5min' | '15min' | '1hr' = '5min'): CandleBar[] {
   if (candles.length === 0) return [];
   const closes = candles.map(c => c.close);
   const ema20 = calculateEma(closes, 20);
@@ -53,7 +53,7 @@ function attachIndicators(candles: CandleBar[]): CandleBar[] {
   }));
 
   // Run Volume Spread Analysis (VSA) only if authentic volume is present (no artificial fallback)
-  return classifyCandleVsa(baseCandles);
+  return classifyCandleVsa(baseCandles, tf);
 }
 
 function aggregateCandles(baseCandles: CandleBar[], groupCount: number, tf: '5min' | '15min' | '1hr'): CandleBar[] {
@@ -74,7 +74,7 @@ function aggregateCandles(baseCandles: CandleBar[], groupCount: number, tf: '5mi
       volume: slice.reduce((sum, s) => sum + (s.volume || 0), 0)
     });
   }
-  return attachIndicators(aggregated);
+  return attachIndicators(aggregated, tf);
 }
 
 /**
@@ -140,7 +140,7 @@ function loadFallbackAuthenticCandles(): { oneMin: CandleBar[]; prevClose: numbe
 
     const spot = oneMin.length > 0 ? oneMin[oneMin.length - 1].close : prevClose;
     return {
-      oneMin: attachIndicators(oneMin),
+      oneMin: attachIndicators(oneMin, '1min'),
       prevClose,
       spot
     };
@@ -329,13 +329,13 @@ export async function GET(request: Request) {
           });
 
           if (isOneMinute) {
-            oneMinCandles = attachIndicators(parsedBars);
+            oneMinCandles = attachIndicators(parsedBars, '1min');
             if (oneMinCandles.length > 0) {
               dayOpen = oneMinCandles[0].open;
               spotPrice = oneMinCandles[oneMinCandles.length - 1].close;
             }
           } else {
-            fiveMinCandles = attachIndicators(parsedBars);
+            fiveMinCandles = attachIndicators(parsedBars, '5min');
             if (fiveMinCandles.length > 0) {
               dayOpen = fiveMinCandles[0].open;
               spotPrice = fiveMinCandles[fiveMinCandles.length - 1].close;
@@ -385,7 +385,7 @@ export async function GET(request: Request) {
           volume: 0
         }
       ];
-      oneMinCandles = attachIndicators(oneMinCandles);
+      oneMinCandles = attachIndicators(oneMinCandles, '1min');
     }
 
     // Derive 5m, 15m, and 1hr from 1m (or aggregate from 5m if only 5m was obtained)

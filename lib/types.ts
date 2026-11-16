@@ -206,19 +206,26 @@ export interface SmartMoneyRoadmapState {
 }
 
 export type VsaPatternType =
-  | 'AIR_POCKET_SPIKE'          // Wide spread + dry volume (< 0.75x SMA) -> False Spike / Liquidity Sweep Trap
-  | 'INSTITUTIONAL_ABSORPTION'  // Narrow spread + heavy volume (> 1.75x SMA) -> Passive limit absorbing aggressive orders
-  | 'INSTITUTIONAL_IMPULSE'     // Wide spread + heavy volume (> 1.50x SMA) -> Genuine trend acceleration
-  | 'CLIMAX_EXHAUSTION'         // Outsized wick (> 50% range) on heavy volume -> Rejection / Climax
-  | 'NORMAL_AUCTION';           // Continuous balanced flow within baseline expectations
+  | 'AIR_POCKET_SPIKE'            // Wide spread + dry volume -> False Spike / Liquidity Sweep Trap
+  | 'INSTITUTIONAL_ABSORPTION'    // Narrow spread + heavy volume -> Passive limit absorbing aggressive orders
+  | 'INSTITUTIONAL_IMPULSE'       // Wide spread + heavy volume -> Genuine trend acceleration
+  | 'CLIMAX_EXHAUSTION'           // Outsized wick (> 50% range) on heavy volume -> Rejection / Climax
+  | 'INITIAL_SUPPLY_REJECTION'    // MBP: First touch rejection with dominant upper wick at resistance
+  | 'INITIAL_DEMAND_DEFENSE'      // MBP: First touch defense with dominant lower wick at support
+  | 'PASSIVE_ABSORPTION_BREAKOUT' // MBP: Repeated tests with shrinking wicks + strong CLV -> Imminent breakout
+  | 'NORMAL_AUCTION';             // Continuous balanced flow within baseline expectations
 
 export interface VsaClassification {
   pattern: VsaPatternType;
   label: string;
   bias: 'BULLISH' | 'BEARISH' | 'TRAP_WARNING' | 'ABSORPTION' | 'NEUTRAL';
+  timeframe?: '1min' | '5min' | '15min' | '1hr';
   volumeRatio: number;          // Volume / 20-SMA Volume
   spreadRatio: number;          // (High - Low) / 20-ATR
   clv: number;                  // Close Location Value: -1.0 (at low) to +1.0 (at high)
+  upperWickPct?: number;        // Upper wick as % of candle range
+  lowerWickPct?: number;        // Lower wick as % of candle range
+  sequenceStage?: number;       // Retest count (1 = initial, 2 = retest, 3+ = absorption)
   isAnomaly: boolean;           // High-priority microstructure alert
   badgeColor: string;           // Tailwind badge color token
   narrative: string;            // Crisp institutional description

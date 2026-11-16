@@ -290,7 +290,13 @@ function SingleTfChart({
           if (vsa?.pattern === 'AIR_POCKET_SPIKE') {
             color = 'rgba(244, 63, 94, 0.20)'; // Dim/Faded thin volume warning
           } else if (vsa?.pattern === 'INSTITUTIONAL_ABSORPTION') {
-            color = 'rgba(6, 182, 212, 0.90)'; // Vibrant cyan for absorption
+            color = 'rgba(6, 182, 212, 0.90)'; // Vibrant cyan for absorption pin
+          } else if (vsa?.pattern === 'PASSIVE_ABSORPTION_BREAKOUT') {
+            color = vsa.bias === 'BULLISH' ? 'rgba(6, 182, 212, 0.95)' : 'rgba(244, 63, 94, 0.95)'; // Cyan/Rose for MBP absorption
+          } else if (vsa?.pattern === 'INITIAL_SUPPLY_REJECTION') {
+            color = 'rgba(244, 63, 94, 0.85)'; // Rose for supply defense
+          } else if (vsa?.pattern === 'INITIAL_DEMAND_DEFENSE') {
+            color = 'rgba(16, 185, 129, 0.85)'; // Emerald for demand defense
           } else if (vsa?.pattern === 'INSTITUTIONAL_IMPULSE') {
             color = isCandleUp ? 'rgba(16, 185, 129, 0.85)' : 'rgba(244, 63, 94, 0.85)'; // Solid bright surge
           } else if (vsa?.pattern === 'CLIMAX_EXHAUSTION') {
@@ -369,6 +375,9 @@ function SingleTfChart({
                 <span>
                   {latestCandle.vsa.pattern === 'AIR_POCKET_SPIKE' && '⚠️ '}
                   {latestCandle.vsa.pattern === 'INSTITUTIONAL_ABSORPTION' && '⚡ '}
+                  {latestCandle.vsa.pattern === 'PASSIVE_ABSORPTION_BREAKOUT' && '🚀 '}
+                  {latestCandle.vsa.pattern === 'INITIAL_SUPPLY_REJECTION' && '🛡️ '}
+                  {latestCandle.vsa.pattern === 'INITIAL_DEMAND_DEFENSE' && '🛡️ '}
                   {latestCandle.vsa.pattern === 'INSTITUTIONAL_IMPULSE' && '✅ '}
                   {latestCandle.vsa.pattern === 'CLIMAX_EXHAUSTION' && '🔄 '}
                   {latestCandle.vsa.label} ({latestCandle.vsa.volumeRatio}x Vol)
