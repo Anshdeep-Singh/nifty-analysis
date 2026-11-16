@@ -48,6 +48,8 @@ export type MicrostructureTopicId =
 interface MicrostructureVisualModalProps {
   isOpen: boolean;
   initialTopic?: MicrostructureTopicId;
+  initialVsaCard?: 'climax' | 'absorption' | 'impulse' | 'trap' | 'mbp-sequence' | 'tests';
+  initialVsaSubTab?: string;
   onClose: () => void;
   synthesis?: ExecutiveMasterSynthesis;
   spotPrice?: number;
@@ -83,6 +85,8 @@ const TOPICS: TopicMeta[] = [
 export function MicrostructureVisualModal({
   isOpen,
   initialTopic = 'gap-common',
+  initialVsaCard,
+  initialVsaSubTab,
   onClose,
   synthesis,
   spotPrice,
@@ -278,7 +282,13 @@ export function MicrostructureVisualModal({
             <ClvVisual viewMode={viewMode} synthesis={synthesis} spotPrice={spotPrice} />
           )}
           {selectedTopic === 'vsa-microstructure' && (
-            <VsaVisual viewMode={viewMode} synthesis={synthesis} spotPrice={spotPrice} />
+            <VsaVisual
+              viewMode={viewMode}
+              synthesis={synthesis}
+              spotPrice={spotPrice}
+              initialCard={initialVsaCard}
+              initialSubTab={initialVsaSubTab}
+            />
           )}
           {selectedTopic === 'stop-hunt' && (
             <StopHuntVisual viewMode={viewMode} synthesis={synthesis} spotPrice={spotPrice} />
@@ -1402,16 +1412,34 @@ function ClvVisual({ viewMode, synthesis }: VisualBaseProps) {
   );
 }
 
+interface VsaVisualProps extends VisualBaseProps {
+  initialCard?: 'climax' | 'absorption' | 'impulse' | 'trap' | 'mbp-sequence' | 'tests';
+  initialSubTab?: string;
+}
+
 // ==========================================
 // 5.5 VOLUME SPREAD ANALYSIS (VSA) VISUAL
 // ==========================================
-function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
-  const [selectedCard, setSelectedCard] = useState<'climax' | 'absorption' | 'impulse' | 'trap' | 'mbp-sequence'>('climax');
+function VsaVisual({ viewMode, synthesis, initialCard, initialSubTab }: VsaVisualProps) {
+  const [selectedCard, setSelectedCard] = useState<'climax' | 'absorption' | 'impulse' | 'trap' | 'mbp-sequence' | 'tests'>(initialCard || 'climax');
   const [climaxSubTab, setClimaxSubTab] = useState<'selling-capitulation' | 'buying-climax'>('selling-capitulation');
   const [absorptionSubTab, setAbsorptionSubTab] = useState<'bid-support' | 'ask-ceiling'>('bid-support');
   const [impulseSubTab, setImpulseSubTab] = useState<'bullish' | 'bearish'>('bullish');
   const [trapSubTab, setTrapSubTab] = useState<'bull-trap' | 'bear-trap'>('bull-trap');
   const [mbpSubTab, setMbpSubTab] = useState<'supply-breakout' | 'demand-breakdown'>('supply-breakout');
+  const [testSubTab, setTestSubTab] = useState<'no-demand' | 'no-supply'>(initialSubTab === 'no-supply' ? 'no-supply' : 'no-demand');
+
+  useEffect(() => {
+    if (initialCard) setSelectedCard(initialCard);
+    if (initialSubTab) {
+      if (initialSubTab === 'no-demand' || initialSubTab === 'no-supply') setTestSubTab(initialSubTab);
+      if (initialSubTab === 'selling-capitulation' || initialSubTab === 'buying-climax') setClimaxSubTab(initialSubTab);
+      if (initialSubTab === 'bid-support' || initialSubTab === 'ask-ceiling') setAbsorptionSubTab(initialSubTab);
+      if (initialSubTab === 'bullish' || initialSubTab === 'bearish') setImpulseSubTab(initialSubTab);
+      if (initialSubTab === 'bull-trap' || initialSubTab === 'bear-trap') setTrapSubTab(initialSubTab);
+      if (initialSubTab === 'supply-breakout' || initialSubTab === 'demand-breakdown') setMbpSubTab(initialSubTab);
+    }
+  }, [initialCard, initialSubTab]);
 
   // Dynamic Deep Dive Content Resolution
   let deepDiveData = {
@@ -1667,6 +1695,74 @@ function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
         </>
       )
     };
+  } else if (selectedCard === 'tests') {
+    const isNoDemand = testSubTab === 'no-demand';
+    deepDiveData = isNoDemand ? {
+      title: 'Deep Dive: What Does "No Demand Test (Exhaustion Warning)" Mean? (Will Market Go UP or DOWN?)',
+      pulseColor: 'bg-amber-400',
+      directionBadge: 'Expected Direction: DOWN / BEARISH ROLLOVER 🔴',
+      badgeClass: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+      borderClass: 'border-amber-500/50',
+      bgGradient: 'from-amber-950/40 via-slate-900 to-rose-950/40',
+      point1Title: '1. What Happened In That Candle? (Order Flow Mechanics)',
+      point1Color: 'text-amber-300',
+      point1Content: (
+        <>
+          Price probed or re-tested a resistance boundary, prior swing high, or VWAP on <strong className="text-white">severely dry volume (&lt; 0.95x 20-SMA)</strong> with narrow-to-moderate spread. In classical Wyckoff and VSA law, moving through overhead resistance requires aggressive institutional buying fuel. A dry volume test proves that <strong className="text-amber-300">smart money refuses to bid or chase higher prices</strong>. Minor market orders caused price to drift up into resistance, but institutional buyers were entirely absent.
+        </>
+      ),
+      point2Title: '2. Is Market Going UP or DOWN? (Why 2+ Bars Cause A Drop)',
+      point2Color: 'text-rose-300',
+      point2Content: (
+        <>
+          <strong className="text-rose-400">The market is about to roll over and go DOWN.</strong><br />
+          • If smart money isn&apos;t buying at resistance, who will absorb the overhead supply? Nobody.<br />
+          • Seeing a single No Demand Test is an early warning. But when you see <strong className="text-white">a couple of them together (2–3 consecutive bars)</strong>, it confirms a complete <em>&quot;buyer strike&quot;</em>. Smart money has pulled their resting bids from the order book.<br />
+          • With zero institutional bids underneath, the market cannot sustain high prices. As soon as a few sellers emerge, the market collapses under its own weight, triggering a swift downward markdown toward VWAP or key support.
+        </>
+      ),
+      point3Title: '3. How to Trade It (Action Rules)',
+      point3Color: 'text-rose-300',
+      point3Content: (
+        <>
+          • <strong className="text-rose-400">NEVER BUY CALLS OR CHASE BREAKOUTS</strong> into a No Demand Test.<br />
+          • <strong className="text-cyan-300">Crucial Distinction vs Absorption:</strong> Institutional Supply Absorption (cyan bar) features <em>high, sustained volume (&ge; 1.1x–1.3x)</em> actively chewing through sellers. No Demand is the exact opposite—it is <em>dry volume (&lt; 0.95x)</em> floating into resistance without institutional backing.<br />
+          • <strong className="text-white">Trade Action:</strong> When 2+ No Demand bars cluster at resistance, square off long intraday momentum trades, tighten trailing stops, or look for short fades / Bear Call Spreads.<br />
+          • <strong className="text-amber-300">Invalidation Floor:</strong> Strict stop-loss sits 5–10 points above the highest wick of the No Demand cluster.
+        </>
+      )
+    } : {
+      title: 'Deep Dive: What Does "No Supply Test (Floor Defense)" Mean? (Will Market Go UP or DOWN?)',
+      pulseColor: 'bg-emerald-400',
+      directionBadge: 'Expected Direction: UP / BULLISH BOUNCE 🟢',
+      badgeClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+      borderClass: 'border-emerald-500/50',
+      bgGradient: 'from-emerald-950/40 via-slate-900 to-cyan-950/40',
+      point1Title: '1. What Happened In That Candle? (Order Flow Mechanics)',
+      point1Color: 'text-emerald-300',
+      point1Content: (
+        <>
+          Price dipped down to re-test a prior support level, VWAP, or demand floor on <strong className="text-white">severely dry volume (&lt; 0.95x 20-SMA)</strong> with narrow-to-moderate spread. This tests whether sellers are willing to dump inventory at lower prices.
+        </>
+      ),
+      point2Title: '2. Is Market Going UP or DOWN?',
+      point2Color: 'text-emerald-300',
+      point2Content: (
+        <>
+          <strong className="text-emerald-400">The market is about to bounce and go UP.</strong><br />
+          A low-volume probe into support proves that <strong className="text-emerald-300">institutional selling pressure is exhausted</strong>. The floating supply has been cleaned out; sellers refuse to sell cheaply. With no selling pressure resisting, smart money has the green light to mark prices upward.
+        </>
+      ),
+      point3Title: '3. How to Trade It (Action Rules)',
+      point3Color: 'text-emerald-300',
+      point3Content: (
+        <>
+          • <strong className="text-rose-400">NEVER SHORT</strong> into a No Supply Test at support.<br />
+          • Look for long entries or Bull Put Spreads targeting VWAP or the overhead supply zone.<br />
+          • Invalidation sits strictly below the low of the test bar.
+        </>
+      )
+    };
   }
 
   return (
@@ -1692,8 +1788,8 @@ function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
           <span className="text-slate-400">Baseline: 20-ATR Spread & 20-SMA Volume</span>
         </div>
 
-        {/* 5 VSA Pattern Cards Grid - Pixel Aligned */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3.5 items-stretch">
+        {/* 6 VSA Pattern Cards Grid - Pixel Aligned */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 items-stretch">
           {/* Card 1: Climax Exhaustion (Amber / Yellow Bar) */}
           <div
             onClick={() => setSelectedCard('climax')}
@@ -2312,6 +2408,149 @@ function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
               {selectedCard === 'mbp-sequence' ? 'Deep Dive Active ▼' : 'Click to Deep Dive →'}
             </div>
           </div>
+
+          {/* Card 6: No Demand & No Supply Tests (Dry Volume Retest) */}
+          <div
+            onClick={() => setSelectedCard('tests')}
+            className={`rounded-xl p-3 flex flex-col justify-between relative overflow-hidden transition-all cursor-pointer ${
+              selectedCard === 'tests'
+                ? 'bg-slate-900 border-2 border-amber-500 shadow-xl shadow-amber-950/40 ring-1 ring-amber-400'
+                : 'bg-slate-900/80 border border-slate-800 hover:border-slate-700 hover:bg-slate-900'
+            }`}
+          >
+            <div>
+              {/* Header */}
+              <div className="flex items-start justify-between gap-1 min-h-[44px]">
+                <div className="text-left flex-1">
+                  <span className="text-xs font-bold text-amber-300 flex items-center gap-1">
+                    ⚠️ No Demand / Supply Test
+                  </span>
+                  <span className="text-[10px] text-amber-200/70 font-mono block">
+                    Retest + Vol &lt; 0.95x SMA
+                  </span>
+                </div>
+                <span className="bg-amber-950/90 text-amber-300 border border-amber-500/50 text-[9px] font-mono font-extrabold px-1.5 py-0.5 rounded shrink-0">
+                  DRY TEST BAR
+                </span>
+              </div>
+
+              {/* Sub-selector */}
+              <div className="flex items-center gap-1 my-2 bg-slate-950 p-0.5 rounded-lg border border-slate-800 w-full text-[10px] font-mono h-8">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedCard('tests');
+                    setTestSubTab('no-demand');
+                  }}
+                  className={`flex-1 py-1 rounded transition-colors ${
+                    testSubTab === 'no-demand'
+                      ? 'bg-rose-950 text-rose-300 border border-rose-800 font-bold'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  No Demand (DN 🔴)
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedCard('tests');
+                    setTestSubTab('no-supply');
+                  }}
+                  className={`flex-1 py-1 rounded transition-colors ${
+                    testSubTab === 'no-supply'
+                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  No Supply (UP 🟢)
+                </button>
+              </div>
+
+              {/* Candle Graphic */}
+              <div className="h-36 w-full flex items-center justify-center my-1 select-none">
+                {testSubTab === 'no-demand' ? (
+                  <svg viewBox="0 0 100 150" className="w-24 h-36 select-none">
+                    {/* Resistance ceiling line */}
+                    <line x1="10" y1="25" x2="90" y2="25" stroke="#f43f5e" strokeWidth="1.5" strokeDasharray="3,2" />
+                    <text x="85" y="18" fill="#fb7185" fontSize="6.5" textAnchor="end">Resistance</text>
+
+                    {/* Candle testing resistance with narrow spread */}
+                    <line x1="50" y1="25" x2="50" y2="85" stroke="#f59e0b" strokeWidth="1.5" />
+                    <rect x="42" y="32" width="16" height="35" fill="#f59e0b" opacity="0.8" rx="1.5" />
+                    <text x="66" y="48" fill="#fbbf24" fontSize="7" fontWeight="bold">Probing</text>
+
+                    {/* Downward rollover arrow */}
+                    <path d="M 50 92 L 50 104 M 46 100 L 50 104 L 54 100" stroke="#f43f5e" strokeWidth="1.5" fill="none" />
+                    <text x="50" y="102" fill="#fb7185" fontSize="6" textAnchor="middle" dx="18">Rollover</text>
+
+                    {/* Dry Volume Bar */}
+                    <line x1="15" y1="112" x2="85" y2="112" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
+                    <rect x="42" y="124" width="16" height="14" fill="#f59e0b" opacity="0.6" rx="1" />
+                    <text x="50" y="146" fill="#fbbf24" fontSize="7" fontWeight="bold" textAnchor="middle">0.7x Dry Vol</text>
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 100 150" className="w-24 h-36 select-none">
+                    {/* Support floor line */}
+                    <line x1="10" y1="95" x2="90" y2="95" stroke="#10b981" strokeWidth="1.5" strokeDasharray="3,2" />
+                    <text x="85" y="105" fill="#34d399" fontSize="6.5" textAnchor="end">Support</text>
+
+                    {/* Candle testing support with narrow spread */}
+                    <line x1="50" y1="35" x2="50" y2="95" stroke="#10b981" strokeWidth="1.5" />
+                    <rect x="42" y="50" width="16" height="35" fill="#10b981" opacity="0.8" rx="1.5" />
+                    <text x="66" y="68" fill="#34d399" fontSize="7" fontWeight="bold">Probing</text>
+
+                    {/* Upward bounce arrow */}
+                    <path d="M 50 28 L 50 16 M 46 20 L 50 16 L 54 20" stroke="#10b981" strokeWidth="1.5" fill="none" />
+                    <text x="50" y="24" fill="#34d399" fontSize="6" textAnchor="middle" dx="18">Bounce</text>
+
+                    {/* Dry Volume Bar */}
+                    <line x1="15" y1="112" x2="85" y2="112" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
+                    <rect x="42" y="124" width="16" height="14" fill="#10b981" opacity="0.6" rx="1" />
+                    <text x="50" y="146" fill="#34d399" fontSize="7" fontWeight="bold" textAnchor="middle">0.6x Dry Vol</text>
+                  </svg>
+                )}
+              </div>
+
+              {/* Bias Box */}
+              {testSubTab === 'no-demand' ? (
+                <div className="w-full text-left bg-rose-950/40 border border-rose-800/40 rounded p-2 mb-2 min-h-[58px] flex flex-col justify-center">
+                  <div className="text-[10px] font-bold text-rose-300 flex items-center gap-1">
+                    <span>🔴 Bias:</span> <strong>BEARISH ROLLOVER (DOWN)</strong>
+                  </div>
+                  <div className="text-[9px] text-slate-300 mt-0.5">
+                    Probed resistance on dry volume. Institutions refuse to buy.
+                  </div>
+                </div>
+              ) : (
+                <div className="w-full text-left bg-emerald-950/40 border border-emerald-800/40 rounded p-2 mb-2 min-h-[58px] flex flex-col justify-center">
+                  <div className="text-[10px] font-bold text-emerald-300 flex items-center gap-1">
+                    <span>🟢 Bias:</span> <strong>BULLISH BOUNCE (UP)</strong>
+                  </div>
+                  <div className="text-[9px] text-slate-300 mt-0.5">
+                    Probed support on dry volume. Selling pressure exhausted.
+                  </div>
+                </div>
+              )}
+
+              {/* Narrative */}
+              <p className="text-[10px] text-slate-300 leading-tight min-h-[40px] flex items-center text-center justify-center">
+                {testSubTab === 'no-demand'
+                  ? 'Price tested resistance on dry volume (< 0.95x). Lack of institutional buyers triggers impending downward rollover.'
+                  : 'Price probed support on dry volume (< 0.95x). Lack of institutional sellers triggers impending upward technical bounce.'}
+              </p>
+            </div>
+
+            {/* Deep Dive Action Pill */}
+            <div className={`mt-2.5 py-1 px-2 rounded text-[10px] font-mono flex items-center justify-center gap-1 transition-colors ${
+              selectedCard === 'tests'
+                ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40'
+                : 'text-slate-400 bg-slate-950/60 border border-slate-800'
+            }`}>
+              {selectedCard === 'tests' ? 'Deep Dive Active ▼' : 'Click to Deep Dive →'}
+            </div>
+          </div>
         </div>
 
         {/* DYNAMIC DEEP-DIVE: Synchronized with Active Card Selection */}
@@ -2419,6 +2658,34 @@ function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
               }`}
             >
               🔻 MBP Demand Breakdown (DN ⚡)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedCard('tests');
+                setTestSubTab('no-demand');
+              }}
+              className={`text-[10px] font-mono px-2 py-0.5 rounded transition-all cursor-pointer ${
+                selectedCard === 'tests' && testSubTab === 'no-demand'
+                  ? 'bg-rose-500 text-slate-950 font-bold shadow'
+                  : 'bg-slate-950 text-slate-300 border border-slate-800 hover:border-slate-700'
+              }`}
+            >
+              ⚠️ No Demand Test (DN 🔴)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedCard('tests');
+                setTestSubTab('no-supply');
+              }}
+              className={`text-[10px] font-mono px-2 py-0.5 rounded transition-all cursor-pointer ${
+                selectedCard === 'tests' && testSubTab === 'no-supply'
+                  ? 'bg-emerald-500 text-slate-950 font-bold shadow'
+                  : 'bg-slate-950 text-slate-300 border border-slate-800 hover:border-slate-700'
+              }`}
+            >
+              🛡️ No Supply Test (UP 🟢)
             </button>
           </div>
 

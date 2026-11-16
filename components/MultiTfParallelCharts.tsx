@@ -53,7 +53,7 @@ interface ChartPanelProps {
   showIndicators: boolean;
   volumeAvailable?: boolean;
   volumeMessage?: string;
-  onOpenVsaGuide?: () => void;
+  onOpenVsaGuide?: (card?: 'climax' | 'absorption' | 'impulse' | 'trap' | 'mbp-sequence' | 'tests', subTab?: string) => void;
 }
 
 function SingleTfChart({
@@ -423,7 +423,32 @@ function SingleTfChart({
             {isHasVolume && latestCandle?.vsa && (
               <button
                 type="button"
-                onClick={onOpenVsaGuide}
+                onClick={() => {
+                  const vsa = latestCandle?.vsa;
+                  if (!vsa) {
+                    onOpenVsaGuide?.();
+                    return;
+                  }
+                  if (vsa.pattern === 'NO_DEMAND_TEST') {
+                    onOpenVsaGuide?.('tests', 'no-demand');
+                  } else if (vsa.pattern === 'NO_SUPPLY_TEST') {
+                    onOpenVsaGuide?.('tests', 'no-supply');
+                  } else if (vsa.pattern === 'CLIMAX_EXHAUSTION') {
+                    onOpenVsaGuide?.('climax', vsa.bias === 'BULLISH' ? 'selling-capitulation' : 'buying-climax');
+                  } else if (vsa.pattern === 'INSTITUTIONAL_ABSORPTION') {
+                    onOpenVsaGuide?.('absorption', 'bid-support');
+                  } else if (vsa.pattern === 'INSTITUTIONAL_IMPULSE') {
+                    onOpenVsaGuide?.('impulse', vsa.bias === 'BULLISH' ? 'bullish' : 'bearish');
+                  } else if (vsa.pattern === 'AIR_POCKET_SPIKE') {
+                    onOpenVsaGuide?.('trap', 'bull-trap');
+                  } else if (vsa.pattern === 'AIR_POCKET_DROP') {
+                    onOpenVsaGuide?.('trap', 'bear-trap');
+                  } else if (vsa.pattern === 'PASSIVE_ABSORPTION_BREAKOUT' || vsa.pattern === 'PASSIVE_ABSORPTION_TEST') {
+                    onOpenVsaGuide?.('mbp-sequence', 'supply-breakout');
+                  } else {
+                    onOpenVsaGuide?.();
+                  }
+                }}
                 className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold border transition-all cursor-pointer hover:scale-105 flex items-center gap-1 shadow-sm ${latestCandle.vsa.badgeColor}`}
                 title={`${latestCandle.vsa.narrative} — Click to view VSA Guide & meaning`}
               >
@@ -507,7 +532,7 @@ function SingleTfChart({
                 <span className="text-slate-500 font-bold">VSA:</span>
                 <button
                   type="button"
-                  onClick={onOpenVsaGuide}
+                  onClick={() => onOpenVsaGuide?.('climax')}
                   className="flex items-center gap-1 text-amber-400 hover:text-amber-300 transition-colors"
                   title="Amber Bar: Climax Rejection Wick (Selling Capitulation = Bounce UP | Buying Climax = Drop DOWN)"
                 >
@@ -516,7 +541,7 @@ function SingleTfChart({
                 </button>
                 <button
                   type="button"
-                  onClick={onOpenVsaGuide}
+                  onClick={() => onOpenVsaGuide?.('absorption')}
                   className="flex items-center gap-1 text-cyan-400 hover:text-cyan-300 transition-colors"
                   title="Cyan Bar: Institutional Absorption (Tight spread + heavy volume)"
                 >
@@ -525,7 +550,7 @@ function SingleTfChart({
                 </button>
                 <button
                   type="button"
-                  onClick={onOpenVsaGuide}
+                  onClick={() => onOpenVsaGuide?.('impulse')}
                   className="flex items-center gap-1 text-emerald-400 hover:text-emerald-300 transition-colors"
                   title="Solid Green/Red: Institutional Impulse (Trend continuation)"
                 >
@@ -534,7 +559,7 @@ function SingleTfChart({
                 </button>
                 <button
                   type="button"
-                  onClick={onOpenVsaGuide}
+                  onClick={() => onOpenVsaGuide?.('mbp-sequence')}
                   className="flex items-center gap-1 text-cyan-300 hover:text-cyan-200 transition-colors"
                   title="Cyan Pulse: MBP Sequential Wick Absorption (Shrinking wicks at key boundary -> Imminent Breakout)"
                 >
@@ -543,16 +568,25 @@ function SingleTfChart({
                 </button>
                 <button
                   type="button"
-                  onClick={onOpenVsaGuide}
-                  className="flex items-center gap-1 text-rose-300 hover:text-rose-200 transition-colors"
-                  title="Rose/Emerald Bar: Initial Defense (First touch rejection at boundary with high volume)"
+                  onClick={() => onOpenVsaGuide?.('tests', 'no-demand')}
+                  className="flex items-center gap-1 text-amber-300 hover:text-amber-200 transition-colors"
+                  title="Amber Bar: No Demand / Supply Test (Probing boundary on dry volume -> Rollover / Bounce)"
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
-                  <span>🛡️ Initial Defense</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  <span>⚠️ No Demand</span>
                 </button>
                 <button
                   type="button"
-                  onClick={onOpenVsaGuide}
+                  onClick={() => onOpenVsaGuide?.('tests', 'no-supply')}
+                  className="flex items-center gap-1 text-emerald-300 hover:text-emerald-200 transition-colors"
+                  title="Emerald Bar: No Supply Test (Probing support on dry volume -> Upward bounce)"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  <span>🛡️ No Supply</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenVsaGuide?.('trap')}
                   className="flex items-center gap-1 text-rose-400/80 hover:text-rose-300 transition-colors"
                   title="Faded Bar: Air Pocket Spike (Dry volume trap)"
                 >
@@ -586,8 +620,16 @@ export function MultiTfParallelCharts({ symbol = 'NIFTY', synthesis }: MultiTfPa
   const [showIndicators, setShowIndicators] = useState<boolean>(true);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [vsaModalOpen, setVsaModalOpen] = useState<boolean>(false);
+  const [vsaModalCard, setVsaModalCard] = useState<'climax' | 'absorption' | 'impulse' | 'trap' | 'mbp-sequence' | 'tests'>('climax');
+  const [vsaModalSubTab, setVsaModalSubTab] = useState<string>('selling-capitulation');
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [isHistoricalMode, setIsHistoricalMode] = useState<boolean>(false);
+
+  const handleOpenVsaGuide = (card?: 'climax' | 'absorption' | 'impulse' | 'trap' | 'mbp-sequence' | 'tests', subTab?: string) => {
+    if (card) setVsaModalCard(card);
+    if (subTab) setVsaModalSubTab(subTab);
+    setVsaModalOpen(true);
+  };
 
   const fetchChartData = useCallback(async (isManual = false, targetDate?: string) => {
     if (isManual) setRefreshing(true);
@@ -824,7 +866,7 @@ export function MultiTfParallelCharts({ symbol = 'NIFTY', synthesis }: MultiTfPa
           showIndicators={showIndicators}
           volumeAvailable={charts.fiveMin.volumeAvailable ?? data.volumeAvailable}
           volumeMessage={charts.fiveMin.volumeMessage ?? data.volumeMessage}
-          onOpenVsaGuide={() => setVsaModalOpen(true)}
+          onOpenVsaGuide={handleOpenVsaGuide}
         />
 
         {/* 2. 15-Minute Chart */}
@@ -839,7 +881,7 @@ export function MultiTfParallelCharts({ symbol = 'NIFTY', synthesis }: MultiTfPa
           showIndicators={showIndicators}
           volumeAvailable={charts.fifteenMin.volumeAvailable ?? data.volumeAvailable}
           volumeMessage={charts.fifteenMin.volumeMessage ?? data.volumeMessage}
-          onOpenVsaGuide={() => setVsaModalOpen(true)}
+          onOpenVsaGuide={handleOpenVsaGuide}
         />
 
         {/* 3. 1-Hour Chart */}
@@ -854,7 +896,7 @@ export function MultiTfParallelCharts({ symbol = 'NIFTY', synthesis }: MultiTfPa
           showIndicators={showIndicators}
           volumeAvailable={charts.oneHour.volumeAvailable ?? data.volumeAvailable}
           volumeMessage={charts.oneHour.volumeMessage ?? data.volumeMessage}
-          onOpenVsaGuide={() => setVsaModalOpen(true)}
+          onOpenVsaGuide={handleOpenVsaGuide}
         />
       </div>
 
@@ -872,7 +914,7 @@ export function MultiTfParallelCharts({ symbol = 'NIFTY', synthesis }: MultiTfPa
             showIndicators={showIndicators}
             volumeAvailable={charts.oneMin.volumeAvailable ?? data.volumeAvailable}
             volumeMessage={charts.oneMin.volumeMessage ?? data.volumeMessage}
-            onOpenVsaGuide={() => setVsaModalOpen(true)}
+            onOpenVsaGuide={handleOpenVsaGuide}
           />
         </div>
       )}
@@ -950,6 +992,8 @@ export function MultiTfParallelCharts({ symbol = 'NIFTY', synthesis }: MultiTfPa
       <MicrostructureVisualModal
         isOpen={vsaModalOpen}
         initialTopic="vsa-microstructure"
+        initialVsaCard={vsaModalCard}
+        initialVsaSubTab={vsaModalSubTab}
         onClose={() => setVsaModalOpen(false)}
         synthesis={synthesis}
         spotPrice={spotPrice}
