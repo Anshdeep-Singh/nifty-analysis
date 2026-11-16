@@ -518,4 +518,159 @@ runTest('Extended 7-day festive holiday weekend preserves continuous market swin
   assert.strictEqual(res.streakAnalysis.consecutiveGaps, 2, 'Must preserve 2-gap streak across festive holiday');
 });
 
-console.log(`\n🎉 ALL ${testsPassed}/16 GAP PROBABILITY ENGINE TESTS PASSED!`);
+// -------------------------------------------------------------
+// TEST 16: Runaway vs Exhaustion Gap Differentiation on Live Gap Floor Hold vs Breach
+// -------------------------------------------------------------
+runTest('Engine strictly discriminates Runaway vs Exhaustion based on intraday gap defense vs breach', () => {
+  const dailySeries = [
+    { date: '2026-11-01', open: 24800, high: 24950, low: 24780, close: 24940 },
+    { date: '2026-11-02', open: 25000, high: 25150, low: 24980, close: 25140 },
+    { date: '2026-11-03', open: 25200, high: 25300, low: 25180, close: 25250 }
+  ];
+
+  // 1. Defended gap floor (+130 pts above floor) with strong close -> RUNAWAY
+  const authenticRunaway = evaluateGapProbability({
+    symbol: 'NIFTY',
+    spotPrice: 25430,
+    spotPrevClose: 25250,
+    spotOpen: 25400,
+    spotHigh: 25450,
+    spotLow: 25380, // Low held +130 pts above 25,250 gap floor
+    vix: 14.0,
+    dailyCandles: dailySeries
+  });
+  assert.strictEqual(authenticRunaway.gapFillDynamics.gapClassification, 'RUNAWAY', 'Unbreached gap with strong momentum must be RUNAWAY');
+  assert.strictEqual(authenticRunaway.exhaustionTrapTracker?.trapStatus, 'MOMENTUM_HEALTHY', 'Runaway must have MOMENTUM_HEALTHY trap status');
+
+  // 2. Breached/filled gap floor (low plunged to 25,200) -> EXHAUSTION
+  const failedRunawayExhaustion = evaluateGapProbability({
+    symbol: 'NIFTY',
+    spotPrice: 25210,
+    spotPrevClose: 25250,
+    spotOpen: 25400,
+    spotHigh: 25450,
+    spotLow: 25200, // Sliced through 25,250 floor!
+    vix: 14.0,
+    dailyCandles: dailySeries
+  });
+  assert.strictEqual(failedRunawayExhaustion.gapFillDynamics.gapClassification, 'EXHAUSTION', 'Filled gap after streak must be EXHAUSTION');
+  assert.strictEqual(failedRunawayExhaustion.exhaustionTrapTracker?.trapStatus, 'EXHAUSTION_CONFIRMED_GAP_FILLED', 'Must confirm gap filled trap');
+  assert.strictEqual(failedRunawayExhaustion.exhaustionTrapTracker?.gapFloorPrice, 25250, 'Gap floor must anchor to today opening gap');
+});
+
+// -------------------------------------------------------------
+// TEST 17: Zero Volume on Spot Index - Strict Authenticity & No Fake Contract Generation
+// -------------------------------------------------------------
+runTest('Zero volume spot index candles compute authentic TPO density without synthesizing fake volume', () => {
+  const zeroVolDaily = [
+    { date: '2026-11-01', open: 24800, high: 24950, low: 24780, close: 24940, volume: 0 },
+    { date: '2026-11-02', open: 25000, high: 25150, low: 24980, close: 25140, volume: 0 },
+    { date: '2026-11-03', open: 25200, high: 25350, low: 25180, close: 25320, volume: 0 }
+  ];
+
+  const res = evaluateGapProbability({
+    symbol: 'NIFTY',
+    spotPrice: 25100, // Collapsed below 25,200 floor
+    spotPrevClose: 25320,
+    spotOpen: 25400,
+    spotHigh: 25420,
+    spotLow: 25080,
+    vix: 14.0,
+    dailyCandles: zeroVolDaily
+  });
+
+  const tracker = res.exhaustionTrapTracker;
+  assert.ok(tracker, 'Tracker must exist');
+  assert.strictEqual(tracker.trappedSupplyZone.volumePct, 0, 'Must NOT synthesize fake volume percentage when volume is 0');
+  assert.ok(Number.isFinite(tracker.institutionalFloorPrice), 'Institutional floor must be a finite number');
+  assert.ok(tracker.institutionalFloorPrice >= 24750 && tracker.institutionalFloorPrice <= 25300, 'Institutional floor must locate within authentic TPO range');
+  assert.ok(tracker.plainEnglishBriefing.dangerZone.includes('Spot index volume is 0') || tracker.plainEnglishBriefing.realFloor.includes('Price-Time consolidation'), 'Must explicitly disclose TPO density when spot volume is 0');
+});
+
+// -------------------------------------------------------------
+// TEST 18: Spot-Scaled Dynamic Threshold Synchronization
+// -------------------------------------------------------------
+runTest('Dynamic threshold scales authentically with spot price (0.15% min) without static point assumptions', () => {
+  // At 25,000 spot: 0.15% = 37.5 pts. A 28 pt gap is NOT a gap-up
+  const subThresholdRes = evaluateGapProbability({
+    symbol: 'NIFTY',
+    spotPrice: 25010,
+    spotPrevClose: 25000,
+    spotOpen: 25028, // +28 pts (< 37.5 pt threshold)
+    spotHigh: 25035,
+    spotLow: 24995,
+    vix: 14.0
+  });
+  assert.strictEqual(subThresholdRes.streakAnalysis.streakType, 'ALTERNATING_CHOP', '28 pt move at 25k spot must not qualify as a gap up');
+  assert.strictEqual(subThresholdRes.exhaustionTrapTracker?.gapFloorPrice, 0, 'Sub-threshold open must not fabricate a gap floor');
+
+  // A 50 pt gap at 25,000 spot (> 37.5 pt threshold) IS an authentic gap-up
+  const validGapRes = evaluateGapProbability({
+    symbol: 'NIFTY',
+    spotPrice: 25045,
+    spotPrevClose: 25000,
+    spotOpen: 25050, // +50 pts (> 37.5 pt threshold)
+    spotHigh: 25060,
+    spotLow: 25040,
+    vix: 14.0
+  });
+  assert.strictEqual(validGapRes.streakAnalysis.streakType, 'BULLISH_GAP', '50 pt move at 25k spot must qualify as an authentic gap up');
+  assert.strictEqual(validGapRes.exhaustionTrapTracker?.gapFloorPrice, 25000, 'Authentic gap floor must anchor to previous close');
+});
+
+// -------------------------------------------------------------
+// TEST 19: Non-Trending Chop Range False Positive Immunity
+// -------------------------------------------------------------
+runTest('Filling a minor gap inside a non-extended consolidation chop does not trigger rally exhaustion', () => {
+  const narrowChop = [
+    { date: '2026-11-01', open: 25000, high: 25030, low: 24980, close: 25010 },
+    { date: '2026-11-02', open: 25000, high: 25025, low: 24985, close: 25005 },
+    { date: '2026-11-03', open: 25010, high: 25035, low: 24990, close: 25000 }
+  ];
+
+  // Price opens +30 pts then dips to 24,970 inside chop
+  const res = evaluateGapProbability({
+    symbol: 'NIFTY',
+    spotPrice: 24980,
+    spotPrevClose: 25000,
+    spotOpen: 25030,
+    spotHigh: 25035,
+    spotLow: 24970,
+    vix: 14.0,
+    dailyCandles: narrowChop
+  });
+
+  assert.strictEqual(res.exhaustionTrapTracker?.trapStatus, 'MOMENTUM_HEALTHY', 'Narrow chop range must not falsely declare exhaustion rally top');
+  assert.strictEqual(res.gapFillDynamics.gapClassification, 'COMMON', 'Chop gap fill must be classified as COMMON');
+});
+
+// -------------------------------------------------------------
+// TEST 20: Symmetrical Downside Bearish Exhaustion Tracking
+// -------------------------------------------------------------
+runTest('Consecutive bearish gaps with climax selling trigger symmetric downside exhaustion briefing', () => {
+  const bearCascade = [
+    { date: '2026-11-01', open: 25500, high: 25520, low: 25300, close: 25320 },
+    { date: '2026-11-02', open: 25250, high: 25260, low: 25050, close: 25080 }, // Gap down 1
+    { date: '2026-11-03', open: 25000, high: 25020, low: 24800, close: 24820 }  // Gap down 2
+  ];
+
+  const res = evaluateGapProbability({
+    symbol: 'NIFTY',
+    spotPrice: 24850,
+    spotPrevClose: 24820,
+    spotOpen: 24750, // Gap down 3
+    spotHigh: 24880, // Intraday short-covering bounce
+    spotLow: 24700,
+    vix: 18.0,
+    dailyCandles: bearCascade,
+    supportLevel: 24750
+  });
+
+  assert.strictEqual(res.streakAnalysis.streakType, 'BEARISH_GAP', 'Must track BEARISH_GAP streak');
+  assert.strictEqual(res.streakAnalysis.exhaustionState, 'EXTENDED_EXHAUSTION', '3 consecutive gap downs must reach EXTENDED_EXHAUSTION');
+  assert.ok(res.streakAnalysis.streakSummary.includes('short covering bounce likely') || res.streakAnalysis.streakSummary.includes('Cascade climax'), 'Summary must flag downside cascade climax');
+  assert.strictEqual(res.gapFillDynamics.gapClassification, 'EXHAUSTION', '3rd cascade gap into support must be EXHAUSTION');
+  assert.strictEqual(res.actionablePlaybook.morningBias, 'SELLING_CLIMAX_BOUNCE_RISK', 'Bias must warn against panic shorting at bottom');
+});
+
+console.log(`\n🎉 ALL ${testsPassed}/21 GAP PROBABILITY ENGINE TESTS PASSED!`);

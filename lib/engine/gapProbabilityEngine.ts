@@ -274,11 +274,12 @@ export function analyzeExhaustionTrapAndLiquidity(
   spotPrice: number,
   spotPrevClose: number,
   spotOpen: number,
-  spotHigh: number,
-  spotLow: number,
-  dailyExpectedMove: number,
-  isBankNifty: boolean,
-  streakCount: number
+  spotHigh?: number,
+  spotLow?: number,
+  dailyExpectedMove: number = 220,
+  isBankNifty: boolean = false,
+  streakCount: number = 0,
+  streakDirection: 'BULLISH' | 'BEARISH' | 'NEUTRAL' = 'BULLISH'
 ): ExhaustionTrapTracker {
   const step = isBankNifty ? 100 : 50;
   const currentSafeSpot = typeof spotPrice === 'number' && Number.isFinite(spotPrice) && spotPrice > 0 ? Math.round(spotPrice) : (isBankNifty ? 55000 : 25000);
@@ -293,74 +294,90 @@ export function analyzeExhaustionTrapAndLiquidity(
     : getAuthenticDailyCandles(isBankNifty ? 'BANKNIFTY' : 'NIFTY');
 
   const swingBars = bars.length >= 7 ? bars.slice(-12) : [...bars];
-  const threshold = isBankNifty ? 45 : 20;
+  // Authentic dynamic threshold scaling with spot price (0.15% min threshold) and index tick buffer
+  const threshold = Math.max(isBankNifty ? 50 : 25, Math.round(currentSafeSpot * 0.0015));
+
+  // Determine if active swing exhibits authentic trend extension (rally or cascade)
+  const swingStartLow = swingBars.length > 0
+    ? Math.min(...swingBars.map(b => Number.isFinite(b.low) && b.low > 0 ? b.low : currentSafeSpot))
+    : currentSafeSpot;
+  const swingPeakHigh = swingBars.length > 0
+    ? Math.max(...swingBars.map(b => Number.isFinite(b.high) && b.high > 0 ? b.high : currentSafeSpot))
+    : currentSafeSpot;
+  const swingAdvance = swingPeakHigh - swingStartLow;
+  const isExtendedSwing = swingAdvance >= dailyExpectedMove * 1.1 || safeStreak >= 2;
 
   // 1. Identify Recent Gap Up in the active wave
-  // Walk backwards to find the most recent authentic gap-up that was NOT already filled before today
   let detectedGapFloor = 0;
   let detectedGapCeiling = 0;
   let detectedGapDate = '';
 
-  for (let i = swingBars.length - 1; i >= 1; i--) {
-    const prevBar = swingBars[i - 1];
-    const currBar = swingBars[i];
-    const prevClose = Number.isFinite(prevBar.close) && prevBar.close > 0 ? prevBar.close : 0;
-    const currOpen = Number.isFinite(currBar.open) && currBar.open > 0 ? currBar.open : 0;
-    if (prevClose <= 0 || currOpen <= 0) continue;
-    const gapDiff = currOpen - prevClose;
+  // Priority: Check if today opened with a fresh gap-up first!
+  const todayDiff = currentSafeOpen - currentSafePrevClose;
+  if (todayDiff >= threshold) {
+    detectedGapFloor = Math.round(currentSafePrevClose);
+    detectedGapCeiling = Math.round(currentSafeOpen);
+    detectedGapDate = 'Today';
+  } else {
+    // If today did not gap up, walk backwards through recent swing bars to find the most recent authentic gap-up
+    for (let i = swingBars.length - 1; i >= 1; i--) {
+      const prevBar = swingBars[i - 1];
+      const currBar = swingBars[i];
+      const prevClose = Number.isFinite(prevBar.close) && prevBar.close > 0 ? prevBar.close : 0;
+      const currOpen = Number.isFinite(currBar.open) && currBar.open > 0 ? currBar.open : 0;
+      if (prevClose <= 0 || currOpen <= 0) continue;
+      const gapDiff = currOpen - prevClose;
 
-    if (gapDiff >= threshold) {
-      // Check if any bar between gap creation and the previous session already filled this gap
-      let alreadyFilledPrior = false;
-      const lastBarIsToday = swingBars.length > 0 && (
-        swingBars[swingBars.length - 1].date === 'Today' ||
-        (Math.abs(swingBars[swingBars.length - 1].open - currentSafeOpen) < 1 &&
-         Math.abs(swingBars[swingBars.length - 1].close - currentSafeSpot) < 5)
-      );
-      const priorBarsEndIdx = lastBarIsToday ? swingBars.length - 1 : swingBars.length;
+      if (gapDiff >= threshold) {
+        // Check if any bar between gap creation and the previous session already filled this gap
+        let alreadyFilledPrior = false;
+        const lastBarIsToday = swingBars.length > 0 && (
+          swingBars[swingBars.length - 1].date === 'Today' ||
+          (Math.abs(swingBars[swingBars.length - 1].open - currentSafeOpen) < 1 &&
+           Math.abs(swingBars[swingBars.length - 1].close - currentSafeSpot) < 5)
+        );
+        const priorBarsEndIdx = lastBarIsToday ? swingBars.length - 1 : swingBars.length;
 
-      for (let j = i; j < priorBarsEndIdx; j++) {
-        const barLow = Number.isFinite(swingBars[j].low) && swingBars[j].low > 0
-          ? swingBars[j].low
-          : (Number.isFinite(swingBars[j].close) && swingBars[j].close > 0 ? swingBars[j].close : 0);
-        if (barLow > 0 && barLow <= prevClose + (isBankNifty ? 15 : 5)) {
-          alreadyFilledPrior = true;
+        for (let j = i; j < priorBarsEndIdx; j++) {
+          const barLow = Number.isFinite(swingBars[j].low) && swingBars[j].low > 0
+            ? swingBars[j].low
+            : (Number.isFinite(swingBars[j].close) && swingBars[j].close > 0 ? swingBars[j].close : 0);
+          if (barLow > 0 && barLow <= prevClose + (isBankNifty ? 15 : 5)) {
+            alreadyFilledPrior = true;
+            break;
+          }
+        }
+        if (!alreadyFilledPrior) {
+          detectedGapFloor = Math.round(prevClose);
+          detectedGapCeiling = Math.round(currOpen);
+          detectedGapDate = currBar.date;
           break;
         }
       }
-      if (!alreadyFilledPrior) {
-        detectedGapFloor = Math.round(prevClose);
-        detectedGapCeiling = Math.round(currOpen);
-        detectedGapDate = currBar.date;
-        break;
-      }
-    }
-  }
-
-  // If no gap in historical bars, check if today opened with a fresh gap-up
-  if (detectedGapFloor === 0) {
-    const todayDiff = currentSafeOpen - currentSafePrevClose;
-    if (todayDiff >= threshold) {
-      detectedGapFloor = Math.round(currentSafePrevClose);
-      detectedGapCeiling = Math.round(currentSafeOpen);
-      detectedGapDate = 'Today';
     }
   }
 
   const hasBullishGap = detectedGapFloor > 0;
 
   // 2. Check Fill & Violation Status
+  const gapSize = Math.max(1, detectedGapCeiling - detectedGapFloor);
   const isGapFilled = hasBullishGap && currentLow <= detectedGapFloor + (isBankNifty ? 15 : 5);
-  const isTestingGap = hasBullishGap && currentLow < detectedGapCeiling && !isGapFilled;
+  // Deep encroachment into the gap zone (penetrating the lower half of the gap toward the floor)
+  const isTestingGap = hasBullishGap && currentLow <= detectedGapFloor + (gapSize * 0.5) && !isGapFilled;
+  const isSpotBelowCeiling = currentSafeSpot <= detectedGapCeiling;
+  const isRejectedFromHigh = (currentHigh - Math.max(currentSafeOpen, currentSafeSpot)) / Math.max(1, currentHigh - currentLow) > 0.45;
 
   let trapStatus: ExhaustionTrapTracker['trapStatus'] = 'MOMENTUM_HEALTHY';
-  if (hasBullishGap && isGapFilled && (safeStreak >= 2 || swingBars.length >= 2)) {
+  if (hasBullishGap && isGapFilled && isExtendedSwing) {
     trapStatus = 'EXHAUSTION_CONFIRMED_GAP_FILLED';
-  } else if (hasBullishGap && (isTestingGap || (safeStreak >= 3 && currentSafeSpot <= detectedGapCeiling))) {
+  } else if (hasBullishGap && isExtendedSwing && ((isTestingGap && isSpotBelowCeiling) || (safeStreak >= 3 && isSpotBelowCeiling && isRejectedFromHigh))) {
     trapStatus = 'ACTIVE_EXHAUSTION_TRAP';
   }
 
   // 3. Compute Volume Profile across the Swing
+  // Authentic handling: If spot index volume is 0, NEVER synthesize fake volume. Use Time-Price Opportunity (TPO) price density.
+  const hasAuthenticVolume = swingBars.some(b => typeof b.volume === 'number' && Number.isFinite(b.volume) && b.volume > 0);
+
   let swingMin = currentSafeSpot;
   let swingMax = currentSafeSpot;
 
@@ -393,7 +410,9 @@ export function analyzeExhaustionTrapAndLiquidity(
     const validClose = Number.isFinite(b.close) && b.close > 0 ? b.close : currentSafeSpot;
     const bHigh = Math.max(validHigh, validOpen, validClose);
     const bLow = Math.min(validLow, validOpen, validClose);
-    const vol = typeof b.volume === 'number' && Number.isFinite(b.volume) && b.volume > 0 ? b.volume : 100000;
+    const barWeight = hasAuthenticVolume
+      ? (typeof b.volume === 'number' && Number.isFinite(b.volume) && b.volume > 0 ? b.volume : 0)
+      : 1.0; // Authentic TPO bar density
     const coveredBuckets: number[] = [];
 
     for (let p = bucketStart; p <= bucketEnd; p += step) {
@@ -402,26 +421,26 @@ export function analyzeExhaustionTrapAndLiquidity(
       }
     }
 
-    const volPerBucket = vol / Math.max(1, coveredBuckets.length);
+    const weightPerBucket = barWeight / Math.max(1, coveredBuckets.length);
     for (const cp of coveredBuckets) {
-      bucketMap.set(cp, (bucketMap.get(cp) || 0) + volPerBucket);
+      bucketMap.set(cp, (bucketMap.get(cp) || 0) + weightPerBucket);
     }
   }
 
-  // 4. Locate High-Volume Shelves (Institutional Floor & Trapped Overhead Supply)
+  // 4. Locate High-Density Shelves (Institutional Floor & Trapped Overhead Supply)
   let institutionalFloor = Math.max(bucketStart, currentSafeSpot - step * 3);
-  let maxVolBelow = 0;
-  let totalSwingVol = 0;
-  let trappedOverheadVol = 0;
+  let maxWeightBelow = 0;
+  let totalSwingWeight = 0;
+  let trappedOverheadWeight = 0;
 
-  for (const [p, vol] of bucketMap.entries()) {
-    totalSwingVol += vol;
+  for (const [p, weight] of bucketMap.entries()) {
+    totalSwingWeight += weight;
     if (p > currentSafeSpot) {
-      trappedOverheadVol += vol;
+      trappedOverheadWeight += weight;
     }
     if (p < currentSafeSpot - step * 0.5) {
-      if (vol > maxVolBelow) {
-        maxVolBelow = vol;
+      if (weight > maxWeightBelow) {
+        maxWeightBelow = weight;
         institutionalFloor = p;
       }
     }
@@ -429,8 +448,9 @@ export function analyzeExhaustionTrapAndLiquidity(
 
   institutionalFloor = Number.isFinite(institutionalFloor) ? institutionalFloor : (currentSafeSpot - step * 2);
 
-  const trappedVolumePct = (totalSwingVol > 0 && trappedOverheadVol > 0)
-    ? Math.min(85, Math.max(0, Math.round((trappedOverheadVol / totalSwingVol) * 100)))
+  // Volume % is only calculated when authentic trade volume is available
+  const trappedVolumePct = hasAuthenticVolume && totalSwingWeight > 0 && trappedOverheadWeight > 0
+    ? Math.min(85, Math.max(0, Math.round((trappedOverheadWeight / totalSwingWeight) * 100)))
     : 0;
 
   const trappedSupplyHigh = Math.max(currentSafeSpot + step, bucketEnd);
@@ -459,16 +479,20 @@ export function analyzeExhaustionTrapAndLiquidity(
   let whatHappened = `The multi-day rally ran out of steam at the top. The recent gap-up near ₹${detectedGapFloor.toLocaleString('en-IN')} was an exhaustion trap. Price has completely sliced down and filled the gap, ending trend momentum.`;
   let dangerZone = trappedVolumePct > 0
     ? `Heavy volume (~${trappedVolumePct}% of the recent swing) was traded between ₹${trappedSupplyLow.toLocaleString('en-IN')} and ₹${trappedSupplyHigh.toLocaleString('en-IN')}. Anyone who bought the highs is now underwater. Any bounce back into that zone will face fierce selling from trapped traders exiting at breakeven.`
-    : `Resistance sits overhead at ₹${trappedSupplyHigh.toLocaleString('en-IN')}.`;
+    : `Overhead resistance sits between ₹${trappedSupplyLow.toLocaleString('en-IN')} and ₹${trappedSupplyHigh.toLocaleString('en-IN')}${!hasAuthenticVolume ? ' (Spot index volume is 0; shelf computed via authentic Price-Time Density)' : ''}. Anyone who bought the highs is now underwater.`;
   let airPocket = hasAirPocket
-    ? `Between ₹${airPocketLow.toLocaleString('en-IN')} and ₹${airPocketHigh.toLocaleString('en-IN')}, very little trading volume occurred on the way up. Because liquidity is thin here, price can slide down quickly with minimal natural support.`
+    ? `Between ₹${airPocketLow.toLocaleString('en-IN')} and ₹${airPocketHigh.toLocaleString('en-IN')}, very little trading activity occurred on the way up. Because liquidity is thin here, price can slide down quickly with minimal natural support.`
     : `Price is trading near or inside institutional accumulation support; vacuum pocket is neutralized.`;
-  let realFloor = `The primary institutional accumulation base sits at ₹${institutionalFloor.toLocaleString('en-IN')}. This is the highest-volume shelf below current price and the natural magnet where big institutions previously accumulated.`;
+  let realFloor = hasAuthenticVolume
+    ? `The primary institutional accumulation base sits at ₹${institutionalFloor.toLocaleString('en-IN')}. This is the highest-volume shelf below current price and the natural magnet where big institutions previously accumulated.`
+    : `The primary institutional accumulation base sits at ₹${institutionalFloor.toLocaleString('en-IN')}. This is the highest Price-Time consolidation shelf (POC) below current price where market auction previously balanced.`;
   let actionPlan = `Do NOT buy the dip expecting a fast new high. Look to sell Bear Call spreads on weak bounces toward ₹${trappedSupplyLow.toLocaleString('en-IN')}, or wait patiently for price to test ₹${institutionalFloor.toLocaleString('en-IN')} before considering long positions.`;
 
   if (trapStatus === 'ACTIVE_EXHAUSTION_TRAP') {
     headline = 'Active Exhaustion Warning — Buyers Stalling Into Resistance';
-    whatHappened = `After ${safeStreak > 0 ? safeStreak : 'multiple'} consecutive days of upside, momentum is stalling right into overhead resistance. The gap at ₹${detectedGapFloor.toLocaleString('en-IN')} is acting as fragile support under pressure.`;
+    whatHappened = streakDirection === 'BEARISH'
+      ? `After ${safeStreak > 0 ? safeStreak : 'multiple'} consecutive days of downside, selling momentum is climaxing near key support.`
+      : `After ${safeStreak > 0 ? safeStreak : 'multiple'} consecutive days of upside, momentum is stalling right into overhead resistance. The gap at ₹${detectedGapFloor.toLocaleString('en-IN')} is acting as fragile support under pressure.`;
     dangerZone = trappedVolumePct > 0
       ? `Trapped volume (~${trappedVolumePct}%) is accumulating between ₹${trappedSupplyLow.toLocaleString('en-IN')} and ₹${trappedSupplyHigh.toLocaleString('en-IN')}. If the daily candle fails to close near the highs, late buyers risk being trapped.`
       : `Overhead supply is capping advances near ₹${trappedSupplyHigh.toLocaleString('en-IN')}.`;
@@ -643,7 +667,11 @@ export function evaluateGapProbability(inputs: GapProbabilityInputs): GapPredict
   const effLow = Math.min(currentLow, safeSpot);
   const range = Math.max(1, effHigh - effLow);
   const rawClv = (safeSpot - effLow) / range;
-  const clv = Number(Math.max(0, Math.min(1, rawClv)).toFixed(2));
+  const hasExplicitRange = typeof spotHigh === 'number' && typeof spotLow === 'number' && spotHigh > spotLow;
+  const clv = hasExplicitRange ? Number(Math.max(0, Math.min(1, rawClv)).toFixed(2)) : 0.5;
+
+  const upperWickRatio = hasExplicitRange && range > 0 ? Math.max(0, (effHigh - Math.max(currentOpen, safeSpot)) / range) : 0;
+  const lowerWickRatio = hasExplicitRange && range > 0 ? Math.max(0, (Math.min(currentOpen, safeSpot) - effLow) / range) : 0;
 
   // Compute 14-day average true range (ATR)
   let atr14 = dailyExpectedMove;
@@ -660,21 +688,30 @@ export function evaluateGapProbability(inputs: GapProbabilityInputs): GapPredict
     atr14 = trSum / 14;
   }
 
-  const hasExplicitRange = typeof spotHigh === 'number' && typeof spotLow === 'number' && spotHigh > spotLow;
-  const rangeCompressionRatio = range / Math.max(10, atr14);
-  const isAtrCompressed = hasExplicitRange && rangeCompressionRatio < 0.65;
+  // Authentic True Range on a gap day encompasses distance to previous close
+  const trueRange = Math.max(range, Math.abs(effHigh - safePrevClose), Math.abs(effLow - safePrevClose));
+  const rangeCompressionRatio = trueRange / Math.max(10, atr14);
+  const isAtrCompressed = hasExplicitRange && rangeCompressionRatio < 0.60;
 
   // 5. Determine Exhaustion State
   let exhaustionState: GapPredictionResult['streakAnalysis']['exhaustionState'] = 'HEALTHY_MOMENTUM';
   let streakSummary = '';
+
+  const isTodayBullishGapFilled = isTodayGapUp && currentLow <= safePrevClose + (isBankNifty ? 15 : 5);
+  const isTodayBearishGapFilled = isTodayGapDown && currentHigh >= safePrevClose - (isBankNifty ? 15 : 5);
 
   if (streakType === 'BULLISH_GAP') {
     if (streakCount >= 4) {
       exhaustionState = isAtrCompressed ? 'OVERBOUGHT_DIGESTION' : 'EXTENDED_EXHAUSTION';
       streakSummary = `${streakCount} Consecutive Bullish Gaps: High momentum exhaustion risk. Daily range compressing into resistance.`;
     } else if (streakCount >= 2) {
-      exhaustionState = isAtrCompressed ? 'OVERBOUGHT_DIGESTION' : 'HEALTHY_MOMENTUM';
-      streakSummary = `${streakCount} Consecutive Bullish Gaps: Strong trend continuation, observing upper bounds for profit taking.`;
+      if (isTodayBullishGapFilled || (hasExplicitRange && clv < 0.35)) {
+        exhaustionState = 'EXTENDED_EXHAUSTION';
+        streakSummary = `${streakCount} Consecutive Bullish Gaps: Gap floor breached or rejected intraday. Late momentum buyers trapped in exhaustion unwinding.`;
+      } else {
+        exhaustionState = isAtrCompressed ? 'OVERBOUGHT_DIGESTION' : 'HEALTHY_MOMENTUM';
+        streakSummary = `${streakCount} Consecutive Bullish Gaps: Strong trend continuation, observing upper bounds for profit taking.`;
+      }
     } else {
       exhaustionState = 'FRESH_BREAKOUT';
       streakSummary = 'Fresh Bullish Gap: Initial momentum expansion with strong institutional follow-through.';
@@ -683,6 +720,9 @@ export function evaluateGapProbability(inputs: GapProbabilityInputs): GapPredict
     if (streakCount >= 3) {
       exhaustionState = 'EXTENDED_EXHAUSTION';
       streakSummary = `${streakCount} Consecutive Bearish Gaps: Cascade climax near key Put walls; short covering bounce likely.`;
+    } else if (streakCount >= 2 && (isTodayBearishGapFilled || (hasExplicitRange && clv > 0.65))) {
+      exhaustionState = 'EXTENDED_EXHAUSTION';
+      streakSummary = `${streakCount} Consecutive Bearish Gaps: Downside gap filled on strong short covering. Selling exhaustion active.`;
     } else {
       exhaustionState = 'HEALTHY_MOMENTUM';
       streakSummary = `${streakCount} Bearish Gap: Distribution impulse active.`;
@@ -731,21 +771,21 @@ export function evaluateGapProbability(inputs: GapProbabilityInputs): GapPredict
     }
   }
 
-  // Adjust for Close Location Value (CLV)
-  // CLV >= 0.8: Aggressive institutional high-close (+6% drift)
-  // CLV <= 0.2: Bearish low-close (-6% drift)
-  if (clv >= 0.8) {
-    pGapUp += 6;
-    pGapDown -= 4;
-    pFlat -= 2;
-  } else if (clv <= 0.2) {
-    pGapDown += 6;
-    pGapUp -= 4;
-    pFlat -= 2;
-  } else if (clv >= 0.4 && clv <= 0.6) {
-    pFlat += 5;
-    pGapUp -= 2.5;
-    pGapDown -= 2.5;
+  // Adjust for Close Location Value (CLV) only when authentic intraday range is provided
+  if (hasExplicitRange) {
+    if (clv >= 0.8) {
+      pGapUp += 6;
+      pGapDown -= 4;
+      pFlat -= 2;
+    } else if (clv <= 0.2) {
+      pGapDown += 6;
+      pGapUp -= 4;
+      pFlat -= 2;
+    } else if (clv >= 0.4 && clv <= 0.6) {
+      pFlat += 5;
+      pGapUp -= 2.5;
+      pGapDown -= 2.5;
+    }
   }
 
   // Normalize percentages so they are strictly non-negative integers summing to 100
@@ -798,6 +838,19 @@ export function evaluateGapProbability(inputs: GapProbabilityInputs): GapPredict
   const openRangeHigh = centralPoint + bandHalfWidth;
 
   // 8. Gap Fill vs Continuation Odds (4-Regime Microstructure Taxonomy)
+  const exhaustionTrapTracker = analyzeExhaustionTrapAndLiquidity(
+    dailyCandles,
+    safeSpot,
+    safePrevClose,
+    currentOpen,
+    currentHigh,
+    currentLow,
+    dailyExpectedMove,
+    isBankNifty,
+    streakCount,
+    activeStreakType || 'NEUTRAL'
+  );
+
   // Historical Kite data proves 57.4% of gaps DO NOT fill same day!
   let sameDayFill = 42;
   let continuation = 46;
@@ -808,34 +861,47 @@ export function evaluateGapProbability(inputs: GapProbabilityInputs): GapPredict
   const isBelowSupport = typeof supportLevel === 'number' && Number.isFinite(supportLevel) && safeSpot < supportLevel;
   const isLevelBreached = isAboveResistance || isBelowSupport;
 
+  // Intact gap conditions for authentic Runaway continuation:
+  // For a runaway, the opening gap must NOT be filled during the day, and CLV must confirm momentum carry
+  const isBullishGapIntact = isTodayGapUp && !isTodayBullishGapFilled && (!hasExplicitRange || (clv >= 0.40 && upperWickRatio < 0.50));
+  const isBearishGapIntact = isTodayGapDown && !isTodayBearishGapFilled && (!hasExplicitRange || (clv <= 0.60 && lowerWickRatio < 0.50));
+  const isGapIntact = activeStreakType === 'BULLISH' ? isBullishGapIntact : (activeStreakType === 'BEARISH' ? isBearishGapIntact : false);
+
   // Exhaustion check:
-  // - Extended streak (>= 4 consecutive gaps)
+  // - Active trap tracker detected exhaustion trap / filled gap with streak
+  // - Or extended streak (>= 4 consecutive gaps) with range compression or failing close
   // - Or 3+ consecutive gaps with ATR compression or failing close (low CLV on gap-up, high CLV on gap-down)
-  // - Or gap into major resistance/support with range compression
+  // - Or gap into major resistance/support with range compression or gap fill
+  // - Or streak >= 2 where the opening gap was filled or rejected intraday (failed continuation)
+  const isTrapTriggered = exhaustionTrapTracker.trapStatus === 'EXHAUSTION_CONFIRMED_GAP_FILLED' ||
+    (exhaustionTrapTracker.trapStatus === 'ACTIVE_EXHAUSTION_TRAP' && streakCount >= 2);
+
   const isExhaustion =
-    streakCount >= 4 ||
-    (streakCount >= 3 && (isAtrCompressed || (activeStreakType === 'BULLISH' ? clv < 0.4 : clv > 0.6))) ||
-    (isLevelBreached && streakCount >= 2 && isAtrCompressed);
+    isTrapTriggered ||
+    (streakCount >= 4 && (isAtrCompressed || clv < 0.50 || upperWickRatio > 0.40)) ||
+    (streakCount >= 3 && (isAtrCompressed || (activeStreakType === 'BULLISH' ? clv < 0.40 : clv > 0.60) || upperWickRatio > 0.40)) ||
+    (isLevelBreached && streakCount >= 2 && (isAtrCompressed || (activeStreakType === 'BULLISH' ? isTodayBullishGapFilled : isTodayBearishGapFilled))) ||
+    (streakCount >= 2 && (isTodayBullishGapFilled || isTodayBearishGapFilled));
 
   const isBearishRegime = isBelowSupport || activeStreakType === 'BEARISH';
 
   if (isExhaustion) {
     gapClassification = 'EXHAUSTION';
-    sameDayFill = 60;
-    continuation = 20;
-    fade = 20;
+    sameDayFill = 65;
+    continuation = 18;
+    fade = 17;
   } else if (isLevelBreached && streakCount <= 1) {
     // Fresh institutional breakout / breakdown out of value area
     gapClassification = 'BREAKAWAY';
     sameDayFill = 30;
     continuation = 56;
     fade = 14;
-  } else if (streakCount >= 2 && !isAtrCompressed) {
-    // Established trend continuation / momentum carry
+  } else if (streakCount >= 2 && isGapIntact && !isAtrCompressed) {
+    // Established trend continuation / momentum carry with DEFENDED gap floor
     gapClassification = 'RUNAWAY';
-    sameDayFill = 34;
-    continuation = 52;
-    fade = 14;
+    sameDayFill = 28;
+    continuation = 62;
+    fade = 10;
   } else if (isLevelBreached) {
     gapClassification = 'BREAKAWAY';
     sameDayFill = 32;
@@ -902,18 +968,6 @@ export function evaluateGapProbability(inputs: GapProbabilityInputs): GapPredict
       cautionNote = 'Do NOT fade runaway momentum early; trail stops under 5m EMA 20.';
     }
   }
-
-  const exhaustionTrapTracker = analyzeExhaustionTrapAndLiquidity(
-    dailyCandles,
-    safeSpot,
-    safePrevClose,
-    currentOpen,
-    currentHigh,
-    currentLow,
-    dailyExpectedMove,
-    isBankNifty,
-    streakCount
-  );
 
   return {
     openingProbability: {

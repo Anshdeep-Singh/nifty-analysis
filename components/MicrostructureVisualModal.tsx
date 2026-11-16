@@ -638,9 +638,19 @@ function RunawayGapVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps) {
   const isLiveMatch = gapDynamics?.gapFillDynamics?.gapClassification === 'RUNAWAY';
   const consecutiveGaps = gapDynamics?.streakAnalysis?.consecutiveGaps ?? 0;
   const streakType = gapDynamics?.streakAnalysis?.streakType ?? 'ALTERNATING_CHOP';
+  const currentSpot = spotPrice ?? gapDynamics?.expectedOpeningRange?.centralPoint ?? 25000;
+  const liveClassification = gapDynamics?.gapFillDynamics?.gapClassification || 'COMMON';
+  const liveContOdds = gapDynamics?.gapFillDynamics?.continuationProbabilityPct ?? 62;
+  const liveFillOdds = gapDynamics?.gapFillDynamics?.sameDayFillProbabilityPct ?? 28;
+  const trapTracker = gapDynamics?.exhaustionTrapTracker;
+  const gapFloor = trapTracker?.gapFloorPrice && trapTracker.gapFloorPrice > 0 ? trapTracker.gapFloorPrice : Math.round(currentSpot - 100);
+  const gapCeiling = trapTracker?.gapCeilingPrice && trapTracker.gapCeilingPrice > 0 ? trapTracker.gapCeilingPrice : Math.round(currentSpot - 25);
+  const isGapBreached = trapTracker?.trapStatus === 'EXHAUSTION_CONFIRMED_GAP_FILLED';
+  const gapDiffPts = Math.abs(gapCeiling - gapFloor);
 
   return (
     <div className="space-y-4">
+      {/* Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="flex items-center gap-2">
@@ -649,69 +659,231 @@ function RunawayGapVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps) {
               viewMode === 'live-match'
                 ? isLiveMatch
                   ? 'bg-emerald-950 border-emerald-700 text-emerald-300 font-bold'
-                  : 'bg-slate-800 border-slate-700 text-slate-300'
+                  : 'bg-amber-950 border-amber-700 text-amber-300 font-bold'
                 : 'bg-emerald-950 border-emerald-800 text-emerald-300'
             }`}>
               {viewMode === 'live-match'
-                ? isLiveMatch ? '🟢 Live Runaway Active' : 'ℹ️ Not Active Today'
+                ? isLiveMatch ? '🟢 Live Runaway Active' : `⚠️ Live: ${liveClassification} (Not Runaway)`
                 : 'Continuation Odds: 62%'}
             </span>
           </div>
           <p className="text-xs text-slate-400 mt-0.5">
             {viewMode === 'live-match'
               ? isLiveMatch
-                ? `Mid-trend acceleration confirmed with ${consecutiveGaps} consecutive gaps in ${streakType.replaceAll('_', ' ')}.`
-                : `Current streak analysis shows ${consecutiveGaps} consecutive gaps (${streakType.replaceAll('_', ' ')}). Not currently in runaway mode.`
-              : 'Occurs in the middle of an established, fast-moving trend. Panic buyers jump in without waiting for pullbacks.'}
+                ? `Mid-trend acceleration confirmed with ${consecutiveGaps} consecutive gaps in ${streakType.replaceAll('_', ' ')}. Gap floor defended.`
+                : isGapBreached
+                ? `Today opened with a gap but intraday sellers breached the gap floor at ₹${gapFloor.toLocaleString('en-IN')}. Runaway continuation failed; converted to exhaustion unwinding.`
+                : `Today is actively classified as ${liveClassification} with ${consecutiveGaps} consecutive gaps. Not currently in runaway momentum carry.`
+              : 'Occurs in the middle of an established, fast-moving trend. Sidelined buyers panic-buy without waiting for pullbacks.'}
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs font-mono">
           <span className="px-2 py-1 rounded bg-emerald-950/60 border border-emerald-800/60 text-emerald-300">
-            Continuation: <strong>62%</strong>
+            Continuation: <strong>{viewMode === 'live-match' ? `${liveContOdds}%` : '62%'}</strong>
           </span>
           <span className="px-2 py-1 rounded bg-slate-800 text-slate-300">
-            Same-Day Fill: <strong>28% (Rare)</strong>
+            Same-Day Fill: <strong>{viewMode === 'live-match' ? `${liveFillOdds}%` : '28% (Rare)'}</strong>
           </span>
         </div>
       </div>
 
+      {/* Live Market Match: Differential Diagnostic Matrix */}
+      {viewMode === 'live-match' && (
+        <div className="p-3.5 bg-slate-950/90 border border-slate-800 rounded-xl space-y-2.5">
+          <div className="flex items-center justify-between border-b border-slate-800/80 pb-2 text-xs font-bold">
+            <span className="text-slate-200 flex items-center gap-1.5">
+              <Activity className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Differential Diagnostic: Textbook Runaway vs. Today’s Reality</span>
+            </span>
+            <span className="font-mono text-[11px] text-cyan-300 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800/60">
+              Spot: ₹{Math.round(currentSpot).toLocaleString('en-IN')}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+            {/* 1. Impulse Wave Location */}
+            <div className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800 space-y-1">
+              <span className="text-slate-400 font-mono text-[10px] uppercase block">1. Impulse Wave Location</span>
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-slate-200">Streak: {consecutiveGaps} Gaps</span>
+                <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded ${
+                  consecutiveGaps >= 2 ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-slate-800 text-slate-400'
+                }`}>
+                  {consecutiveGaps >= 2 ? 'Mid-Trend Carry ✅' : 'Early / Chop ℹ️'}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-tight">
+                Textbook runaway occurs 50% through an established wave (streak &ge; 2).
+              </p>
+            </div>
+
+            {/* 2. Gap Floor Defense */}
+            <div className={`p-2.5 rounded-lg border space-y-1 ${
+              isGapBreached
+                ? 'bg-rose-950/20 border-rose-800/50 text-rose-200'
+                : 'bg-emerald-950/20 border-emerald-800/50 text-emerald-200'
+            }`}>
+              <span className="font-mono text-[10px] uppercase block opacity-80">2. Intraday Floor Defense</span>
+              <div className="flex items-center justify-between">
+                <span className="font-semibold">Floor: ₹{gapFloor.toLocaleString('en-IN')}</span>
+                <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded ${
+                  isGapBreached ? 'bg-rose-900/80 text-rose-200 border border-rose-700' : 'bg-emerald-900/80 text-emerald-200 border border-emerald-700'
+                }`}>
+                  {isGapBreached ? 'Breached / Filled ❌' : 'Defended 🛡️'}
+                </span>
+              </div>
+              <p className="text-[11px] leading-tight opacity-90">
+                {isGapBreached
+                  ? 'Price broke below the gap base; authentic runaway invalidation.'
+                  : 'Low remained above previous close; buyers defended the launchpad.'}
+              </p>
+            </div>
+
+            {/* 3. Momentum & Playbook */}
+            <div className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800 space-y-1">
+              <span className="text-slate-400 font-mono text-[10px] uppercase block">3. Authentic Playbook</span>
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-cyan-300">{isLiveMatch ? 'Trend Carry' : 'Range / Defensive'}</span>
+                <span className="text-[10px] font-mono text-cyan-400">Cont: {liveContOdds}%</span>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-tight">
+                {isLiveMatch
+                  ? 'Never fade early; trail stops under 5m EMA 20 and gap floor.'
+                  : isGapBreached
+                  ? 'Do NOT chase longs; gap fill confirms momentum exhaustion.'
+                  : 'Respect range boundaries; wait for clean directional expansion.'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Visual SVG Candlestick Representation */}
       <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 sm:p-4 overflow-x-auto">
-        <svg viewBox="0 0 760 220" className="w-full h-auto min-w-[550px] select-none">
-          <line x1="50" y1="190" x2="530" y2="40" stroke="#334155" strokeDasharray="3 3" />
-          <line x1="50" y1="140" x2="530" y2="10" stroke="#334155" strokeDasharray="3 3" />
+        {viewMode === 'live-match' ? (
+          /* Live Dynamic SVG Chart */
+          <svg viewBox="0 0 760 220" className="w-full h-auto min-w-[550px] select-none">
+            {/* Price Gridlines */}
+            <line x1="40" y1="35" x2="560" y2="35" stroke="#1e293b" strokeDasharray="3 3" />
+            <line x1="40" y1="80" x2="560" y2="80" stroke="#1e293b" strokeDasharray="3 3" />
+            <line x1="40" y1="130" x2="560" y2="130" stroke="#1e293b" strokeDasharray="3 3" />
+            <line x1="40" y1="180" x2="560" y2="180" stroke="#1e293b" strokeDasharray="3 3" />
 
-          <line x1="80" y1="145" x2="80" y2="185" stroke="#10b981" strokeWidth="1.5" />
-          <rect x="72" y="150" width="16" height="30" fill="#059669" rx="1" />
+            {/* Price Labels on Right Axis */}
+            <text x="575" y="39" fill="#10b981" fontSize="10" fontFamily="monospace" fontWeight="bold">
+              ₹{Math.round(currentSpot + 50).toLocaleString('en-IN')} (Target / High)
+            </text>
+            <text x="575" y="84" fill="#38bdf8" fontSize="10" fontFamily="monospace" fontWeight="bold">
+              ₹{Math.round(currentSpot).toLocaleString('en-IN')} (Live Spot)
+            </text>
+            <text x="575" y="134" fill={isGapBreached ? '#f43f5e' : '#fbbf24'} fontSize="10" fontFamily="monospace" fontWeight="bold">
+              ₹{gapFloor.toLocaleString('en-IN')} ({isGapBreached ? 'Breached Floor' : 'Defended Floor'})
+            </text>
+            <text x="575" y="184" fill="#64748b" fontSize="10" fontFamily="monospace">
+              ₹{Math.round(gapFloor - 60).toLocaleString('en-IN')} (Base Support)
+            </text>
 
-          <line x1="140" y1="110" x2="140" y2="160" stroke="#10b981" strokeWidth="1.5" />
-          <rect x="132" y="120" width="16" height="35" fill="#059669" rx="1" />
+            {/* Session Divider */}
+            <line x1="260" y1="15" x2="260" y2="205" stroke="#334155" strokeDasharray="4 4" />
+            <text x="130" y="24" fill="#94a3b8" fontSize="11" fontWeight="bold" textAnchor="middle">
+              PREVIOUS SESSION
+            </text>
+            <text x="410" y="24" fill={isLiveMatch ? '#34d399' : '#38bdf8'} fontSize="11" fontWeight="bold" textAnchor="middle">
+              {isLiveMatch ? 'TODAY RUNAWAY CARRY' : 'TODAY LIVE SESSION'}
+            </text>
 
-          <line x1="200" y1="85" x2="200" y2="130" stroke="#10b981" strokeWidth="1.5" />
-          <rect x="192" y="90" width="16" height="35" fill="#059669" rx="1" />
+            {/* Prior Session Run-Up Candles */}
+            <line x1="80" y1="145" x2="80" y2="185" stroke="#10b981" strokeWidth="1.5" />
+            <rect x="72" y="150" width="16" height="30" fill="#059669" rx="1" />
 
-          <line x1="260" y1="20" x2="260" y2="200" stroke="#334155" strokeDasharray="4 4" />
-          <text x="160" y="25" fill="#94a3b8" fontSize="11" fontWeight="bold" textAnchor="middle">STRONG UPTREND ACTIVE</text>
-          <text x="420" y="25" fill="#34d399" fontSize="11" fontWeight="bold" textAnchor="middle">RUNAWAY ACCELERATION GAP</text>
+            <line x1="140" y1="110" x2="140" y2="160" stroke="#10b981" strokeWidth="1.5" />
+            <rect x="132" y="120" width="16" height="35" fill="#059669" rx="1" />
 
-          <rect x="290" y="45" width="55" height="40" fill="#10b981" fillOpacity="0.2" stroke="#10b981" strokeWidth="1" strokeDasharray="3 3" rx="2" />
-          <text x="318" y="68" fill="#34d399" fontSize="9" fontWeight="bold" textAnchor="middle">MID-AIR GAP</text>
+            <line x1="200" y1="85" x2="200" y2="130" stroke="#10b981" strokeWidth="1.5" />
+            <rect x="192" y="90" width="16" height="35" fill="#059669" rx="1" />
 
-          <line x1="320" y1="20" x2="320" y2="45" stroke="#10b981" strokeWidth="2" />
-          <rect x="310" y="22" width="20" height="23" fill="#10b981" rx="2" />
+            {/* Gap Floor Line anchored from Yesterday's Close */}
+            <line x1="200" y1="130" x2="560" y2="130" stroke={isGapBreached ? '#f43f5e' : '#38bdf8'} strokeWidth="1.5" strokeDasharray="4 2" />
 
-          <line x1="390" y1="8" x2="390" y2="30" stroke="#10b981" strokeWidth="2" />
-          <rect x="380" y="10" width="20" height="18" fill="#10b981" rx="2" />
+            {/* Gap Zone Highlighting */}
+            {isGapBreached ? (
+              <g>
+                <rect x="290" y="80" width="80" height="50" fill="#f43f5e" fillOpacity="0.15" stroke="#f43f5e" strokeWidth="1" strokeDasharray="3 3" rx="2" />
+                <text x="330" y="102" fill="#fb7185" fontSize="9" fontWeight="bold" textAnchor="middle">GAP BREACHED</text>
+                <text x="330" y="118" fill="#fda4af" fontSize="8" textAnchor="middle">Failed Carry</text>
+              </g>
+            ) : (
+              <g>
+                <rect x="290" y="80" width="80" height="50" fill="#10b981" fillOpacity="0.18" stroke="#10b981" strokeWidth="1.5" strokeDasharray="3 3" rx="2" />
+                <text x="330" y="102" fill="#34d399" fontSize="9" fontWeight="bold" textAnchor="middle">RUNAWAY GAP</text>
+                <text x="330" y="118" fill="#6ee7b7" fontSize="8" textAnchor="middle">+~{gapDiffPts} pts Defended</text>
+              </g>
+            )}
 
-          <text x="480" y="75" fill="#94a3b8" fontSize="10">Often marks the 50% midpoint</text>
-          <text x="480" y="92" fill="#38bdf8" fontSize="10">of the total trend distance</text>
-        </svg>
+            {/* Today's Live Active Candlestick */}
+            {isGapBreached ? (
+              /* Red Breakdown Candle violating floor */
+              <g>
+                <line x1="330" y1="50" x2="330" y2="155" stroke="#f43f5e" strokeWidth="2" />
+                <rect x="320" y="75" width="20" height="70" fill="#e11d48" rx="2" />
+                <circle cx="330" cy="145" r="4" fill="#f43f5e" />
+                <text x="360" y="150" fill="#f43f5e" fontSize="9" fontWeight="bold">Sellers Sliced Gap Floor</text>
+              </g>
+            ) : (
+              /* Green Continuation Candle holding above floor */
+              <g>
+                <line x1="330" y1="40" x2="330" y2="95" stroke="#10b981" strokeWidth="2" />
+                <rect x="320" y="45" width="20" height="40" fill="#10b981" rx="2" />
+                <circle cx="330" cy="45" r="4" fill="#34d399" />
+                <text x="355" y="48" fill="#34d399" fontSize="9" fontWeight="bold">Active Continuation Carry</text>
+              </g>
+            )}
+
+            {/* Playbook Annotations */}
+            <text x="430" y="85" fill="#94a3b8" fontSize="10">Gap acts as structural springboard</text>
+            <text x="430" y="102" fill="#38bdf8" fontSize="10">
+              {isLiveMatch ? 'Trailing stops anchor under 5m EMA 20' : 'Awaiting confirmation above gap ceiling'}
+            </text>
+          </svg>
+        ) : (
+          /* Benchmark Educational SVG Chart */
+          <svg viewBox="0 0 760 220" className="w-full h-auto min-w-[550px] select-none">
+            <line x1="50" y1="190" x2="530" y2="40" stroke="#334155" strokeDasharray="3 3" />
+            <line x1="50" y1="140" x2="530" y2="10" stroke="#334155" strokeDasharray="3 3" />
+
+            <line x1="80" y1="145" x2="80" y2="185" stroke="#10b981" strokeWidth="1.5" />
+            <rect x="72" y="150" width="16" height="30" fill="#059669" rx="1" />
+
+            <line x1="140" y1="110" x2="140" y2="160" stroke="#10b981" strokeWidth="1.5" />
+            <rect x="132" y="120" width="16" height="35" fill="#059669" rx="1" />
+
+            <line x1="200" y1="85" x2="200" y2="130" stroke="#10b981" strokeWidth="1.5" />
+            <rect x="192" y="90" width="16" height="35" fill="#059669" rx="1" />
+
+            <line x1="260" y1="20" x2="260" y2="200" stroke="#334155" strokeDasharray="4 4" />
+            <text x="160" y="25" fill="#94a3b8" fontSize="11" fontWeight="bold" textAnchor="middle">STRONG UPTREND ACTIVE</text>
+            <text x="420" y="25" fill="#34d399" fontSize="11" fontWeight="bold" textAnchor="middle">RUNAWAY ACCELERATION GAP</text>
+
+            <rect x="290" y="45" width="55" height="40" fill="#10b981" fillOpacity="0.2" stroke="#10b981" strokeWidth="1" strokeDasharray="3 3" rx="2" />
+            <text x="318" y="68" fill="#34d399" fontSize="9" fontWeight="bold" textAnchor="middle">MID-AIR GAP</text>
+
+            <line x1="320" y1="20" x2="320" y2="45" stroke="#10b981" strokeWidth="2" />
+            <rect x="310" y="22" width="20" height="23" fill="#10b981" rx="2" />
+
+            <line x1="390" y1="8" x2="390" y2="30" stroke="#10b981" strokeWidth="2" />
+            <rect x="380" y="10" width="20" height="18" fill="#10b981" rx="2" />
+
+            <text x="480" y="75" fill="#94a3b8" fontSize="10">Often marks the 50% midpoint</text>
+            <text x="480" y="92" fill="#38bdf8" fontSize="10">of the total trend distance</text>
+          </svg>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
         <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3 space-y-1">
           <span className="font-bold text-cyan-300 block">1. Microstructure Dynamic</span>
           <p className="text-slate-400 leading-relaxed font-normal">
-            Short sellers panic-cover and sidelined longs capitulate, entering at any market price. Volume is moderate to high, but steady across bars.
+            Short sellers panic-cover and sidelined longs capitulate, entering at any market price. Volume is steady across bars without erratic volume spikes.
           </p>
         </div>
         <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3 space-y-1">
@@ -738,11 +910,20 @@ function ExhaustionGapVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps
   const gapDynamics = synthesis?.gapDynamics;
   const trapTracker = gapDynamics?.exhaustionTrapTracker;
   const isTrapActive = trapTracker?.trapStatus === 'ACTIVE_EXHAUSTION_TRAP' || trapTracker?.trapStatus === 'EXHAUSTION_CONFIRMED_GAP_FILLED';
+  const isGapFilled = trapTracker?.trapStatus === 'EXHAUSTION_CONFIRMED_GAP_FILLED';
   const score = trapTracker?.exhaustionScorePct ?? 0;
-  const floorPrice = trapTracker?.institutionalFloorPrice ?? synthesis?.keyLevels?.hardFloor?.price ?? 25000;
+  const currentSpot = spotPrice ?? gapDynamics?.expectedOpeningRange?.centralPoint ?? 25000;
+  const floorPrice = trapTracker?.institutionalFloorPrice ?? synthesis?.keyLevels?.hardFloor?.price ?? Math.round(currentSpot - 150);
+  const gapFloor = trapTracker?.gapFloorPrice && trapTracker.gapFloorPrice > 0 ? trapTracker.gapFloorPrice : Math.round(currentSpot - 60);
+  const trappedHigh = trapTracker?.trappedSupplyZone?.high || Math.round(currentSpot + 50);
+  const trappedLow = trapTracker?.trappedSupplyZone?.low || Math.round(currentSpot);
+  const trappedVolPct = trapTracker?.trappedSupplyZone?.volumePct ?? 0;
+  const consecutiveGaps = gapDynamics?.streakAnalysis?.consecutiveGaps ?? 0;
+  const streakType = gapDynamics?.streakAnalysis?.streakType ?? 'ALTERNATING_CHOP';
 
   return (
     <div className="space-y-4">
+      {/* Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="flex items-center gap-2">
@@ -777,6 +958,7 @@ function ExhaustionGapVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps
         </div>
       </div>
 
+      {/* Real-Time Warning Alert (when active trap) */}
       {viewMode === 'live-match' && isTrapActive && (
         <div className="p-3 bg-rose-950/30 border border-rose-800/60 rounded-xl text-xs space-y-1.5 text-rose-200">
           <div className="font-bold flex items-center justify-between">
@@ -794,39 +976,224 @@ function ExhaustionGapVisual({ viewMode, synthesis, spotPrice }: VisualBaseProps
         </div>
       )}
 
+      {/* Live Market Match: Differential Diagnostic Matrix */}
+      {viewMode === 'live-match' && (
+        <div className="p-3.5 bg-slate-950/90 border border-slate-800 rounded-xl space-y-2.5">
+          <div className="flex items-center justify-between border-b border-slate-800/80 pb-2 text-xs font-bold">
+            <span className="text-slate-200 flex items-center gap-1.5">
+              <Activity className="w-3.5 h-3.5 text-rose-400" />
+              <span>Differential Diagnostic: Textbook Exhaustion vs. Today’s Reality</span>
+            </span>
+            <span className="font-mono text-[11px] text-white bg-slate-900 px-2 py-0.5 rounded border border-slate-700">
+              Institutional Floor: ₹{floorPrice.toLocaleString('en-IN')}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+            {/* 1. Trend Extension */}
+            <div className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800 space-y-1">
+              <span className="text-slate-400 font-mono text-[10px] uppercase block">1. Trend Extension</span>
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-slate-200">{consecutiveGaps} Wave Gaps</span>
+                <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded ${
+                  consecutiveGaps >= 3 ? 'bg-amber-950 text-amber-300 border border-amber-800' : 'bg-slate-800 text-slate-400'
+                }`}>
+                  {consecutiveGaps >= 3 ? 'Extended Climax ⚠️' : 'Moderate Streak ✅'}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-tight">
+                Exhaustion traps emerge on 3rd+ consecutive gaps or directly into Call Walls.
+              </p>
+            </div>
+
+            {/* 2. Rejection & Trapped Volume */}
+            <div className={`p-2.5 rounded-lg border space-y-1 ${
+              trappedVolPct > 0 ? 'bg-rose-950/20 border-rose-800/50 text-rose-200' : 'bg-slate-900/80 border-slate-800 text-slate-300'
+            }`}>
+              <span className="font-mono text-[10px] uppercase block opacity-80">2. Trapped Supply</span>
+              <div className="flex items-center justify-between">
+                <span className="font-semibold">Trapped: ~{trappedVolPct}% Vol</span>
+                <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded ${
+                  trappedVolPct > 20 ? 'bg-rose-900/80 text-rose-200 border border-rose-700' : 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                }`}>
+                  {trappedVolPct > 20 ? 'Supply Trapped 🚨' : 'Orderly Auction ✅'}
+                </span>
+              </div>
+              <p className="text-[11px] leading-tight opacity-90">
+                {trappedVolPct > 0
+                  ? `Volume trapped between ₹${trappedLow.toLocaleString('en-IN')} – ₹${trappedHigh.toLocaleString('en-IN')}.`
+                  : 'No significant late volume trapped at intraday peak.'}
+              </p>
+            </div>
+
+            {/* 3. Gap Floor Resolution */}
+            <div className={`p-2.5 rounded-lg border space-y-1 ${
+              isGapFilled
+                ? 'bg-rose-950/20 border-rose-800/50 text-rose-200'
+                : 'bg-emerald-950/20 border-emerald-800/50 text-emerald-200'
+            }`}>
+              <span className="font-mono text-[10px] uppercase block opacity-80">3. Gap Floor Resolution</span>
+              <div className="flex items-center justify-between">
+                <span className="font-semibold">₹{gapFloor.toLocaleString('en-IN')}</span>
+                <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded ${
+                  isGapFilled ? 'bg-rose-900/80 text-rose-200 border border-rose-700' : 'bg-emerald-900/80 text-emerald-200 border border-emerald-700'
+                }`}>
+                  {isGapFilled ? 'Filled / Trapped 🛑' : 'Defended 🛡️'}
+                </span>
+              </div>
+              <p className="text-[11px] leading-tight opacity-90">
+                {isGapFilled
+                  ? 'Price sliced down through the gap floor. Climax top confirmed.'
+                  : 'Floor holding safely. Buyers remain in control without trap.'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Visual SVG Candlestick Representation */}
       <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 sm:p-4 overflow-x-auto">
-        <svg viewBox="0 0 760 220" className="w-full h-auto min-w-[550px] select-none">
-          <line x1="40" y1="50" x2="560" y2="50" stroke="#f43f5e" strokeWidth="2" strokeDasharray="4 2" />
-          <text x="575" y="54" fill="#f43f5e" fontSize="10" fontFamily="monospace" fontWeight="bold">Overhead Institutional Ceiling</text>
+        {viewMode === 'live-match' ? (
+          /* Live Dynamic SVG Chart */
+          !isTrapActive ? (
+            /* CASE A: Momentum Healthy - Render Green Defended Chart (NOT an alarmist crash!) */
+            <svg viewBox="0 0 760 220" className="w-full h-auto min-w-[550px] select-none">
+              <line x1="40" y1="35" x2="560" y2="35" stroke="#1e293b" strokeDasharray="3 3" />
+              <line x1="40" y1="80" x2="560" y2="80" stroke="#1e293b" strokeDasharray="3 3" />
+              <line x1="40" y1="130" x2="560" y2="130" stroke="#1e293b" strokeDasharray="3 3" />
+              <line x1="40" y1="180" x2="560" y2="180" stroke="#1e293b" strokeDasharray="3 3" />
 
-          <line x1="80" y1="125" x2="80" y2="185" stroke="#10b981" strokeWidth="1.5" />
-          <rect x="72" y="135" width="16" height="40" fill="#059669" rx="1" />
+              <text x="575" y="39" fill="#10b981" fontSize="10" fontFamily="monospace" fontWeight="bold">
+                ₹{Math.round(currentSpot + 40).toLocaleString('en-IN')} (Session High)
+              </text>
+              <text x="575" y="84" fill="#38bdf8" fontSize="10" fontFamily="monospace" fontWeight="bold">
+                ₹{Math.round(currentSpot).toLocaleString('en-IN')} (Live Spot)
+              </text>
+              <text x="575" y="134" fill="#10b981" fontSize="10" fontFamily="monospace" fontWeight="bold">
+                ₹{gapFloor.toLocaleString('en-IN')} (Defended Gap Floor)
+              </text>
+              <text x="575" y="184" fill="#64748b" fontSize="10" fontFamily="monospace">
+                ₹{floorPrice.toLocaleString('en-IN')} (Institutional Floor)
+              </text>
 
-          <line x1="140" y1="95" x2="140" y2="155" stroke="#10b981" strokeWidth="1.5" />
-          <rect x="132" y="105" width="16" height="40" fill="#059669" rx="1" />
+              <line x1="260" y1="15" x2="260" y2="205" stroke="#334155" strokeDasharray="4 4" />
+              <text x="130" y="24" fill="#94a3b8" fontSize="11" fontWeight="bold" textAnchor="middle">PREVIOUS SESSIONS</text>
+              <text x="410" y="24" fill="#34d399" fontSize="11" fontWeight="bold" textAnchor="middle">
+                TODAY LIVE: NO EXHAUSTION DETECTED
+              </text>
 
-          <line x1="200" y1="75" x2="200" y2="125" stroke="#10b981" strokeWidth="1.5" />
-          <rect x="192" y="80" width="16" height="35" fill="#059669" rx="1" />
+              {/* Prior Session Steady Accumulation */}
+              <line x1="80" y1="125" x2="80" y2="185" stroke="#10b981" strokeWidth="1.5" />
+              <rect x="72" y="135" width="16" height="40" fill="#059669" rx="1" />
 
-          <line x1="260" y1="20" x2="260" y2="200" stroke="#334155" strokeDasharray="4 4" />
+              <line x1="140" y1="95" x2="140" y2="155" stroke="#10b981" strokeWidth="1.5" />
+              <rect x="132" y="105" width="16" height="40" fill="#059669" rx="1" />
 
-          <rect x="280" y="45" width="60" height="35" fill="#f59e0b" fillOpacity="0.2" stroke="#f59e0b" strokeWidth="1" strokeDasharray="3 3" rx="2" />
-          <text x="310" y="65" fill="#fbbf24" fontSize="9" fontWeight="bold" textAnchor="middle">CLIMAX GAP</text>
+              <line x1="200" y1="75" x2="200" y2="125" stroke="#10b981" strokeWidth="1.5" />
+              <rect x="192" y="80" width="16" height="35" fill="#059669" rx="1" />
 
-          <line x1="310" y1="25" x2="310" y2="85" stroke="#f43f5e" strokeWidth="2" />
-          <rect x="302" y="65" width="16" height="15" fill="#e11d48" rx="1" />
-          <circle cx="310" cy="25" r="4" fill="#f43f5e" />
-          <text x="325" y="28" fill="#fda4af" fontSize="9" fontWeight="bold">Shooting Star (Wick Trap)</text>
+              {/* Gap Support Floor */}
+              <line x1="200" y1="130" x2="560" y2="130" stroke="#10b981" strokeWidth="1.5" strokeDasharray="4 2" />
 
-          <line x1="380" y1="65" x2="380" y2="160" stroke="#f43f5e" strokeWidth="2" />
-          <rect x="370" y="75" width="20" height="75" fill="#e11d48" rx="2" />
+              {/* Defended Gap Zone */}
+              <rect x="290" y="75" width="80" height="55" fill="#10b981" fillOpacity="0.15" stroke="#10b981" strokeWidth="1.5" strokeDasharray="3 3" rx="2" />
+              <text x="330" y="98" fill="#34d399" fontSize="9" fontWeight="bold" textAnchor="middle">GAP DEFENDED</text>
+              <text x="330" y="114" fill="#6ee7b7" fontSize="8" textAnchor="middle">Healthy Flow</text>
 
-          <circle cx="380" cy="80" r="4" fill="#f43f5e" />
-          <text x="400" y="85" fill="#fda4af" fontSize="9" fontWeight="bold">Gap Erased Completely</text>
+              {/* Today's Healthy Candlestick */}
+              <line x1="330" y1="35" x2="330" y2="75" stroke="#10b981" strokeWidth="2" />
+              <rect x="320" y="45" width="20" height="30" fill="#10b981" rx="2" />
 
-          <path d="M 390 120 L 480 170" stroke="#f43f5e" strokeWidth="2" strokeDasharray="3 3" fill="none" />
-          <text x="495" y="175" fill="#f43f5e" fontSize="10" fontWeight="bold">Violent Liquidation Flush</text>
-        </svg>
+              <text x="400" y="75" fill="#34d399" fontSize="10" fontWeight="bold">✅ Healthy Auction Continuity</text>
+              <text x="400" y="92" fill="#94a3b8" fontSize="10">No climax rejection wick or gap fill detected</text>
+              <text x="400" y="109" fill="#38bdf8" fontSize="10">Momentum buyers defend gap floor at ₹{gapFloor.toLocaleString('en-IN')}</text>
+            </svg>
+          ) : (
+            /* CASE B: Trap Active - Render Real Exhaustion Trap Breakdown Chart */
+            <svg viewBox="0 0 760 220" className="w-full h-auto min-w-[550px] select-none">
+              <line x1="40" y1="35" x2="560" y2="35" stroke="#f43f5e" strokeWidth="1.5" strokeDasharray="4 2" />
+              <text x="575" y="39" fill="#f43f5e" fontSize="10" fontFamily="monospace" fontWeight="bold">
+                ₹{trappedHigh.toLocaleString('en-IN')} (Overhead Ceiling)
+              </text>
+              <text x="575" y="84" fill="#fbbf24" fontSize="10" fontFamily="monospace" fontWeight="bold">
+                ₹{Math.round(currentSpot).toLocaleString('en-IN')} (Live Spot)
+              </text>
+              <text x="575" y="134" fill="#f43f5e" fontSize="10" fontFamily="monospace" fontWeight="bold">
+                ₹{gapFloor.toLocaleString('en-IN')} ({isGapFilled ? 'Erased Floor' : 'Testing Floor'})
+              </text>
+              <text x="575" y="184" fill="#38bdf8" fontSize="10" fontFamily="monospace" fontWeight="bold">
+                ₹{floorPrice.toLocaleString('en-IN')} (Institutional Floor POC)
+              </text>
+
+              <line x1="260" y1="15" x2="260" y2="205" stroke="#334155" strokeDasharray="4 4" />
+              <text x="130" y="24" fill="#94a3b8" fontSize="11" fontWeight="bold" textAnchor="middle">PRIOR RUN-UP</text>
+              <text x="410" y="24" fill="#f43f5e" fontSize="11" fontWeight="bold" textAnchor="middle">
+                TODAY: EXHAUSTION TOP &amp; UNWINDING
+              </text>
+
+              {/* Prior Session Candles */}
+              <line x1="80" y1="125" x2="80" y2="185" stroke="#10b981" strokeWidth="1.5" />
+              <rect x="72" y="135" width="16" height="40" fill="#059669" rx="1" />
+
+              <line x1="140" y1="95" x2="140" y2="155" stroke="#10b981" strokeWidth="1.5" />
+              <rect x="132" y="105" width="16" height="40" fill="#059669" rx="1" />
+
+              <line x1="200" y1="75" x2="200" y2="125" stroke="#10b981" strokeWidth="1.5" />
+              <rect x="192" y="80" width="16" height="35" fill="#059669" rx="1" />
+
+              {/* Trapped Overhead Supply Zone */}
+              <rect x="290" y="35" width="90" height="45" fill="#f43f5e" fillOpacity="0.2" stroke="#f43f5e" strokeWidth="1" strokeDasharray="3 3" rx="2" />
+              <text x="335" y="55" fill="#f43f5e" fontSize="9" fontWeight="bold" textAnchor="middle">TRAPPED SUPPLY</text>
+              <text x="335" y="70" fill="#fda4af" fontSize="8" textAnchor="middle">~{trappedVolPct}% Vol Trapped</text>
+
+              {/* Today Rejection & Collapse Candlestick */}
+              <line x1="330" y1="35" x2="330" y2="145" stroke="#f43f5e" strokeWidth="2" />
+              <rect x="320" y="65" width="20" height="70" fill="#e11d48" rx="2" />
+              <circle cx="330" cy="35" r="4" fill="#f43f5e" />
+
+              {/* Air Pocket Vacuum Zone Indicator */}
+              <rect x="390" y="90" width="160" height="80" fill="#0284c7" fillOpacity="0.08" stroke="#0284c7" strokeWidth="1" strokeDasharray="3 3" rx="4" />
+              <text x="470" y="115" fill="#38bdf8" fontSize="9" fontWeight="bold" textAnchor="middle">AIR POCKET VACUUM</text>
+              <text x="470" y="132" fill="#94a3b8" fontSize="8" textAnchor="middle">Thin liquidity down to POC</text>
+              <path d="M 345 110 L 410 160" stroke="#f43f5e" strokeWidth="2" strokeDasharray="3 3" fill="none" />
+              <text x="420" y="170" fill="#f43f5e" fontSize="9" fontWeight="bold">Liquidity Flush to ₹{floorPrice.toLocaleString('en-IN')}</text>
+            </svg>
+          )
+        ) : (
+          /* Benchmark Educational SVG Chart */
+          <svg viewBox="0 0 760 220" className="w-full h-auto min-w-[550px] select-none">
+            <line x1="40" y1="50" x2="560" y2="50" stroke="#f43f5e" strokeWidth="2" strokeDasharray="4 2" />
+            <text x="575" y="54" fill="#f43f5e" fontSize="10" fontFamily="monospace" fontWeight="bold">Overhead Institutional Ceiling</text>
+
+            <line x1="80" y1="125" x2="80" y2="185" stroke="#10b981" strokeWidth="1.5" />
+            <rect x="72" y="135" width="16" height="40" fill="#059669" rx="1" />
+
+            <line x1="140" y1="95" x2="140" y2="155" stroke="#10b981" strokeWidth="1.5" />
+            <rect x="132" y="105" width="16" height="40" fill="#059669" rx="1" />
+
+            <line x1="200" y1="75" x2="200" y2="125" stroke="#10b981" strokeWidth="1.5" />
+            <rect x="192" y="80" width="16" height="35" fill="#059669" rx="1" />
+
+            <line x1="260" y1="20" x2="260" y2="200" stroke="#334155" strokeDasharray="4 4" />
+
+            <rect x="280" y="45" width="60" height="35" fill="#f59e0b" fillOpacity="0.2" stroke="#f59e0b" strokeWidth="1" strokeDasharray="3 3" rx="2" />
+            <text x="310" y="65" fill="#fbbf24" fontSize="9" fontWeight="bold" textAnchor="middle">CLIMAX GAP</text>
+
+            <line x1="310" y1="25" x2="310" y2="85" stroke="#f43f5e" strokeWidth="2" />
+            <rect x="302" y="65" width="16" height="15" fill="#e11d48" rx="1" />
+            <circle cx="310" cy="25" r="4" fill="#f43f5e" />
+            <text x="325" y="28" fill="#fda4af" fontSize="9" fontWeight="bold">Shooting Star (Wick Trap)</text>
+
+            <line x1="380" y1="65" x2="380" y2="160" stroke="#f43f5e" strokeWidth="2" />
+            <rect x="370" y="75" width="20" height="75" fill="#e11d48" rx="2" />
+
+            <circle cx="380" cy="80" r="4" fill="#f43f5e" />
+            <text x="400" y="85" fill="#fda4af" fontSize="9" fontWeight="bold">Gap Erased Completely</text>
+
+            <path d="M 390 120 L 480 170" stroke="#f43f5e" strokeWidth="2" strokeDasharray="3 3" fill="none" />
+            <text x="495" y="175" fill="#f43f5e" fontSize="10" fontWeight="bold">Violent Liquidation Flush</text>
+          </svg>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
