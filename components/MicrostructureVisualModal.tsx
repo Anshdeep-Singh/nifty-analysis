@@ -1708,7 +1708,7 @@ function VsaVisual({ viewMode, synthesis, initialCard, initialSubTab }: VsaVisua
       point1Color: 'text-amber-300',
       point1Content: (
         <>
-          Price probed or re-tested a resistance boundary, prior swing high, or VWAP on <strong className="text-white">severely dry volume (&lt; 0.95x 20-SMA)</strong> with narrow-to-moderate spread. In classical Wyckoff and VSA law, moving through overhead resistance requires aggressive institutional buying fuel. A dry volume test proves that <strong className="text-amber-300">smart money refuses to bid or chase higher prices</strong>. Minor market orders caused price to drift up into resistance, but institutional buyers were entirely absent.
+          Price probed or re-tested a resistance boundary, prior swing high, or VWAP on <strong className="text-white">severely dry volume (&le; 0.80x–0.85x 20-SMA)</strong> with narrow-to-moderate spread. In classical Wyckoff and VSA law, moving through overhead resistance requires aggressive institutional buying fuel. A dry volume test proves that <strong className="text-amber-300">smart money refuses to bid or chase higher prices</strong>. Minor market orders caused price to drift up into resistance, but institutional buyers were entirely absent.
         </>
       ),
       point2Title: '2. Is Market Going UP or DOWN? (Why 2+ Bars Cause A Drop)',
@@ -1726,7 +1726,7 @@ function VsaVisual({ viewMode, synthesis, initialCard, initialSubTab }: VsaVisua
       point3Content: (
         <>
           • <strong className="text-rose-400">NEVER BUY CALLS OR CHASE BREAKOUTS</strong> into a No Demand Test.<br />
-          • <strong className="text-cyan-300">Crucial Distinction vs Absorption:</strong> Institutional Supply Absorption (cyan bar) features <em>high, sustained volume (&ge; 1.1x–1.3x)</em> actively chewing through sellers. No Demand is the exact opposite—it is <em>dry volume (&lt; 0.95x)</em> floating into resistance without institutional backing.<br />
+          • <strong className="text-cyan-300">Crucial Distinction vs Absorption:</strong> Institutional Supply Absorption (cyan bar) features <em>high, sustained volume (&ge; 1.1x–1.3x)</em> actively chewing through sellers. No Demand is the exact opposite—it is <em>dry volume (&le; 0.80x–0.85x)</em> floating into resistance without institutional backing.<br />
           • <strong className="text-white">Trade Action:</strong> When 2+ No Demand bars cluster at resistance, square off long intraday momentum trades, tighten trailing stops, or look for short fades / Bear Call Spreads.<br />
           • <strong className="text-amber-300">Invalidation Floor:</strong> Strict stop-loss sits 5–10 points above the highest wick of the No Demand cluster.
         </>
@@ -1742,7 +1742,7 @@ function VsaVisual({ viewMode, synthesis, initialCard, initialSubTab }: VsaVisua
       point1Color: 'text-emerald-300',
       point1Content: (
         <>
-          Price dipped down to re-test a prior support level, VWAP, or demand floor on <strong className="text-white">severely dry volume (&lt; 0.95x 20-SMA)</strong> with narrow-to-moderate spread. This tests whether sellers are willing to dump inventory at lower prices.
+          Price dipped down to re-test a prior support level, VWAP, or demand floor on <strong className="text-white">severely dry volume (&le; 0.80x–0.85x 20-SMA)</strong> with narrow-to-moderate spread. This tests whether sellers are willing to dump inventory at lower prices.
         </>
       ),
       point2Title: '2. Is Market Going UP or DOWN?',
@@ -2426,7 +2426,7 @@ function VsaVisual({ viewMode, synthesis, initialCard, initialSubTab }: VsaVisua
                     ⚠️ No Demand / Supply Test
                   </span>
                   <span className="text-[10px] text-amber-200/70 font-mono block">
-                    Retest + Vol &lt; 0.95x SMA
+                    Retest + Vol &le; 0.80x–0.85x SMA
                   </span>
                 </div>
                 <span className="bg-amber-950/90 text-amber-300 border border-amber-500/50 text-[9px] font-mono font-extrabold px-1.5 py-0.5 rounded shrink-0">
@@ -2537,8 +2537,8 @@ function VsaVisual({ viewMode, synthesis, initialCard, initialSubTab }: VsaVisua
               {/* Narrative */}
               <p className="text-[10px] text-slate-300 leading-tight min-h-[40px] flex items-center text-center justify-center">
                 {testSubTab === 'no-demand'
-                  ? 'Price tested resistance on dry volume (< 0.95x). Lack of institutional buyers triggers impending downward rollover.'
-                  : 'Price probed support on dry volume (< 0.95x). Lack of institutional sellers triggers impending upward technical bounce.'}
+                  ? 'Price tested resistance on dry volume (≤ 0.80x–0.85x). Lack of institutional buyers triggers impending downward rollover.'
+                  : 'Price probed support on dry volume (≤ 0.80x–0.85x). Lack of institutional sellers triggers impending upward technical bounce.'}
               </p>
             </div>
 
