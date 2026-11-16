@@ -63,10 +63,10 @@ function runTests() {
     console.log('PASS Test 2: 15m activates INSTITUTIONAL_ABSORPTION on realistic volume');
   }
 
-  // TEST 3: 1-hour sensitivity (Air pocket: Spread 1.20x, Volume 0.80x)
+  // TEST 3: 1-hour sensitivity (Air pocket spike: Spread 1.20x, Volume 0.80x)
   {
     const base = generateBaseline(20, 80, 20000);
-    // 1h bar with wide spread (98 vs 80 ATR = 1.22x) and dry volume 16000 (0.80x)
+    // 1h bar with wide upward spread (98 vs 80 ATR = 1.22x) and dry volume 16000 (0.80x)
     const airPocket1h = createMockCandle(4000, 24000, 24098, 24000, 24095, 16000);
     const result1h = classifyCandleVsa([...base, airPocket1h], '1hr');
     const lastBar = result1h[result1h.length - 1];
@@ -76,6 +76,44 @@ function runTests() {
       process.exit(1);
     }
     console.log('PASS Test 3: 1h activates AIR_POCKET_SPIKE on realistic thresholds');
+  }
+
+  // TEST 3B: Air Pocket Downward Drop (Liquidity Vacuum, NOT a Bear Trap)
+  {
+    const base = generateBaseline(20, 10, 1000);
+    // Downward drop: Open 24018, High 24018, Low 24000, Close 24001 (Spread 18 vs 10 ATR = 1.8x), dry volume 350 (0.35x)
+    const dropCandle = createMockCandle(4000, 24018, 24018, 24000, 24001, 350);
+    const resultDrop = classifyCandleVsa([...base, dropCandle], '1min');
+    const lastBar = resultDrop[resultDrop.length - 1];
+
+    if (lastBar.vsa?.pattern !== 'AIR_POCKET_DROP') {
+      console.error('FAIL Test 3B: Downward air pocket should be AIR_POCKET_DROP, got:', lastBar.vsa?.pattern);
+      process.exit(1);
+    }
+    if (lastBar.vsa?.bias !== 'BEARISH') {
+      console.error('FAIL Test 3B: Downward air pocket bias should be BEARISH (liquidity vacuum), got:', lastBar.vsa?.bias);
+      process.exit(1);
+    }
+    if (lastBar.vsa?.label?.includes('Bear Trap')) {
+      console.error('FAIL Test 3B: Downward air pocket should NOT be called a Bear Trap, got:', lastBar.vsa?.label);
+      process.exit(1);
+    }
+    console.log('PASS Test 3B: Downward air pocket accurately classified as AIR_POCKET_DROP (Liquidity Vacuum, BEARISH)');
+  }
+
+  // TEST 3C: 1-minute Air Pocket Sub-Threshold Spread Noise Gate (< 6.0 pts)
+  {
+    const base = generateBaseline(20, 2.5, 1000);
+    // 1m candle with spread 4.5 pts (> 1.6x ATR of 2.5) on low volume 300 (0.3x), but spread < 6.0 pts
+    const noiseDropCandle = createMockCandle(4000, 24004.5, 24004.5, 24000, 24000.5, 300);
+    const resultNoise = classifyCandleVsa([...base, noiseDropCandle], '1min');
+    const lastBar = resultNoise[resultNoise.length - 1];
+
+    if (lastBar.vsa?.pattern !== 'NORMAL_AUCTION') {
+      console.error('FAIL Test 3C: 1m bar with spread < 6.0 pts should be suppressed as NORMAL_AUCTION, got:', lastBar.vsa?.pattern);
+      process.exit(1);
+    }
+    console.log('PASS Test 3C: 1m air pocket noise gate (< 6.0 pts) properly suppresses routine flickers');
   }
 
   // TEST 4: MBP Shrinking Wick Absorption Breakout Sequence

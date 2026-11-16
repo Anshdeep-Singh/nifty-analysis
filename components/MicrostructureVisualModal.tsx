@@ -1547,34 +1547,64 @@ function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
     };
   } else if (selectedCard === 'trap') {
     const isBullTrap = trapSubTab === 'bull-trap';
-    deepDiveData = {
-      title: `Deep Dive: What Does "Air Pocket Spike / Trap (${isBullTrap ? 'Bull Trap' : 'Bear Trap'})" Mean?`,
-      pulseColor: 'bg-rose-400',
-      directionBadge: isBullTrap ? 'Expected Direction: DOWN / SNAPBACK REVERSAL 🪤' : 'Expected Direction: UP / SNAPBACK REVERSAL 🪤',
-      badgeClass: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
-      borderClass: 'border-rose-500/50',
-      bgGradient: 'from-rose-950/40 via-slate-900 to-amber-950/40',
+    deepDiveData = isBullTrap ? {
+      title: 'Deep Dive: What Does "Air Pocket Spike (Bull Trap / No Demand)" Mean?',
+      pulseColor: 'bg-amber-400',
+      directionBadge: 'Expected Direction: DOWN / SNAPBACK REVERSAL 🪤',
+      badgeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+      borderClass: 'border-amber-500/50',
+      bgGradient: 'from-amber-950/40 via-slate-900 to-rose-950/40',
       point1Title: '1. What Happened In That Candle?',
-      point1Color: 'text-rose-300',
+      point1Color: 'text-amber-300',
       point1Content: (
         <>
-          Price moved across a deceptively wide spread (<strong className="text-white">&ge; 1.35x ATR</strong>), but volume was severely dry and faded (<strong className="text-white">&le; 0.75x 20-SMA</strong>). This represents <em>&quot;Result Without Effort&quot;</em>—the market moved not because buyers were strong, but because the order book was thin and empty.
+          Price expanded across a wide upward spread (<strong className="text-white">&ge; 1.35x ATR</strong>), but volume was severely dry and faded (<strong className="text-white">&le; 0.75x 20-SMA</strong>). This represents <em>&quot;Result Without Effort&quot;</em>—the market moved up not because buyers were strong, but because resting ask liquidity was temporarily thin.
         </>
       ),
       point2Title: '2. Will The Move Hold Or Fail?',
       point2Color: 'text-rose-300',
       point2Content: (
         <>
-          <strong className="text-rose-400">The breakout is a liquidity trap. Expect a rapid snapback.</strong> Market makers easily sweep thin air pockets to grab retail stop orders. Because there are no real institutional buyers or sellers backing the move, price collapses back into the prior trading range as soon as liquidity normalizes.
+          <strong className="text-rose-400">The breakout is an exhaustion trap. Expect a rapid snapback down.</strong> Market makers easily swept thin asks to trigger retail breakout buys. Because institutional demand is absent, price collapses back into the prior trading range as soon as normal liquidity reappears.
+        </>
+      ),
+      point3Title: '3. How to Trade It (Action Rule)',
+      point3Color: 'text-amber-300',
+      point3Content: (
+        <>
+          • <strong className="text-rose-400">DO NOT BUY</strong> breakout highs on faded green volume.<br />
+          • Prepare to trade the snapback reversal back toward equilibrium (VWAP).<br />
+          • Invalidation sits at the high of the trap bar; target is a full retracement.
+        </>
+      )
+    } : {
+      title: 'Deep Dive: What Does "Air Pocket Drop (Liquidity Vacuum Freefall)" Mean?',
+      pulseColor: 'bg-rose-400',
+      directionBadge: 'Expected Direction: DOWNWARD CONTINUATION / FRICTIONLESS FREEFALL 🔻',
+      badgeClass: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+      borderClass: 'border-rose-500/50',
+      bgGradient: 'from-rose-950/40 via-slate-900 to-rose-950/40',
+      point1Title: '1. Why Price Freefalls on Low Volume (The Order-Book Void)',
+      point1Color: 'text-rose-300',
+      point1Content: (
+        <>
+          Price plunged across a wide downward spread (<strong className="text-white">&ge; 1.35x ATR</strong>) on dry, faded volume. This is <strong className="text-white">NOT a bear trap or buyable dip</strong>. In an order-book vacuum, resting institutional limit bids are absent. Modest sell orders slice through the book with zero friction because no buyers exist to absorb them.
+        </>
+      ),
+      point2Title: '2. Why It Continues Downward (Until POC Floor)',
+      point2Color: 'text-rose-300',
+      point2Content: (
+        <>
+          <strong className="text-rose-400">Price falls like a rock until it strikes dense institutional limit bids at the POC Floor.</strong> A low-volume drop does not bounce until price hits genuine institutional liquidity. Expect frictionless downward continuation toward the Point of Control (POC) or major structural demand before any genuine reversal can occur.
         </>
       ),
       point3Title: '3. How to Trade It (Action Rule)',
       point3Color: 'text-rose-300',
       point3Content: (
         <>
-          • <strong className="text-rose-400">DO NOT BUY</strong> breakout highs on faded green volume, and <strong className="text-rose-400">DO NOT SHORT</strong> on faded red volume.<br />
-          • Prepare to trade the snapback reversal back toward equilibrium (VWAP).<br />
-          • Place stop-loss just outside the trap bar&apos;s high/low and target complete retracement.
+          • <strong className="text-rose-400">NEVER CATCH A FALLING KNIFE</strong> inside an air pocket drop. Do not buy thinking it is a &quot;cheap dip&quot; or &quot;bear trap&quot;.<br />
+          • Trail shorts or stay completely flat until spot price reaches the Point of Control (POC) or key structural support.<br />
+          • Wait for an institutional absorption footprint (cyan bar) or initial demand defense wick before looking for long reversals.
         </>
       )
     };
@@ -2056,11 +2086,11 @@ function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
                   }}
                   className={`flex-1 py-1 rounded transition-colors ${
                     trapSubTab === 'bear-trap'
-                      ? 'bg-amber-950 text-amber-300 border border-amber-800 font-bold'
+                      ? 'bg-rose-950 text-rose-300 border border-rose-800 font-bold'
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  Bear Trap (Drop)
+                  Vacuum Drop (Fall)
                 </button>
               </div>
 
@@ -2081,8 +2111,8 @@ function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
                     <rect x="40" y="25" width="20" height="60" fill="#f43f5e" rx="2" />
                     <text x="66" y="55" fill="#fb7185" fontSize="8" fontWeight="bold">-35 pts</text>
                     <line x1="15" y1="108" x2="85" y2="108" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
-                    <rect x="42" y="125" width="16" height="15" fill="#10b981" opacity="0.35" rx="1" />
-                    <text x="50" y="148" fill="#6ee7b7" fontSize="8" textAnchor="middle">0.5x Vol</text>
+                    <rect x="42" y="125" width="16" height="15" fill="#f43f5e" opacity="0.35" rx="1" />
+                    <text x="50" y="148" fill="#fda4af" fontSize="8" textAnchor="middle">0.5x Vol</text>
                   </svg>
                 )}
               </div>
@@ -2090,16 +2120,21 @@ function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
               {/* Bias Box */}
               <div className="w-full text-left bg-rose-950/40 border border-rose-800/40 rounded p-2 mb-2 min-h-[58px] flex flex-col justify-center">
                 <div className="text-[10px] font-bold text-rose-300 flex items-center gap-1">
-                  <span>🪤 Bias:</span> <strong>SNAPBACK TRAP ({trapSubTab === 'bull-trap' ? 'DOWN' : 'UP'})</strong>
+                  <span>{trapSubTab === 'bull-trap' ? '🪤 Bias:' : '🕳️ Bias:'}</span>{' '}
+                  <strong>{trapSubTab === 'bull-trap' ? 'SNAPBACK TRAP (DOWN 🪤)' : 'VACUUM FREEFALL (DOWN 🔻)'}</strong>
                 </div>
                 <div className="text-[9px] text-slate-300 mt-0.5">
-                  Thin liquidity sweep without buyers. Breakout will fail.
+                  {trapSubTab === 'bull-trap'
+                    ? 'Thin liquidity sweep without buyers. Breakout will fail.'
+                    : 'Absence of resting limit bids. Freefalls until POC floor.'}
                 </div>
               </div>
 
               {/* Narrative */}
               <p className="text-[10px] text-slate-300 leading-tight min-h-[40px] flex items-center text-center justify-center">
-                Result without effort. Price moved because the order book was empty, not because buyers entered. High odds of rapid snapback.
+                {trapSubTab === 'bull-trap'
+                  ? 'Result without effort. Price moved up on thin liquidity without buyers. High odds of rapid snapback.'
+                  : 'Order-book vacuum. Price slid down on dry volume because resting bids were absent. Frictionless freefall down to POC floor.'}
               </p>
             </div>
 
@@ -2648,26 +2683,49 @@ function VsaVisual({ viewMode, synthesis }: VisualBaseProps) {
                   </td>
                 </tr>
                 <tr className="hover:bg-slate-800/40 transition-colors">
-                  <td className="py-2.5 px-3.5 font-bold text-rose-300/80 whitespace-nowrap">
+                  <td className="py-2.5 px-3.5 font-bold text-amber-300/80 whitespace-nowrap">
                     <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500/40 border border-rose-500/60 shrink-0" />
-                      <span>Faded / Dim Red</span>
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-500/40 border border-amber-500/60 shrink-0" />
+                      <span>Faded Dim Green</span>
                     </div>
                   </td>
-                  <td className="py-2.5 px-3.5 font-bold text-rose-400 whitespace-nowrap">
-                    Air Pocket Spike / Drop
+                  <td className="py-2.5 px-3.5 font-bold text-amber-300 whitespace-nowrap">
+                    Air Pocket Spike (Bull Trap)
                   </td>
                   <td className="py-2.5 px-3.5 text-slate-300 whitespace-nowrap font-sans">
-                    Vol &le; 0.75x &amp; Spread &ge; 1.35x ATR
+                    Vol &le; 0.75x &amp; Spread &ge; 1.35x ATR (Up)
                   </td>
                   <td className="py-2.5 px-3.5 whitespace-nowrap">
                     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-amber-950 text-amber-300 font-bold border border-amber-800 shadow-sm whitespace-nowrap">
-                      <span>TRAP WARNING</span>
-                      <span>⚠️</span>
+                      <span>TRAP WARNING (DOWN)</span>
+                      <span>🪤</span>
                     </span>
                   </td>
                   <td className="py-2.5 px-3.5 font-sans text-slate-300 leading-relaxed">
-                    Result without effort. Price swept retail stops through thin liquidity. High odds of false breakout snapback.
+                    No demand markup. Price swept thin asks without institutional backing. High probability of false breakout and snapback down.
+                  </td>
+                </tr>
+                <tr className="hover:bg-slate-800/40 transition-colors">
+                  <td className="py-2.5 px-3.5 font-bold text-rose-300/80 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500/40 border border-rose-500/60 shrink-0" />
+                      <span>Faded Dim Red</span>
+                    </div>
+                  </td>
+                  <td className="py-2.5 px-3.5 font-bold text-rose-400 whitespace-nowrap">
+                    Air Pocket Drop (Liquidity Vacuum)
+                  </td>
+                  <td className="py-2.5 px-3.5 text-slate-300 whitespace-nowrap font-sans">
+                    Vol &le; 0.75x &amp; Spread &ge; 1.35x ATR (Down)
+                  </td>
+                  <td className="py-2.5 px-3.5 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-rose-950 text-rose-300 font-bold border border-rose-800 shadow-sm whitespace-nowrap">
+                      <span>VACUUM FREEFALL (DOWN)</span>
+                      <span>🕳️</span>
+                    </span>
+                  </td>
+                  <td className="py-2.5 px-3.5 font-sans text-slate-300 leading-relaxed">
+                    Order-book vacuum (absence of bids). Price drops with zero friction. NOT a bear trap—will continue falling until resting institutional limit bids (POC floor) are reached.
                   </td>
                 </tr>
                 <tr className="hover:bg-slate-800/40 transition-colors">

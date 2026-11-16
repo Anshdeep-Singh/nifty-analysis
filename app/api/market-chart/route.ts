@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import { getKiteSessionFromRequest, fetchKiteHistoricalCandles, fetchKiteQuotes, KiteQuoteItem } from '@/lib/kite/session';
-import { CandleBar, MultiTfChartData, MultiTfPayload } from '@/lib/types';
+import { getKiteSessionFromRequest, fetchKiteHistoricalCandles, fetchKiteQuotes, KiteQuoteItem, KiteHistoricalCandle } from '@/lib/kite/session';
+import { CandleBar, MultiTfPayload } from '@/lib/types';
 import { buildSmartMoneyRoadmap } from '@/lib/engine/smartMoneyRoadmap';
 import { calculateTrueVwap, classifyCandleVsa } from '@/lib/engine/vsaEngine';
 import { getActiveFuturesContract } from '@/lib/kite/futuresResolver';
@@ -16,6 +16,15 @@ const INDIAVIX_TOKEN = 264969;
 
 // Authentic historical directory from kite-options-pilot
 const HISTORICAL_DATA_DIR = path.resolve(process.cwd(), '..', 'kite-options-pilot', 'data', 'historical');
+
+interface LoadedSessionData {
+  oneMin: CandleBar[];
+  prevClose: number;
+  spot: number;
+  dayOpen: number;
+  selectedDate: string;
+  availableDates: string[];
+}
 
 function getISTDateParts(epochSec: number) {
   const d = new Date(epochSec * 1000);
@@ -77,46 +86,64 @@ function aggregateCandles(baseCandles: CandleBar[], groupCount: number, tf: '5mi
   return attachIndicators(aggregated, tf);
 }
 
+// In-memory cache for disk historical files to avoid reading 10MB JSON repeatedly
+let cachedDiskCandles: {
+  dateMap: Record<string, Array<{ timestamp: number; open: number; high: number; low: number; close: number; volume: number }>>;
+  availableDates: string[];
+} | null = null;
+
 /**
  * Loads authentic 1-minute historical candles from disk cache as fallback (Nifty)
  */
-function loadFallbackAuthenticCandles(): { oneMin: CandleBar[]; prevClose: number; spot: number } | null {
+function loadFallbackAuthenticCandles(requestedDate?: string): LoadedSessionData | null {
   if (!fs.existsSync(HISTORICAL_DATA_DIR)) return null;
 
   try {
-    const files = fs.readdirSync(HISTORICAL_DATA_DIR);
-    const matching = files.filter(f => f.includes('nifty') && f.endsWith('.json') && f.startsWith('kite_'));
-    if (matching.length === 0) return null;
+    if (!cachedDiskCandles) {
+      const files = fs.readdirSync(HISTORICAL_DATA_DIR);
+      const matching = files.filter(f => f.includes('nifty') && f.endsWith('.json') && f.startsWith('kite_'));
+      if (matching.length === 0) return null;
 
-    matching.sort().reverse();
-    const filePath = path.join(HISTORICAL_DATA_DIR, matching[0]);
-    const raw = fs.readFileSync(filePath, 'utf-8');
-    const parsed = JSON.parse(raw);
-    const rawCandles = Array.isArray(parsed) ? parsed : parsed.candles || [];
-    if (rawCandles.length === 0) return null;
+      const dateMap: Record<string, Map<number, { timestamp: number; open: number; high: number; low: number; close: number; volume: number }>> = {};
+      for (const file of matching) {
+        const filePath = path.join(HISTORICAL_DATA_DIR, file);
+        const raw = fs.readFileSync(filePath, 'utf-8');
+        const parsed = JSON.parse(raw);
+        const rawCandles = Array.isArray(parsed) ? parsed : parsed.candles || [];
+        for (const c of rawCandles) {
+          const ts = c.timestamp > 1e11 ? Math.floor(c.timestamp / 1000) : c.timestamp;
+          const { dateStr } = getISTDateParts(ts);
+          if (!dateMap[dateStr]) dateMap[dateStr] = new Map();
+          dateMap[dateStr].set(ts, {
+            timestamp: ts,
+            open: c.open,
+            high: c.high,
+            low: c.low,
+            close: c.close,
+            volume: c.volume || 0
+          });
+        }
+      }
 
-    // Group by IST date
-    const dateMap: Record<string, Array<{ timestamp: number; open: number; high: number; low: number; close: number; volume: number }>> = {};
-    for (const c of rawCandles) {
-      const { dateStr } = getISTDateParts(c.timestamp > 1e11 ? Math.floor(c.timestamp / 1000) : c.timestamp);
-      if (!dateMap[dateStr]) dateMap[dateStr] = [];
-      dateMap[dateStr].push({
-        timestamp: c.timestamp > 1e11 ? Math.floor(c.timestamp / 1000) : c.timestamp,
-        open: c.open,
-        high: c.high,
-        low: c.low,
-        close: c.close,
-        volume: c.volume || 0
-      });
+      const flattenedDateMap: Record<string, Array<{ timestamp: number; open: number; high: number; low: number; close: number; volume: number }>> = {};
+      for (const [d, map] of Object.entries(dateMap)) {
+        flattenedDateMap[d] = Array.from(map.values()).sort((a, b) => a.timestamp - b.timestamp);
+      }
+
+      const availableDates = Object.keys(flattenedDateMap).sort();
+      cachedDiskCandles = { dateMap: flattenedDateMap, availableDates };
     }
 
-    const availableDates = Object.keys(dateMap).sort();
+    const { dateMap, availableDates } = cachedDiskCandles;
     if (availableDates.length === 0) return null;
 
-    const targetDate = availableDates[availableDates.length - 1];
-    const prevDate = availableDates.length >= 2 ? availableDates[availableDates.length - 2] : null;
+    const targetDate = requestedDate && dateMap[requestedDate] ? requestedDate : availableDates[availableDates.length - 1];
+    const targetIdx = availableDates.indexOf(targetDate);
+    const prevDate = targetIdx > 0 ? availableDates[targetIdx - 1] : null;
 
     const day1m = dateMap[targetDate];
+    if (!day1m || day1m.length === 0) return null;
+
     const prevDay1m = prevDate ? dateMap[prevDate] : null;
     const prevClose = prevDay1m && prevDay1m.length > 0 ? prevDay1m[prevDay1m.length - 1].close : (day1m[0]?.open || 24500);
 
@@ -138,11 +165,17 @@ function loadFallbackAuthenticCandles(): { oneMin: CandleBar[]; prevClose: numbe
       });
     }
 
-    const spot = oneMin.length > 0 ? oneMin[oneMin.length - 1].close : prevClose;
+    if (oneMin.length === 0) return null;
+    const spot = oneMin[oneMin.length - 1].close;
+    const dayOpen = oneMin[0].open;
+
     return {
       oneMin: attachIndicators(oneMin, '1min'),
       prevClose,
-      spot
+      spot,
+      dayOpen,
+      selectedDate: targetDate,
+      availableDates
     };
   } catch (err) {
     console.warn('[MarketChart API] Fallback authentic read error:', err);
@@ -151,27 +184,30 @@ function loadFallbackAuthenticCandles(): { oneMin: CandleBar[]; prevClose: numbe
 }
 
 /**
- * Loads authentic 1-minute intraday candles from live public exchange API
+ * Loads authentic 1-minute intraday candles from live public exchange API (covers up to 8 calendar days)
  */
-async function fetchYahooIntradayCandles(yahooSymbol: string): Promise<{ oneMin: CandleBar[]; prevClose: number; spot: number; dayOpen: number } | null> {
+async function fetchYahooIntradayCandles(
+  yahooSymbol: string,
+  requestedDate?: string
+): Promise<LoadedSessionData | null> {
   try {
     const cleanSym = yahooSymbol.startsWith('%5E') ? decodeURIComponent(yahooSymbol) : yahooSymbol;
-    const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(cleanSym)}?interval=1m&range=1d`, {
+    const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(cleanSym)}?interval=1m&range=8d`, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       },
-      signal: AbortSignal.timeout(4000)
+      signal: AbortSignal.timeout(6000)
     });
     if (!res.ok) return null;
     const json = await res.json();
     const result = json?.chart?.result?.[0];
     if (!result) return null;
-    const meta = result.meta;
     const timestamps: number[] = result.timestamp || [];
     const quotes = result.indicators?.quote?.[0];
     if (!timestamps.length || !quotes) return null;
 
-    const candles: CandleBar[] = [];
+    // Group candles by IST date
+    const dateMap: Record<string, CandleBar[]> = {};
     for (let i = 0; i < timestamps.length; i++) {
       const ts = timestamps[i];
       const o = quotes.open?.[i];
@@ -185,7 +221,8 @@ async function fetchYahooIntradayCandles(yahooSymbol: string): Promise<{ oneMin:
       const totalMins = hours * 60 + minutes;
       if (totalMins < 555 || totalMins > 930) continue; // 09:15 to 15:30 IST
 
-      candles.push({
+      if (!dateMap[dateStr]) dateMap[dateStr] = [];
+      dateMap[dateStr].push({
         timestamp: ts,
         time: timeStr,
         date: dateStr,
@@ -197,20 +234,36 @@ async function fetchYahooIntradayCandles(yahooSymbol: string): Promise<{ oneMin:
       });
     }
 
-    if (!candles.length) return null;
+    const availableDates = Object.keys(dateMap).sort();
+    if (availableDates.length === 0) return null;
 
-    const spot = candles[candles.length - 1].close;
-    let prevClose = meta.chartPreviousClose || meta.previousClose;
-    if (typeof meta.fulldayChange === 'number' && Math.abs(meta.fulldayChange) > 0) {
-      prevClose = Number((spot - meta.fulldayChange).toFixed(2));
+    // If user requested a specific date not present in Yahoo's 8-day window, return null so historical archive can handle it
+    if (requestedDate && !dateMap[requestedDate]) {
+      return null;
     }
-    const dayOpen = candles[0].open;
+
+    // Resolve target date: if user requested a specific available date, use it; else pick latest completed/active date
+    const targetDate = requestedDate && dateMap[requestedDate] ? requestedDate : availableDates[availableDates.length - 1];
+    const sessionCandles = dateMap[targetDate];
+    if (!sessionCandles || sessionCandles.length === 0) return null;
+
+    const targetIdx = availableDates.indexOf(targetDate);
+    const prevDate = targetIdx > 0 ? availableDates[targetIdx - 1] : null;
+    const prevCandles = prevDate ? dateMap[prevDate] : null;
+    const prevClose = prevCandles && prevCandles.length > 0
+      ? prevCandles[prevCandles.length - 1].close
+      : sessionCandles[0].open;
+
+    const spot = sessionCandles[sessionCandles.length - 1].close;
+    const dayOpen = sessionCandles[0].open;
 
     return {
-      oneMin: attachIndicators(candles),
-      prevClose: prevClose || dayOpen,
+      oneMin: attachIndicators(sessionCandles, '1min'),
+      prevClose,
       spot,
-      dayOpen
+      dayOpen,
+      selectedDate: targetDate,
+      availableDates
     };
   } catch (err) {
     console.warn('[MarketChart API] Yahoo intraday fetch error:', err);
@@ -225,6 +278,8 @@ export async function GET(request: Request) {
 
     const url = new URL(request.url);
     const symbolParam = (url.searchParams.get('symbol') || url.searchParams.get('index') || 'NIFTY').toUpperCase();
+    const dateParam = url.searchParams.get('date')?.trim() || undefined;
+
     const isBankNifty = symbolParam.includes('BANK');
     const targetSymbol: 'NIFTY' | 'BANKNIFTY' = isBankNifty ? 'BANKNIFTY' : 'NIFTY';
     const indexToken = isBankNifty ? BANKNIFTY_TOKEN : NIFTY_TOKEN;
@@ -237,25 +292,29 @@ export async function GET(request: Request) {
     let prevClose = isBankNifty ? 55500 : 24350;
     let dayOpen = isBankNifty ? 55600 : 24400;
     let vix = 14.5;
+    let activeDate = dateParam || '';
+    let availableDates: string[] = [];
 
     // TIER 1: LIVE AUTHENTIC KITE CONNECT HISTORICAL DATA
     if (isKiteConnected) {
       try {
-        const now = new Date();
-        const istNowStr = now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
-        const istNow = new Date(istNowStr);
-        const y = istNow.getFullYear();
-        const m = String(istNow.getMonth() + 1).padStart(2, '0');
-        const d = String(istNow.getDate()).padStart(2, '0');
-        const todayStr = `${y}-${m}-${d}`;
+        const istNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+        let queryDate = dateParam;
+        if (!queryDate) {
+          const y = istNow.getFullYear();
+          const m = String(istNow.getMonth() + 1).padStart(2, '0');
+          const d = String(istNow.getDate()).padStart(2, '0');
+          queryDate = `${y}-${m}-${d}`;
+        }
 
-        // Look back 5 calendar days to span across weekends and market holidays
-        const pastDate = new Date(istNow.getTime() - 5 * 86400000);
+        // Look back 7 calendar days to capture prior sessions for prevClose
+        const targetRefDate = new Date(`${queryDate}T15:30:00+05:30`);
+        const pastDate = new Date(targetRefDate.getTime() - 7 * 86400000);
         const py = pastDate.getFullYear();
         const pm = String(pastDate.getMonth() + 1).padStart(2, '0');
         const pd = String(pastDate.getDate()).padStart(2, '0');
         const fromStr = `${py}-${pm}-${pd} 09:00:00`;
-        const toStr = `${todayStr} 15:30:00`;
+        const toStr = `${queryDate} 15:30:00`;
 
         // Resolve front-month futures contract dynamically to obtain authentic candle volume
         const futContract = await getActiveFuturesContract(targetSymbol).catch(() => null);
@@ -295,13 +354,26 @@ export async function GET(request: Request) {
 
         if (Array.isArray(kCandlesRaw) && kCandlesRaw.length > 0) {
           const isOneMinute = kCandlesRaw.length >= 2 && (kCandlesRaw[1].timestamp - kCandlesRaw[0].timestamp) <= 120;
-          const lastCandle = kCandlesRaw[kCandlesRaw.length - 1];
-          const { dateStr: targetDate } = getISTDateParts(lastCandle.timestamp);
 
-          const sessionCandles = kCandlesRaw.filter(c => {
-            const { dateStr, hours, minutes } = getISTDateParts(c.timestamp);
+          // Group raw candles by IST date
+          const dateGroup = new Map<string, KiteHistoricalCandle[]>();
+          for (const c of kCandlesRaw) {
+            const { dateStr } = getISTDateParts(c.timestamp);
+            if (!dateGroup.has(dateStr)) dateGroup.set(dateStr, []);
+            dateGroup.get(dateStr)!.push(c);
+          }
+          const kiteDates = Array.from(dateGroup.keys()).sort();
+          availableDates = kiteDates;
+
+          const targetDate = (dateParam && dateGroup.has(dateParam))
+            ? dateParam
+            : kiteDates[kiteDates.length - 1];
+          activeDate = targetDate;
+
+          const sessionCandles = (dateGroup.get(targetDate) || []).filter(c => {
+            const { hours, minutes } = getISTDateParts(c.timestamp);
             const totalMins = hours * 60 + minutes;
-            return dateStr === targetDate && totalMins >= 555 && totalMins <= 930;
+            return totalMins >= 555 && totalMins <= 930;
           });
 
           // Prior session close if multi-day lookback returned previous days
@@ -347,25 +419,42 @@ export async function GET(request: Request) {
       }
     }
 
-    // TIER 2: PUBLIC LIVE EXCHANGE CANDLES (Yahoo Finance authentic 1m bars)
+    // TIER 2: PUBLIC LIVE EXCHANGE CANDLES (Yahoo Finance authentic 1m bars across up to 8 days)
     if (oneMinCandles.length === 0) {
-      const publicCandles = await fetchYahooIntradayCandles(yahooSymbol);
+      const publicCandles = await fetchYahooIntradayCandles(yahooSymbol, dateParam);
       if (publicCandles && publicCandles.oneMin.length > 0) {
         oneMinCandles = publicCandles.oneMin;
         prevClose = publicCandles.prevClose;
         spotPrice = publicCandles.spot;
         dayOpen = publicCandles.dayOpen;
+        activeDate = publicCandles.selectedDate;
+        availableDates = publicCandles.availableDates;
       }
     }
 
-    // TIER 3: AUTHENTIC DISK CACHE FALLBACK (for Nifty)
+    // TIER 3: AUTHENTIC DISK CACHE FALLBACK (for Nifty historical deep dive)
     if (oneMinCandles.length === 0 && !isBankNifty) {
-      const diskData = loadFallbackAuthenticCandles();
+      const diskData = loadFallbackAuthenticCandles(dateParam);
       if (diskData && diskData.oneMin.length > 0) {
         oneMinCandles = diskData.oneMin;
         prevClose = diskData.prevClose;
         spotPrice = diskData.spot;
-        dayOpen = oneMinCandles[0]?.open || prevClose;
+        dayOpen = diskData.dayOpen || diskData.oneMin[0]?.open || prevClose;
+        activeDate = diskData.selectedDate;
+        availableDates = diskData.availableDates;
+      }
+    }
+
+    // TIER 4: GRACEFUL FALLBACK (If specific requested date was not found, load latest session)
+    if (oneMinCandles.length === 0 && dateParam) {
+      const latestPublic = await fetchYahooIntradayCandles(yahooSymbol);
+      if (latestPublic && latestPublic.oneMin.length > 0) {
+        oneMinCandles = latestPublic.oneMin;
+        prevClose = latestPublic.prevClose;
+        spotPrice = latestPublic.spot;
+        dayOpen = latestPublic.dayOpen;
+        activeDate = latestPublic.selectedDate;
+        availableDates = latestPublic.availableDates;
       }
     }
 
@@ -373,11 +462,12 @@ export async function GET(request: Request) {
     if (oneMinCandles.length === 0 && fiveMinCandles.length === 0) {
       const baseTime = Math.floor(Date.now() / 1000) - 3600;
       const buffer = isBankNifty ? 35 : 10;
+      const fallbackDate = activeDate || new Date().toISOString().split('T')[0];
       oneMinCandles = [
         {
           timestamp: baseTime,
           time: '09:15',
-          date: new Date().toISOString().split('T')[0],
+          date: fallbackDate,
           open: prevClose,
           high: Math.max(spotPrice, prevClose) + buffer,
           low: Math.min(spotPrice, prevClose) - buffer,
@@ -386,6 +476,7 @@ export async function GET(request: Request) {
         }
       ];
       oneMinCandles = attachIndicators(oneMinCandles, '1min');
+      activeDate = fallbackDate;
     }
 
     // Derive 5m, 15m, and 1hr from 1m (or aggregate from 5m if only 5m was obtained)
@@ -410,6 +501,12 @@ export async function GET(request: Request) {
       ? undefined
       : 'Volume data not available for cash index spot (Connect Zerodha Kite to stream authentic front-month Futures volume)';
 
+    // Ensure activeDate is set and availableDates contains activeDate
+    if (!activeDate && effectiveOneMinCandles.length > 0) {
+      activeDate = effectiveOneMinCandles[0].date;
+    }
+    const dedupedDates = Array.from(new Set([...availableDates, activeDate])).filter(Boolean).sort();
+
     // Generate Smart Money Roadmap & Tactical Levels
     const smartRoadmap = buildSmartMoneyRoadmap({
       spotPrice: latestClose,
@@ -431,6 +528,8 @@ export async function GET(request: Request) {
       smartRoadmap,
       volumeAvailable: hasVolume,
       volumeMessage,
+      selectedDate: activeDate,
+      availableDates: dedupedDates,
       charts: {
         oneMin: {
           timeframe: '1min',

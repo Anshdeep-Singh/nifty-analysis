@@ -17,8 +17,8 @@ interface TimeframeThresholds {
 const TF_THRESHOLDS: Record<VsaTimeframe, TimeframeThresholds> = {
   '1min': {
     surgeVol: 2.00,
-    airPocketVol: 0.55,
-    airPocketSpread: 1.45,
+    airPocketVol: 0.45,
+    airPocketSpread: 1.60,
     absorptionVol: 2.20,
     absorptionSpread: 0.60,
     climaxVol: 1.80,
@@ -333,14 +333,26 @@ export function classifyCandleVsa(candles: CandleBar[], timeframe: VsaTimeframe 
     // STANDARD VSA CLASSIFICATION (TIMEFRAME-CALIBRATED)
     // =========================================================================
     if (!mbpSequenceDetected) {
-      // 1. AIR POCKET SPIKE / FALSE BREAKOUT (Wide spread, dry volume)
-      if (m.spreadRatio >= cfg.airPocketSpread && m.volumeRatio <= cfg.airPocketVol) {
-        pattern = 'AIR_POCKET_SPIKE';
-        label = isBull ? 'Air Pocket Spike (Bull Trap)' : 'Air Pocket Drop (Bear Trap)';
-        bias = 'TRAP_WARNING';
-        isAnomaly = true;
-        badgeColor = 'bg-rose-950/90 text-rose-300 border-rose-500/50';
-        narrative = `Wide price spread (${m.spreadRatio}x ATR) formed on dry volume (${m.volumeRatio}x 20-SMA). Market makers swept thin limit orders without genuine institutional buying. High probability of a snapback trap.`;
+      // 1. AIR POCKET SPIKE / LIQUIDITY VACUUM DROP (Wide spread, dry volume)
+      const minAirPocketSpread = isBankNifty ? 15.0 : 6.0;
+      const isAirPocketSpreadSufficient = timeframe !== '1min' || m.spread >= minAirPocketSpread;
+
+      if (isAirPocketSpreadSufficient && m.spreadRatio >= cfg.airPocketSpread && m.volumeRatio <= cfg.airPocketVol) {
+        if (isBull) {
+          pattern = 'AIR_POCKET_SPIKE';
+          label = 'Air Pocket Spike (Bull Trap / No Demand)';
+          bias = 'TRAP_WARNING';
+          isAnomaly = true;
+          badgeColor = 'bg-amber-950/90 text-amber-300 border-amber-500/50';
+          narrative = `Wide upward spread (${m.spreadRatio}x ATR) formed on dry volume (${m.volumeRatio}x 20-SMA). Lack of institutional demand—market makers swept thin offers without genuine buying. High probability of upward exhaustion and snapback reversal downward.`;
+        } else {
+          pattern = 'AIR_POCKET_DROP';
+          label = 'Air Pocket Drop (Liquidity Vacuum)';
+          bias = 'BEARISH';
+          isAnomaly = true;
+          badgeColor = 'bg-rose-950/90 text-rose-300 border-rose-500/50';
+          narrative = `Wide downward spread (${m.spreadRatio}x ATR) formed on dry volume (${m.volumeRatio}x 20-SMA). Price is freefalling through an order-book vacuum (absence of resting limit bids). This is NOT a bear trap or buyable dip—expect continued downward slide until resting institutional limit bids (POC floor) are reached.`;
+        }
       }
       // 2. INSTITUTIONAL ABSORPTION / STOPPING VOLUME (Tight spread, massive volume)
       else if (m.spreadRatio <= cfg.absorptionSpread && m.volumeRatio >= cfg.absorptionVol) {

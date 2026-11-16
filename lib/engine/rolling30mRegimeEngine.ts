@@ -133,7 +133,7 @@ export function evaluate30mRollingRegime({
 
   // 2. Anomaly Flags & VSA Interceptor
   const vsa = latestCandle?.vsa;
-  const isVsaAirPocket = vsa?.pattern === 'AIR_POCKET_SPIKE';
+  const isVsaAirPocket = vsa?.pattern === 'AIR_POCKET_SPIKE' || vsa?.pattern === 'AIR_POCKET_DROP';
   const isVsaAbsorption = vsa?.pattern === 'INSTITUTIONAL_ABSORPTION';
 
   const hasSingleStockAnomaly = Boolean(
@@ -453,7 +453,7 @@ export function evaluate30mRollingRegime({
       volumeConviction: advancesDeclines.volumeConviction,
       top5HeavyweightRvol,
       anomalyDetected: hasSingleStockAnomaly || hasVacuumSlippage || isVsaAirPocket,
-      anomalyType: isVsaAirPocket ? 'AIR_POCKET_SPIKE' : (hasSingleStockAnomaly ? 'SINGLE_STOCK_SKEW' : (hasVacuumSlippage ? 'THIN_AIR_POCKET' : undefined)),
+      anomalyType: isVsaAirPocket ? (vsa?.pattern as 'AIR_POCKET_SPIKE' | 'AIR_POCKET_DROP') : (hasSingleStockAnomaly ? 'SINGLE_STOCK_SKEW' : (hasVacuumSlippage ? 'THIN_AIR_POCKET' : undefined)),
       anomalySymbol: isVsaAirPocket ? '5M_CANDLE_VSA' : impulseAttribution?.culprit?.symbol,
       latestCandleVsa: vsa,
       volumeAvailable: Boolean(vsa),

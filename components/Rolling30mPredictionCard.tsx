@@ -164,19 +164,23 @@ export function Rolling30mPredictionCard({
           <div className="text-xs">
             <span className="font-bold text-rose-300 uppercase tracking-wide">
               {volumeMetrics.anomalyType === 'AIR_POCKET_SPIKE'
-                ? 'Microstructure Anomaly: 5m Candle Air Pocket Spike (Dry Volume Trap)'
-                : (volumeMetrics.anomalyType === 'SINGLE_STOCK_SKEW'
-                    ? `Microstructure Anomaly: Single-Stock Skew (${volumeMetrics.anomalySymbol ?? 'Leading Heavyweight'})`
-                    : 'Microstructure Anomaly: Thin Air Pocket Slippage')}
+                ? 'Microstructure Anomaly: 5m Candle Air Pocket Spike (Dry Volume Bull Trap)'
+                : (volumeMetrics.anomalyType === 'AIR_POCKET_DROP'
+                    ? 'Microstructure Anomaly: 5m Candle Air Pocket Drop (Liquidity Vacuum Freefall)'
+                    : (volumeMetrics.anomalyType === 'SINGLE_STOCK_SKEW'
+                        ? `Microstructure Anomaly: Single-Stock Skew (${volumeMetrics.anomalySymbol ?? 'Leading Heavyweight'})`
+                        : 'Microstructure Anomaly: Thin Air Pocket Slippage'))}
             </span>
             <p className="text-slate-300 mt-0.5">
               {volumeMetrics.anomalyType === 'AIR_POCKET_SPIKE'
                 ? `Latest candle pushed aggressively (${volumeMetrics.latestCandleVsa?.spreadRatio ?? 1.4}x ATR) but institutional volume was dry (${volumeMetrics.latestCandleVsa?.volumeRatio ?? 0.6}x 20-SMA). High statistical probability of a false breakout / liquidity sweep trap.`
-                : (reconciliationState === 'FAKEOUT_EXHAUSTION'
-                    ? (netPointImpact < 0 || isBear
-                        ? `${volumeMetrics.anomalySymbol ?? 'Leading constituent'} is dragging the index down alone without broad multi-sector capitulation. Trend confidence has been penalized and clamped to ${confidencePct}% to guard against breakdown traps.`
-                        : `${volumeMetrics.anomalySymbol ?? 'Leading constituent'} is lifting the index up alone without broad constituent confirmation. Trend confidence has been penalized and clamped to ${confidencePct}% to guard against breakout traps.`)
-                    : `Move occurred in low constituent volume depth (${volumeMetrics.top5HeavyweightRvol}x RVOL). Risk of rapid mean-reversion is elevated.`)}
+                : (volumeMetrics.anomalyType === 'AIR_POCKET_DROP'
+                    ? `Latest candle dropped sharply (${volumeMetrics.latestCandleVsa?.spreadRatio ?? 1.4}x ATR) on dry volume (${volumeMetrics.latestCandleVsa?.volumeRatio ?? 0.6}x 20-SMA). Price is sliding through an empty order book with zero bids—frictionless fall down to POC floor.`
+                    : (reconciliationState === 'FAKEOUT_EXHAUSTION'
+                        ? (netPointImpact < 0 || isBear
+                            ? `${volumeMetrics.anomalySymbol ?? 'Leading constituent'} is dragging the index down alone without broad multi-sector capitulation. Trend confidence has been penalized and clamped to ${confidencePct}% to guard against breakdown traps.`
+                            : `${volumeMetrics.anomalySymbol ?? 'Leading constituent'} is lifting the index up alone without broad constituent confirmation. Trend confidence has been penalized and clamped to ${confidencePct}% to guard against breakout traps.`)
+                        : `Move occurred in low constituent volume depth (${volumeMetrics.top5HeavyweightRvol}x RVOL). Risk of rapid mean-reversion is elevated.`))}
             </p>
           </div>
         </div>
@@ -301,7 +305,7 @@ export function Rolling30mPredictionCard({
                   className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border ${volumeMetrics.latestCandleVsa.badgeColor}`}
                   title={volumeMetrics.latestCandleVsa.narrative}
                 >
-                  {volumeMetrics.latestCandleVsa.pattern === 'AIR_POCKET_SPIKE' && '⚠️ '}
+                  {(volumeMetrics.latestCandleVsa.pattern === 'AIR_POCKET_SPIKE' || volumeMetrics.latestCandleVsa.pattern === 'AIR_POCKET_DROP') && '⚠️ '}
                   {volumeMetrics.latestCandleVsa.pattern === 'INSTITUTIONAL_ABSORPTION' && '⚡ '}
                   {volumeMetrics.latestCandleVsa.pattern === 'INSTITUTIONAL_IMPULSE' && '✅ '}
                   {volumeMetrics.latestCandleVsa.pattern === 'CLIMAX_EXHAUSTION' && '🔄 '}

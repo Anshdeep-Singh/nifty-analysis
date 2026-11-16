@@ -19,7 +19,8 @@ import {
   EyeOff,
   HelpCircle,
   Info,
-  BookOpen
+  BookOpen,
+  Calendar
 } from 'lucide-react';
 import {
   createChart,
@@ -287,7 +288,7 @@ function SingleTfChart({
           const vsa = c.vsa;
           let color = isCandleUp ? 'rgba(16, 185, 129, 0.35)' : 'rgba(244, 63, 94, 0.35)';
 
-          if (vsa?.pattern === 'AIR_POCKET_SPIKE') {
+          if (vsa?.pattern === 'AIR_POCKET_SPIKE' || vsa?.pattern === 'AIR_POCKET_DROP') {
             color = 'rgba(244, 63, 94, 0.20)'; // Dim/Faded thin volume warning
           } else if (vsa?.pattern === 'INSTITUTIONAL_ABSORPTION') {
             color = 'rgba(6, 182, 212, 0.90)'; // Vibrant cyan for absorption pin
@@ -373,7 +374,7 @@ function SingleTfChart({
                 title={`${latestCandle.vsa.narrative} — Click to view VSA Guide & meaning`}
               >
                 <span>
-                  {latestCandle.vsa.pattern === 'AIR_POCKET_SPIKE' && '⚠️ '}
+                  {(latestCandle.vsa.pattern === 'AIR_POCKET_SPIKE' || latestCandle.vsa.pattern === 'AIR_POCKET_DROP') && '⚠️ '}
                   {latestCandle.vsa.pattern === 'INSTITUTIONAL_ABSORPTION' && '⚡ '}
                   {latestCandle.vsa.pattern === 'PASSIVE_ABSORPTION_BREAKOUT' && '🚀 '}
                   {latestCandle.vsa.pattern === 'INITIAL_SUPPLY_REJECTION' && '🛡️ '}
@@ -528,15 +529,22 @@ export function MultiTfParallelCharts({ symbol = 'NIFTY', synthesis }: MultiTfPa
   const [showIndicators, setShowIndicators] = useState<boolean>(true);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [vsaModalOpen, setVsaModalOpen] = useState<boolean>(false);
+  const [selectedDate, setSelectedDate] = useState<string>('');
+  const [isHistoricalMode, setIsHistoricalMode] = useState<boolean>(false);
 
-  const fetchChartData = useCallback(async (isManual = false) => {
+  const fetchChartData = useCallback(async (isManual = false, targetDate?: string) => {
     if (isManual) setRefreshing(true);
     try {
-      const res = await fetch(`/api/market-chart?symbol=${symbol}&_t=${Date.now()}`);
+      const activeDate = targetDate !== undefined ? targetDate : selectedDate;
+      const dateQuery = activeDate ? `&date=${encodeURIComponent(activeDate)}` : '';
+      const res = await fetch(`/api/market-chart?symbol=${symbol}${dateQuery}&_t=${Date.now()}`);
       if (res.ok) {
         const json = await res.json();
         if (json.success && json.data) {
           setData(json.data);
+          if (json.data.selectedDate && targetDate === undefined && !selectedDate) {
+            setSelectedDate(json.data.selectedDate);
+          }
           setLastUpdated(new Date());
         }
       }
@@ -545,15 +553,18 @@ export function MultiTfParallelCharts({ symbol = 'NIFTY', synthesis }: MultiTfPa
     }
     setLoading(false);
     setRefreshing(false);
-  }, [symbol]);
+  }, [symbol, selectedDate]);
 
   useEffect(() => {
     fetchChartData(false);
-    const interval = setInterval(() => {
-      fetchChartData(false);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [fetchChartData]);
+    // Only auto-poll if in live mode (not locked to a past historical date)
+    if (!isHistoricalMode) {
+      const interval = setInterval(() => {
+        fetchChartData(false);
+      }, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [fetchChartData, isHistoricalMode]);
 
   if (loading || !data) {
     return (
@@ -573,88 +584,172 @@ export function MultiTfParallelCharts({ symbol = 'NIFTY', synthesis }: MultiTfPa
   return (
     <div className="space-y-4 w-full">
       {/* Top Multi-TF Action Header */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-xl backdrop-blur-md flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Live Developing Intraday Multi-Timeframe Cockpit
-            </span>
-            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-800/60">
-              Parallel 1m • 5m • 15m • 1h
-            </span>
+      <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-xl backdrop-blur-md space-y-3">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                Developing Intraday Multi-Timeframe Cockpit
+              </span>
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-800/60">
+                Parallel 1m • 5m • 15m • 1h
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+              <h2 className="text-2xl font-black font-mono tracking-tight text-white">
+                ₹{spotPrice.toLocaleString('en-IN', { minimumFractionDigits: 1 })}
+              </h2>
+              <div className={`flex items-center text-sm font-mono font-bold ${
+                isNetPositive ? 'text-emerald-400' : 'text-rose-400'
+              }`}>
+                {isNetPositive ? <ArrowUpRight className="w-4 h-4 mr-0.5" /> : <ArrowDownRight className="w-4 h-4 mr-0.5" />}
+                {isNetPositive ? '+' : ''}{netChange.toFixed(1)} ({isNetPositive ? '+' : ''}{netPct.toFixed(2)}%)
+              </div>
+              <span className="text-slate-600">|</span>
+              <span className="text-xs font-mono text-slate-400">
+                India VIX: <strong className="text-cyan-400">{vix.toFixed(1)}</strong>
+              </span>
+              <span className="text-slate-600">|</span>
+              <span className="text-xs font-mono text-slate-400">
+                1σ Move: <strong className="text-cyan-300">±{smartRoadmap.dailyExpectedMovePts} pts</strong>
+              </span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3 mt-1.5">
-            <h2 className="text-2xl font-black font-mono tracking-tight text-white">
-              ₹{spotPrice.toLocaleString('en-IN', { minimumFractionDigits: 1 })}
-            </h2>
-            <div className={`flex items-center text-sm font-mono font-bold ${
-              isNetPositive ? 'text-emerald-400' : 'text-rose-400'
+          {/* Action Controls & Signal Badge */}
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {smartRoadmap.actionSignal && (
+              <div className="bg-slate-950/80 px-3 py-1.5 rounded-lg border border-slate-800 text-xs font-mono">
+                <span className="text-slate-400 text-[10px] uppercase block">Tactical SL Invalidation</span>
+                <span className="font-bold text-rose-400">
+                  ₹{smartRoadmap.actionSignal.invalidationPrice?.toFixed(1) || (spotPrice - 30).toFixed(1)}
+                </span>
+              </div>
+            )}
+
+            <button
+              onClick={() => setShowIndicators(!showIndicators)}
+              className={`px-3 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors ${
+                showIndicators
+                  ? 'bg-cyan-950/50 border-cyan-700/60 text-cyan-300'
+                  : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:text-white'
+              }`}
+            >
+              {showIndicators ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+              <span>VWAP & EMAs</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setVsaModalOpen(true)}
+              className="px-3 py-1.5 rounded-lg border border-amber-500/50 bg-amber-950/40 text-amber-300 hover:bg-amber-900/40 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
+              title="Open VSA Volume Microstructure Guide (Selling Capitulation, Absorption, Impulses)"
+            >
+              <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
+              <span>VSA Volume Guide</span>
+            </button>
+
+            <span className={`px-2 py-1 rounded-md text-[10px] font-mono border hidden md:inline-flex items-center gap-1.5 ${
+              data.volumeAvailable
+                ? 'text-cyan-300 bg-cyan-950/40 border-cyan-800/60'
+                : 'text-slate-400 bg-slate-950/60 border-slate-800'
             }`}>
-              {isNetPositive ? <ArrowUpRight className="w-4 h-4 mr-0.5" /> : <ArrowDownRight className="w-4 h-4 mr-0.5" />}
-              {isNetPositive ? '+' : ''}{netChange.toFixed(1)} ({isNetPositive ? '+' : ''}{netPct.toFixed(2)}%)
-            </div>
-            <span className="text-slate-600">|</span>
-            <span className="text-xs font-mono text-slate-400">
-              India VIX: <strong className="text-cyan-400">{vix.toFixed(1)}</strong>
+              <span className={`w-1.5 h-1.5 rounded-full ${data.volumeAvailable ? 'bg-cyan-400 animate-pulse' : 'bg-slate-500'}`} />
+              <span>{data.volumeAvailable ? 'Volume Feed: Front-Month Futures' : 'Volume: Unavailable (Cash Spot)'}</span>
             </span>
-            <span className="text-slate-600">|</span>
-            <span className="text-xs font-mono text-slate-400">
-              1σ Move: <strong className="text-cyan-300">±{smartRoadmap.dailyExpectedMovePts} pts</strong>
-            </span>
+
+            <button
+              onClick={() => fetchChartData(true)}
+              disabled={refreshing}
+              className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs flex items-center gap-1.5 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
+            </button>
           </div>
         </div>
 
-        {/* Action Controls & Signal Badge */}
-        <div className="flex items-center gap-2.5 flex-wrap">
-          {smartRoadmap.actionSignal && (
-            <div className="bg-slate-950/80 px-3 py-1.5 rounded-lg border border-slate-800 text-xs font-mono">
-              <span className="text-slate-400 text-[10px] uppercase block">Tactical SL Invalidation</span>
-              <span className="font-bold text-rose-400">
-                ₹{smartRoadmap.actionSignal.invalidationPrice?.toFixed(1) || (spotPrice - 30).toFixed(1)}
-              </span>
+        {/* Calendar Date & Session Selector Sub-Bar */}
+        <div className="pt-2.5 border-t border-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 bg-slate-950/90 border border-slate-800 px-3 py-1 rounded-lg">
+              <Calendar className="w-4 h-4 text-cyan-400" />
+              <span className="text-slate-400 font-mono text-[11px]">Active Session:</span>
+              <strong className="text-white font-mono text-xs">
+                {data.selectedDate || 'Today (Live)'}
+              </strong>
+              {isHistoricalMode ? (
+                <span className="ml-1 px-1.5 py-0.5 rounded bg-amber-950/90 text-amber-300 border border-amber-800 text-[10px] font-mono font-bold">
+                  HISTORICAL REPLAY
+                </span>
+              ) : (
+                <span className="ml-1 px-1.5 py-0.5 rounded bg-emerald-950/90 text-emerald-300 border border-emerald-800 text-[10px] font-mono font-bold flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  LATEST IST
+                </span>
+              )}
             </div>
+
+            {/* Quick Session Dropdown */}
+            {data.availableDates && data.availableDates.length > 0 && (
+              <div className="flex items-center gap-1 bg-slate-950/90 border border-slate-800 px-2.5 py-1 rounded-lg">
+                <span className="text-slate-400 text-[11px] font-mono">Quick Pick:</span>
+                <select
+                  value={data.selectedDate || ''}
+                  onChange={(e) => {
+                    const chosen = e.target.value;
+                    const latestDate = data.availableDates?.[data.availableDates.length - 1];
+                    setIsHistoricalMode(chosen !== latestDate);
+                    setSelectedDate(chosen);
+                    fetchChartData(true, chosen);
+                  }}
+                  className="bg-slate-900 border border-slate-700 text-cyan-300 font-mono text-xs rounded px-2 py-0.5 focus:outline-none focus:border-cyan-500 cursor-pointer"
+                >
+                  {data.availableDates.slice().reverse().map((d) => (
+                    <option key={d} value={d}>
+                      {d} {d === data.availableDates?.[data.availableDates.length - 1] ? '(Latest / Today)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Calendar Date Picker */}
+            <div className="flex items-center gap-1.5 bg-slate-950/90 border border-slate-800 px-2.5 py-1 rounded-lg">
+              <span className="text-slate-400 text-[11px] font-mono">Calendar:</span>
+              <input
+                type="date"
+                value={data.selectedDate || ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val) {
+                    setIsHistoricalMode(true);
+                    setSelectedDate(val);
+                    fetchChartData(true, val);
+                  }
+                }}
+                className="bg-slate-900 border border-slate-700 text-white font-mono text-xs rounded px-2 py-0.5 focus:outline-none focus:border-cyan-500 cursor-pointer"
+                title="Select any calendar date to load multi-timeframe charts for that session"
+              />
+            </div>
+          </div>
+
+          {/* Reset / Live Button */}
+          {isHistoricalMode && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsHistoricalMode(false);
+                setSelectedDate('');
+                fetchChartData(true, '');
+              }}
+              className="px-3 py-1 rounded-lg bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-800 font-mono text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+              title="Return to live real-time developing session"
+            >
+              <span>↺ Return to Latest Session</span>
+            </button>
           )}
-
-          <button
-            onClick={() => setShowIndicators(!showIndicators)}
-            className={`px-3 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors ${
-              showIndicators
-                ? 'bg-cyan-950/50 border-cyan-700/60 text-cyan-300'
-                : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:text-white'
-            }`}
-          >
-            {showIndicators ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-            <span>VWAP & EMAs</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setVsaModalOpen(true)}
-            className="px-3 py-1.5 rounded-lg border border-amber-500/50 bg-amber-950/40 text-amber-300 hover:bg-amber-900/40 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
-            title="Open VSA Volume Microstructure Guide (Selling Capitulation, Absorption, Impulses)"
-          >
-            <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
-            <span>VSA Volume Guide</span>
-          </button>
-
-          <span className={`px-2 py-1 rounded-md text-[10px] font-mono border hidden md:inline-flex items-center gap-1.5 ${
-            data.volumeAvailable
-              ? 'text-cyan-300 bg-cyan-950/40 border-cyan-800/60'
-              : 'text-slate-400 bg-slate-950/60 border-slate-800'
-          }`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${data.volumeAvailable ? 'bg-cyan-400 animate-pulse' : 'bg-slate-500'}`} />
-            <span>{data.volumeAvailable ? 'Volume Feed: Front-Month Futures' : 'Volume: Unavailable (Cash Spot)'}</span>
-          </span>
-
-          <button
-            onClick={() => fetchChartData(true)}
-            disabled={refreshing}
-            className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs flex items-center gap-1.5 transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-            <span>Refresh</span>
-          </button>
         </div>
       </div>
 

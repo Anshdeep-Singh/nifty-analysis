@@ -206,7 +206,8 @@ export interface SmartMoneyRoadmapState {
 }
 
 export type VsaPatternType =
-  | 'AIR_POCKET_SPIKE'            // Wide spread + dry volume -> False Spike / Liquidity Sweep Trap
+  | 'AIR_POCKET_SPIKE'            // Wide upward spread + dry volume -> False Spike / No Demand Bull Trap
+  | 'AIR_POCKET_DROP'             // Wide downward spread + dry volume -> Frictionless Liquidity Vacuum Freefall
   | 'INSTITUTIONAL_ABSORPTION'    // Narrow spread + heavy volume -> Passive limit absorbing aggressive orders
   | 'INSTITUTIONAL_IMPULSE'       // Wide spread + heavy volume -> Genuine trend acceleration
   | 'CLIMAX_EXHAUSTION'           // Outsized wick (> 50% range) on heavy volume -> Rejection / Climax
@@ -267,6 +268,8 @@ export interface MultiTfPayload {
   smartRoadmap: SmartMoneyRoadmapState;
   volumeAvailable?: boolean;
   volumeMessage?: string;
+  selectedDate?: string;
+  availableDates?: string[];
   charts: {
     oneMin: MultiTfChartData;
     fiveMin: MultiTfChartData;
