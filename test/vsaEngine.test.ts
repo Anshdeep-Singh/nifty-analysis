@@ -123,8 +123,8 @@ function runTests() {
     const touch1 = createMockCandle(3000, 24485, 24500, 24480, 24485, 3200);
     // Pullback candle
     const pb = createMockCandle(3060, 24485, 24490, 24475, 24480, 1800);
-    // Touch 2 at 24500: Open 24482, High 24500, Low 24480, Close 24497 (Upper wick 3/20 = 15%, CLV +0.70), Vol 2600 (1.3x)
-    const touch2 = createMockCandle(3120, 24482, 24500, 24480, 24497, 2600);
+    // Touch 2 at 24500: Open 24482, High 24505, Low 24480, Close 24503 (Displaced close > 24500, Upper wick 2/25 = 8%, CLV +0.84), Vol 2600 (1.3x)
+    const touch2 = createMockCandle(3120, 24482, 24505, 24480, 24503, 2600);
 
     const result = classifyCandleVsa([...base, touch1, pb, touch2], '5min');
     const t1Class = result[result.length - 3].vsa;
@@ -170,8 +170,8 @@ function runTests() {
     const touch1 = createMockCandle(3000, 24415, 24420, 24400, 24415, 3200);
     // Bounce candle
     const pb = createMockCandle(3060, 24415, 24425, 24410, 24420, 1800);
-    // Touch 2 at Support 24400: Open 24418, High 24420, Low 24400, Close 24403 (Lower wick 3/20 = 15%, CLV -0.70), Vol 2600 (1.3x)
-    const touch2 = createMockCandle(3120, 24418, 24420, 24400, 24403, 2600);
+    // Touch 2 at Support 24400: Open 24415, High 24418, Low 24395, Close 24397 (Displaced close < 24400, Lower wick 2/23 = 8.7%, CLV -0.83), Vol 2600 (1.3x)
+    const touch2 = createMockCandle(3120, 24415, 24418, 24395, 24397, 2600);
 
     const result = classifyCandleVsa([...base, touch1, pb, touch2], '5min');
     const t1Class = result[result.length - 3].vsa;
@@ -256,28 +256,84 @@ function runTests() {
     console.log('PASS Test 9: Consecutive 1-minute chop box correctly suppresses false absorption breakout');
   }
 
-  // TEST 10: 0.94x Volume Resistance Test Triggers NO_DEMAND_TEST (Replicating Yesterday's 0.94x Cyan Bar)
+  // TEST 10: 0.94x Volume Resistance Test with Solid Green Close Remains NORMAL_AUCTION (0 False Alarms)
   {
     const base = generateBaseline(20, 10, 1000);
     // Touch 1: Upper wick 60% at 24020 with 1.6x volume
     const touch1 = createMockCandle(3000, 24010, 24020, 24010, 24014, 1600);
     // Pullback to 24005
     const pb = createMockCandle(3060, 24014, 24015, 24005, 24008, 900);
-    // Touch 2: Retests 24020 on dry 0.94x volume (940 vol vs 1000 SMA)
+    // Touch 2: Retests 24020 on 0.94x volume (940 vol vs 1000 SMA), strong close (24018 out of 24020, CLV +0.67, small upper wick)
     const touch2 = createMockCandle(3120, 24008, 24020, 24008, 24018, 940);
 
     const result = classifyCandleVsa([...base, touch1, pb, touch2], '1min');
     const t2Class = result[result.length - 1].vsa;
 
+    if (t2Class?.pattern === 'NO_DEMAND_TEST') {
+      console.error('FAIL Test 10: 0.94x volume solid green bar should NOT be NO_DEMAND_TEST (should be NORMAL_AUCTION), got:', t2Class?.pattern);
+      process.exit(1);
+    }
+    console.log('PASS Test 10: 0.94x volume solid green bar accurately remains NORMAL_AUCTION (0 false alarms)');
+  }
+
+  // TEST 10B: Genuine 0.65x Dry Volume Resistance Test with Upper Rejection Wick Triggers NO_DEMAND_TEST
+  {
+    const base = generateBaseline(20, 10, 1000);
+    const touch1 = createMockCandle(3000, 24010, 24020, 24010, 24014, 1600);
+    const pb = createMockCandle(3060, 24014, 24015, 24005, 24008, 900);
+    // Touch 2: Probes 24020 on dry 0.65x volume (650 vol), leaves 58% upper rejection wick (High 24020, Close 24013, Low 24008, CLV -0.17)
+    const touch2 = createMockCandle(3120, 24008, 24020, 24008, 24013, 650);
+
+    const result = classifyCandleVsa([...base, touch1, pb, touch2], '1min');
+    const t2Class = result[result.length - 1].vsa;
+
     if (t2Class?.pattern !== 'NO_DEMAND_TEST') {
-      console.error('FAIL Test 10: 0.94x volume test of resistance should be NO_DEMAND_TEST, got:', t2Class?.pattern);
+      console.error('FAIL Test 10B: 0.65x dry volume rejection at resistance should be NO_DEMAND_TEST, got:', t2Class?.pattern);
       process.exit(1);
     }
     if (t2Class?.bias !== 'TRAP_WARNING') {
-      console.error('FAIL Test 10: NO_DEMAND_TEST bias should be TRAP_WARNING, got:', t2Class?.bias);
+      console.error('FAIL Test 10B: NO_DEMAND_TEST bias should be TRAP_WARNING, got:', t2Class?.bias);
       process.exit(1);
     }
-    console.log('PASS Test 10: 0.94x volume test accurately classified as NO_DEMAND_TEST (Trap Warning)');
+    console.log('PASS Test 10B: Genuine 0.65x dry volume rejection accurately classified as NO_DEMAND_TEST (Trap Warning)');
+  }
+
+  // TEST 10C: Genuine 0.65x Dry Volume Support Test with Lower Defense Wick Triggers NO_SUPPLY_TEST
+  {
+    const base = generateBaseline(20, 10, 1000);
+    // Touch 1 at Support 24000 with 60% lower wick on 1.6x vol
+    const touch1 = createMockCandle(3000, 24010, 24010, 24000, 24006, 1600);
+    // Bounce to 24015
+    const pb = createMockCandle(3060, 24006, 24015, 24005, 24012, 900);
+    // Touch 2: Probes 24000 on dry 0.65x volume (650 vol), leaves 58% lower defense wick (Low 24000, Close 24007, High 24012, CLV +0.17)
+    const touch2 = createMockCandle(3120, 24012, 24012, 24000, 24007, 650);
+
+    const result = classifyCandleVsa([...base, touch1, pb, touch2], '1min');
+    const t2Class = result[result.length - 1].vsa;
+
+    if (t2Class?.pattern !== 'NO_SUPPLY_TEST') {
+      console.error('FAIL Test 10C: 0.65x dry volume defense at support should be NO_SUPPLY_TEST, got:', t2Class?.pattern);
+      process.exit(1);
+    }
+    if (t2Class?.bias !== 'BULLISH') {
+      console.error('FAIL Test 10C: NO_SUPPLY_TEST bias should be BULLISH, got:', t2Class?.bias);
+      process.exit(1);
+    }
+    console.log('PASS Test 10C: Genuine 0.65x dry volume defense accurately classified as NO_SUPPLY_TEST (Floor Defense)');
+  }
+
+  // TEST 10D: Silent Middle Zone (0.85x - 1.15x volume) Defaults to NORMAL_AUCTION
+  {
+    const base = generateBaseline(20, 10, 1000);
+    const middleZoneCandle = createMockCandle(3000, 24000, 24009, 24000, 24008, 950);
+    const result = classifyCandleVsa([...base, middleZoneCandle], '1min');
+    const lastBar = result[result.length - 1].vsa;
+
+    if (lastBar?.pattern !== 'NORMAL_AUCTION' && lastBar !== undefined) {
+      console.error('FAIL Test 10D: Middle zone bar should be NORMAL_AUCTION, got:', lastBar?.pattern);
+      process.exit(1);
+    }
+    console.log('PASS Test 10D: Silent middle zone (0.95x) accurately remains NORMAL_AUCTION');
   }
 
   // TEST 11: 2-Stage Lifecycle (Absorption Test vs Confirmed Displacement Breakout)

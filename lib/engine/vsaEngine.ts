@@ -263,9 +263,9 @@ export function classifyCandleVsa(candles: CandleBar[], timeframe: VsaTimeframe 
         // Separation guard: A retest cannot be the immediate adjacent bar (must have at least 1 intervening bar)
         if (i - j < 2) continue;
 
-        // Resistance test: Highs close to each other within dynamic tolerance
+        // Resistance test: Highs close to each other within dynamic tolerance OR candle engages with resistance
         const highDiff = Math.abs(c.high - prev.high);
-        const isNearHigh = highDiff <= dynamicTol;
+        const isNearHigh = highDiff <= dynamicTol || (c.high >= prev.high - dynamicTol && c.low <= prev.high + dynamicTol);
         if (isNearHigh && prevM.upperWickPct >= 0.40 && (prev.volume || 0) > 0 && prevM.volumeRatio >= 0.75) {
           // Check that intermediate bars didn't blow out resistance AND that there was an actual pullback between touches
           let intermediateBreach = false;
@@ -293,9 +293,9 @@ export function classifyCandleVsa(candles: CandleBar[], timeframe: VsaTimeframe 
           }
         }
 
-        // Support test: Lows close to each other within dynamic tolerance
+        // Support test: Lows close to each other within dynamic tolerance OR candle engages with support
         const lowDiff = Math.abs(c.low - prev.low);
-        const isNearLow = lowDiff <= dynamicTol;
+        const isNearLow = lowDiff <= dynamicTol || (c.low <= prev.low + dynamicTol && c.high >= prev.low - dynamicTol);
         if (isNearLow && prevM.lowerWickPct >= 0.40 && (prev.volume || 0) > 0 && prevM.volumeRatio >= 0.75) {
           let intermediateBreach = false;
           let highestBetween = -Infinity;
@@ -329,26 +329,32 @@ export function classifyCandleVsa(candles: CandleBar[], timeframe: VsaTimeframe 
       const priorTouchCandle = candles[priorResistanceTouchIdx];
       const priorM = barMetrics[priorResistanceTouchIdx];
       const minAbsVol = timeframe === '1min' ? 1.30 : 1.10;
+      const maxDryVol = timeframe === '1min' ? 0.80 : 0.85;
 
-      // Check 1: Low Volume Test at Resistance -> NO DEMAND TEST (narrow/normal spread on dry volume)
-      if (m.volumeRatio < (timeframe === '1min' ? 1.05 : 0.95) && m.spreadRatio < cfg.airPocketSpread) {
+      // Check 1: Genuine No Demand Test (Dry Volume + Dominant Upper Rejection Wick / Weak Close)
+      const isDryVolume = m.volumeRatio <= maxDryVol;
+      const isUpperWickDominant = m.upperWickPct >= m.lowerWickPct;
+      const hasRejectionAtHigh = isUpperWickDominant && (m.upperWickPct >= 0.30 || m.clv <= 0.20);
+      const isContainedBelowResistance = c.close <= priorTouchCandle.high;
+
+      if (isDryVolume && hasRejectionAtHigh && isContainedBelowResistance && m.spreadRatio < cfg.airPocketSpread) {
         pattern = 'NO_DEMAND_TEST';
         label = 'No Demand Test (Exhaustion Warning)';
         bias = 'TRAP_WARNING';
         isAnomaly = true;
         badgeColor = 'bg-amber-950/90 text-amber-300 border-amber-500/50';
-        narrative = `No Demand Test: Price probed resistance (~₹${priorTouchCandle.high.toFixed(0)}) on dry volume (${m.volumeRatio}x 20-SMA). Absence of institutional buying appetite confirms buyer exhaustion; high probability of downward rollover.`;
+        narrative = `No Demand Test: Price probed resistance (~₹${priorTouchCandle.high.toFixed(0)}) on dry volume (${m.volumeRatio}x 20-SMA) with rejection (upper wick ${(m.upperWickPct * 100).toFixed(0)}%, CLV ${m.clv > 0 ? '+' : ''}${m.clv}). Absence of institutional buying appetite confirms buyer exhaustion; high probability of downward rollover.`;
         mbpSequenceDetected = true;
       }
       // Check 2: High Volume Absorption with Shrinking Upper Wick
       else {
-        const wickShrank = m.upperWickPct <= 0.30 && m.upperWickPct < priorM.upperWickPct * 0.65;
+        const wickShrank = m.upperWickPct <= 0.30 && (m.upperWickPct <= 0.20 || m.upperWickPct < priorM.upperWickPct * 0.70);
         const strongClose = m.clv >= 0.35;
         const sustainedVol = m.volumeRatio >= minAbsVol;
 
         if (wickShrank && strongClose && sustainedVol) {
-          // Check for displacement: Did candle close at or above the prior resistance extreme?
-          const isConfirmedBreakout = c.close >= priorTouchCandle.high - (dynamicTol * 0.4);
+          // Strict displacement: close must be strictly greater than prior resistance high
+          const isConfirmedBreakout = c.close > priorTouchCandle.high;
 
           if (isConfirmedBreakout) {
             pattern = 'PASSIVE_ABSORPTION_BREAKOUT';
@@ -357,7 +363,7 @@ export function classifyCandleVsa(candles: CandleBar[], timeframe: VsaTimeframe 
             isAnomaly = true;
             sequenceStage = resistanceRetestCount + 1;
             badgeColor = 'bg-cyan-950/90 text-cyan-300 border-cyan-400/60';
-            narrative = `MBP Absorption Breakout: Upper rejection wick shrank from ${(priorM.upperWickPct * 100).toFixed(0)}% to ${(m.upperWickPct * 100).toFixed(0)}% at resistance (Touch #${sequenceStage}) with strong close (₹${c.close.toFixed(1)}, CLV +${m.clv}) and sustained volume (${m.volumeRatio}x SMA). Limit sellers are exhausted; bullish breakout confirmed.`;
+            narrative = `MBP Absorption Breakout: Upper rejection wick shrank from ${(priorM.upperWickPct * 100).toFixed(0)}% to ${(m.upperWickPct * 100).toFixed(0)}% at resistance (Touch #${sequenceStage}) with displaced close (₹${c.close.toFixed(1)} > ₹${priorTouchCandle.high.toFixed(1)}, CLV +${m.clv}) on heavy volume (${m.volumeRatio}x SMA). Limit sellers are exhausted; bullish breakout confirmed.`;
           } else {
             pattern = 'PASSIVE_ABSORPTION_TEST';
             label = 'MBP: Supply Absorption in Progress';
@@ -377,25 +383,32 @@ export function classifyCandleVsa(candles: CandleBar[], timeframe: VsaTimeframe 
       const priorTouchCandle = candles[priorSupportTouchIdx];
       const priorM = barMetrics[priorSupportTouchIdx];
       const minAbsVol = timeframe === '1min' ? 1.30 : 1.10;
+      const maxDryVol = timeframe === '1min' ? 0.80 : 0.85;
 
-      // Check 1: Low Volume Test at Support -> NO SUPPLY TEST (narrow/normal spread on dry volume)
-      if (m.volumeRatio < (timeframe === '1min' ? 1.05 : 0.95) && m.spreadRatio < cfg.airPocketSpread) {
+      // Check 1: Genuine No Supply Test (Dry Volume + Dominant Lower Defense Wick / Resilient Close)
+      const isDryVolume = m.volumeRatio <= maxDryVol;
+      const isLowerWickDominant = m.lowerWickPct >= m.upperWickPct;
+      const hasDefenseAtLow = isLowerWickDominant && (m.lowerWickPct >= 0.30 || m.clv >= -0.20);
+      const isContainedAboveSupport = c.close >= priorTouchCandle.low;
+
+      if (isDryVolume && hasDefenseAtLow && isContainedAboveSupport && m.spreadRatio < cfg.airPocketSpread) {
         pattern = 'NO_SUPPLY_TEST';
         label = 'No Supply Test (Floor Defense)';
         bias = 'BULLISH';
         isAnomaly = true;
         badgeColor = 'bg-emerald-950/90 text-emerald-300 border-emerald-500/50';
-        narrative = `No Supply Test: Price probed support (~₹${priorTouchCandle.low.toFixed(0)}) on dry volume (${m.volumeRatio}x 20-SMA). Absence of institutional selling pressure confirms seller exhaustion; high probability of upward bounce.`;
+        narrative = `No Supply Test: Price probed support (~₹${priorTouchCandle.low.toFixed(0)}) on dry volume (${m.volumeRatio}x 20-SMA) with defense (lower wick ${(m.lowerWickPct * 100).toFixed(0)}%, CLV ${m.clv > 0 ? '+' : ''}${m.clv}). Absence of institutional selling pressure confirms seller exhaustion; high probability of upward bounce.`;
         mbpSequenceDetected = true;
       }
       // Check 2: High Volume Absorption with Shrinking Lower Wick
       else {
-        const wickShrank = m.lowerWickPct <= 0.30 && m.lowerWickPct < priorM.lowerWickPct * 0.65;
+        const wickShrank = m.lowerWickPct <= 0.30 && (m.lowerWickPct <= 0.20 || m.lowerWickPct < priorM.lowerWickPct * 0.70);
         const weakClose = m.clv <= -0.35;
         const sustainedVol = m.volumeRatio >= minAbsVol;
 
         if (wickShrank && weakClose && sustainedVol) {
-          const isConfirmedBreakdown = c.close <= priorTouchCandle.low + (dynamicTol * 0.4);
+          // Strict displacement: close must be strictly less than prior support low
+          const isConfirmedBreakdown = c.close < priorTouchCandle.low;
 
           if (isConfirmedBreakdown) {
             pattern = 'PASSIVE_ABSORPTION_BREAKOUT';
@@ -404,7 +417,7 @@ export function classifyCandleVsa(candles: CandleBar[], timeframe: VsaTimeframe 
             isAnomaly = true;
             sequenceStage = supportRetestCount + 1;
             badgeColor = 'bg-rose-950/90 text-rose-300 border-rose-400/60';
-            narrative = `MBP Absorption Breakdown: Lower rejection wick shrank from ${(priorM.lowerWickPct * 100).toFixed(0)}% to ${(m.lowerWickPct * 100).toFixed(0)}% at support (Touch #${sequenceStage}) with weak close (₹${c.close.toFixed(1)}, CLV ${m.clv}) and sustained volume (${m.volumeRatio}x SMA). Limit buyers are exhausted; bearish breakdown confirmed.`;
+            narrative = `MBP Absorption Breakdown: Lower rejection wick shrank from ${(priorM.lowerWickPct * 100).toFixed(0)}% to ${(m.lowerWickPct * 100).toFixed(0)}% at support (Touch #${sequenceStage}) with displaced close (₹${c.close.toFixed(1)} < ₹${priorTouchCandle.low.toFixed(1)}, CLV ${m.clv}) on heavy volume (${m.volumeRatio}x SMA). Limit buyers are exhausted; bearish breakdown confirmed.`;
           } else {
             pattern = 'PASSIVE_ABSORPTION_TEST';
             label = 'MBP: Demand Absorption in Progress';
@@ -497,9 +510,9 @@ export function classifyCandleVsa(candles: CandleBar[], timeframe: VsaTimeframe 
 
     // Enrich narrative with VWAP trend context if VWAP is calculated
     if (typeof c.vwap === 'number' && c.vwap > 0) {
-      if (bias === 'BULLISH' && c.close < c.vwap) {
+      if ((bias === 'BULLISH' || (bias === 'ABSORPTION' && priorResistanceTouchIdx !== -1)) && c.close < c.vwap) {
         narrative += ` (Context: Trading below intraday VWAP ₹${c.vwap.toFixed(1)} — counter-trend resistance overhead).`;
-      } else if (bias === 'BEARISH' && c.close > c.vwap) {
+      } else if ((bias === 'BEARISH' || (bias === 'ABSORPTION' && priorSupportTouchIdx !== -1)) && c.close > c.vwap) {
         narrative += ` (Context: Trading above intraday VWAP ₹${c.vwap.toFixed(1)} — counter-trend support underneath).`;
       }
     }
